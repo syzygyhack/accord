@@ -122,7 +122,7 @@
 	}
 </script>
 
-<div class="quick-switcher-overlay" role="dialog" aria-modal="true" aria-label="Quick channel switcher" onclick={handleOverlayClick}>
+<div class="quick-switcher-overlay" role="dialog" aria-modal="true" aria-label="Quick channel switcher" tabindex="-1" onclick={handleOverlayClick} onkeydown={(e) => { if (e.key === 'Escape') onclose(); }}>
 	<div class="quick-switcher">
 		<input
 			bind:this={inputEl}
@@ -144,8 +144,10 @@
 					class="switcher-item"
 					class:selected={i === selectedIndex}
 					role="option"
+					tabindex="-1"
 					aria-selected={i === selectedIndex}
 					onclick={() => selectItem(item)}
+					onkeydown={(e) => { if (e.key === 'Enter') selectItem(item); }}
 					onmouseenter={() => (selectedIndex = i)}
 				>
 					<span class="switcher-icon" class:dm-icon={item.type === 'dm'} class:voice-icon={item.type === 'voice'}>

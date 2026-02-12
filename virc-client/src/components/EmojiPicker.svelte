@@ -63,6 +63,7 @@
 	role="dialog"
 	aria-modal="true"
 	aria-label="Emoji picker"
+	tabindex="-1"
 	bind:this={pickerEl}
 	onkeydown={handleKeydown}
 >
