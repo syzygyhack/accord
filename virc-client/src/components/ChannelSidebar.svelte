@@ -6,14 +6,17 @@
     type ChannelCategory,
   } from '$lib/state/channels.svelte';
   import { getActiveServer } from '$lib/state/servers.svelte';
-  import { voiceState } from '$lib/state/voice.svelte';
+  import { voiceState, type VoiceParticipant } from '$lib/state/voice.svelte';
   import { getUnreadCount, getMentionCount } from '$lib/state/notifications.svelte';
+  import VoicePanel from './VoicePanel.svelte';
+  import type { Room } from 'livekit-client';
 
   interface Props {
     onVoiceChannelClick?: (channel: string) => void;
+    voiceRoom?: Room | null;
   }
 
-  let { onVoiceChannelClick }: Props = $props();
+  let { onVoiceChannelClick, voiceRoom = null }: Props = $props();
 
   function handleChannelClick(name: string, isVoice: boolean): void {
     if (isVoice) {
@@ -25,6 +28,12 @@
 
   function handleCategoryClick(cat: ChannelCategory): void {
     toggleCategory(cat.name);
+  }
+
+  /** Get voice participants for a channel as an array. */
+  function getVoiceParticipants(channel: string): VoiceParticipant[] {
+    if (voiceState.currentRoom !== channel) return [];
+    return Array.from(voiceState.participants.values());
   }
 </script>
 
@@ -116,12 +125,38 @@
                   </span>
                 {/if}
               </button>
+
+              {#if cat.voice && voiceState.currentRoom === ch}
+                {@const participants = getVoiceParticipants(ch)}
+                {#if participants.length > 0}
+                  <div class="voice-participants">
+                    {#each participants as p (p.nick)}
+                      <div class="voice-participant" class:speaking={p.isSpeaking}>
+                        <span class="participant-speaking-dot" class:active={p.isSpeaking}></span>
+                        <span class="participant-nick">{p.nick}</span>
+                        {#if p.isMuted}
+                          <span class="participant-muted" aria-label="Muted" title="Muted">
+                            <svg width="12" height="12" viewBox="0 0 24 24">
+                              <path d="M12 1a4 4 0 0 0-4 4v6a4 4 0 0 0 8 0V5a4 4 0 0 0-4-4z" fill="currentColor" opacity="0.5" />
+                              <line x1="3" y1="3" x2="21" y2="21" stroke="var(--danger)" stroke-width="2.5" stroke-linecap="round" />
+                            </svg>
+                          </span>
+                        {/if}
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
+              {/if}
             {/each}
           </div>
         {/if}
       </div>
     {/each}
   </div>
+
+  {#if voiceState.isConnected && voiceRoom}
+    <VoicePanel room={voiceRoom} />
+  {/if}
 </aside>
 
 <style>
@@ -297,5 +332,70 @@
   .unread-badge.mention-badge {
     background: var(--accent-primary);
     color: var(--text-inverse);
+  }
+
+  /* Voice participant list */
+  .voice-participants {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 2px 0 4px 28px;
+  }
+
+  .voice-participant {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    transition: background var(--duration-channel);
+  }
+
+  .voice-participant.speaking {
+    background: rgba(35, 165, 89, 0.1);
+  }
+
+  .participant-speaking-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    flex-shrink: 0;
+    transition: background var(--duration-channel);
+  }
+
+  .participant-speaking-dot.active {
+    background: var(--status-online);
+    animation: speaking-pulse 1.2s ease-in-out infinite;
+  }
+
+  @keyframes speaking-pulse {
+    0%, 100% {
+      box-shadow: 0 0 0 0 rgba(35, 165, 89, 0.4);
+    }
+    50% {
+      box-shadow: 0 0 0 4px rgba(35, 165, 89, 0);
+    }
+  }
+
+  .participant-nick {
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .voice-participant.speaking .participant-nick {
+    color: var(--text-primary);
+  }
+
+  .participant-muted {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    color: var(--text-muted);
   }
 </style>
