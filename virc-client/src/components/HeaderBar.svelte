@@ -3,9 +3,10 @@
 
   interface Props {
     onToggleMembers?: () => void;
+    membersVisible?: boolean;
   }
 
-  let { onToggleMembers }: Props = $props();
+  let { onToggleMembers, membersVisible = false }: Props = $props();
 
   let channelInfo = $derived(
     channelUIState.activeChannel
@@ -60,6 +61,7 @@
 
     <button
       class="action-button"
+      class:active={membersVisible}
       title="Toggle Member List"
       aria-label="Toggle Member List"
       onclick={onToggleMembers}
@@ -162,6 +164,11 @@
 
   .action-button:hover:not(:disabled) {
     color: var(--interactive-hover);
+    background: var(--surface-high);
+  }
+
+  .action-button.active {
+    color: var(--interactive-active);
     background: var(--surface-high);
   }
 
