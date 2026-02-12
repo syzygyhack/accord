@@ -13,6 +13,7 @@
 		onmore?: (msgid: string, event: MouseEvent) => void;
 		ontogglereaction?: (msgid: string, emoji: string) => void;
 		onscrolltomessage?: (msgid: string) => void;
+		onretry?: (msgid: string) => void;
 	}
 
 	let {
@@ -24,7 +25,15 @@
 		onmore,
 		ontogglereaction,
 		onscrolltomessage,
+		onretry,
 	}: Props = $props();
+
+	let isFailed = $derived(message.sendState === 'failed');
+	let isSending = $derived(message.sendState === 'sending');
+
+	function handleRetry() {
+		onretry?.(message.msgid);
+	}
 
 	let hovered = $state(false);
 
@@ -92,6 +101,8 @@
 	class="message"
 	class:message-grouped={isGrouped && !isFirstInGroup}
 	class:message-redacted={message.isRedacted}
+	class:message-failed={isFailed}
+	class:message-sending={isSending}
 	onmouseenter={() => (hovered = true)}
 	onmouseleave={() => (hovered = false)}
 >
@@ -178,6 +189,16 @@
 			{/each}
 		</div>
 	{/if}
+
+	{#if isFailed}
+		<div class="send-failed">
+			<svg class="send-failed-icon" width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+				<path d="M7 0a7 7 0 110 14A7 7 0 017 0zm0 9.8a.9.9 0 100 1.8.9.9 0 000-1.8zM7.7 3.5H6.3l.2 5h1l.2-5z"/>
+			</svg>
+			<span class="send-failed-text">Failed to send</span>
+			<button class="send-failed-retry" onclick={handleRetry}>Retry</button>
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -199,6 +220,50 @@
 
 	.message-redacted {
 		opacity: 0.5;
+	}
+
+	.message-sending {
+		opacity: 0.6;
+	}
+
+	.message-failed {
+		border-left: 3px solid var(--danger);
+		padding-left: 69px;
+	}
+
+	/* Send failure indicator */
+	.send-failed {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 4px 0 2px 0;
+		font-size: var(--font-xs);
+		color: var(--danger);
+	}
+
+	.send-failed-icon {
+		flex-shrink: 0;
+	}
+
+	.send-failed-text {
+		font-weight: var(--weight-medium);
+	}
+
+	.send-failed-retry {
+		padding: 2px 8px;
+		border: none;
+		border-radius: 3px;
+		background: transparent;
+		color: var(--danger);
+		font-family: inherit;
+		font-size: var(--font-xs);
+		font-weight: var(--weight-semibold);
+		cursor: pointer;
+		text-decoration: underline;
+	}
+
+	.send-failed-retry:hover {
+		color: var(--text-primary);
 	}
 
 	/* Hover Toolbar */

@@ -93,21 +93,22 @@ export function getToken(): string | null {
  *
  * Does nothing if no credentials are stored.
  */
-export function startTokenRefresh(serverUrl: string): void {
+export function startTokenRefresh(serverUrl: string, onRefreshFailed?: () => void): void {
 	stopTokenRefresh();
 
 	refreshTimer = setInterval(async () => {
 		const creds = getCredentials();
 		if (!creds) {
 			stopTokenRefresh();
+			onRefreshFailed?.();
 			return;
 		}
 
 		try {
 			await fetchToken(serverUrl, creds.account, creds.password);
 		} catch {
-			// Refresh failed — token will expire. Connection layer handles
-			// re-auth on next attempt.
+			// Refresh failed — token has expired.
+			onRefreshFailed?.();
 		}
 	}, REFRESH_INTERVAL_MS);
 }
