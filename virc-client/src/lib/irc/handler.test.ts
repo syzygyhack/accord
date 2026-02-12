@@ -180,6 +180,28 @@ describe('TOPIC handling', () => {
 		handle(':alice!a@host TOPIC #test :New topic here');
 		expect(getChannel('#test')!.topic).toBe('New topic here');
 	});
+
+	it('clears topic when set to empty', () => {
+		handle(':alice!a@host JOIN #test alice :Alice');
+		handle(':alice!a@host TOPIC #test :Some topic');
+		expect(getChannel('#test')!.topic).toBe('Some topic');
+		handle(':alice!a@host TOPIC #test');
+		expect(getChannel('#test')!.topic).toBe('');
+	});
+});
+
+describe('RPL_TOPIC (332) handling', () => {
+	it('sets channel topic on join via 332', () => {
+		handle(':alice!a@host JOIN #test alice :Alice');
+		handle(':server 332 me #test :Welcome to #test!');
+		expect(getChannel('#test')!.topic).toBe('Welcome to #test!');
+	});
+
+	it('handles 332 with empty topic', () => {
+		handle(':alice!a@host JOIN #test alice :Alice');
+		handle(':server 332 me #test');
+		expect(getChannel('#test')!.topic).toBe('');
+	});
 });
 
 describe('NAMES (353/366) handling', () => {

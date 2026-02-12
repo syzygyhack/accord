@@ -245,6 +245,9 @@ export function handleMessage(parsed: ParsedMessage): void {
 		case 'MARKREAD':
 			handleMarkread(parsed);
 			break;
+		case '332': // RPL_TOPIC
+			handleRplTopic(parsed);
+			break;
 		case '352': // RPL_WHOREPLY
 			handleWhoReply(parsed);
 			break;
@@ -411,6 +414,18 @@ function handleTopic(parsed: ParsedMessage): void {
 	const channel = parsed.params[0];
 	const topic = parsed.params[1] ?? '';
 	setTopic(channel, topic);
+}
+
+/**
+ * Handle RPL_TOPIC (332) — topic sent on channel join.
+ * :server 332 mynick #channel :The channel topic text
+ */
+function handleRplTopic(parsed: ParsedMessage): void {
+	const channel = parsed.params[1];
+	const topic = parsed.params[2] ?? '';
+	if (channel) {
+		setTopic(channel, topic);
+	}
 }
 
 function handleBatch(parsed: ParsedMessage): void {

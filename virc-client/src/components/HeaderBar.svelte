@@ -1,12 +1,15 @@
 <script lang="ts">
   import { channelUIState, getChannel } from '$lib/state/channels.svelte';
+  import { getMember } from '$lib/state/members.svelte';
+  import { userState } from '$lib/state/user.svelte';
 
   interface Props {
     onToggleMembers?: () => void;
     membersVisible?: boolean;
+    onTopicEdit?: (channel: string, newTopic: string) => void;
   }
 
-  let { onToggleMembers, membersVisible = false }: Props = $props();
+  let { onToggleMembers, membersVisible = false, onTopicEdit }: Props = $props();
 
   let channelInfo = $derived(
     channelUIState.activeChannel
@@ -20,6 +23,47 @@
       (cat) => cat.voice && cat.channels.includes(channelUIState.activeChannel!)
     );
   });
+
+  /** Whether the current user has op (@) or higher in the active channel. */
+  let isOp = $derived(() => {
+    if (!channelUIState.activeChannel || !userState.nick) return false;
+    const member = getMember(channelUIState.activeChannel, userState.nick);
+    if (!member || !member.highestMode) return false;
+    // ~, &, @ are op-level or higher
+    return ['~', '&', '@'].includes(member.highestMode);
+  });
+
+  let topicExpanded = $state(false);
+  let topicEditing = $state(false);
+  let editValue = $state('');
+
+  function handleTopicClick(): void {
+    if (isOp()) {
+      // Enter edit mode
+      topicEditing = true;
+      editValue = channelInfo?.topic ?? '';
+    } else {
+      // Toggle expanded
+      topicExpanded = !topicExpanded;
+    }
+  }
+
+  function handleEditKeydown(e: KeyboardEvent): void {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (onTopicEdit && channelUIState.activeChannel) {
+        onTopicEdit(channelUIState.activeChannel, editValue);
+      }
+      topicEditing = false;
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      topicEditing = false;
+    }
+  }
+
+  function handleEditBlur(): void {
+    topicEditing = false;
+  }
 </script>
 
 <header class="header-bar">
@@ -39,9 +83,28 @@
         <span class="channel-name">{channelUIState.activeChannel.replace(/^#/, '')}</span>
       </span>
 
-      {#if channelInfo?.topic}
+      {#if topicEditing}
         <span class="divider"></span>
-        <span class="topic" title={channelInfo.topic}>{channelInfo.topic}</span>
+        <!-- svelte-ignore a11y_autofocus -->
+        <input
+          class="topic-edit"
+          type="text"
+          bind:value={editValue}
+          onkeydown={handleEditKeydown}
+          onblur={handleEditBlur}
+          autofocus
+        />
+      {:else if channelInfo?.topic}
+        <span class="divider"></span>
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <span
+          class="topic"
+          class:topic-expanded={topicExpanded}
+          class:topic-editable={isOp()}
+          title={topicExpanded ? undefined : channelInfo.topic}
+          onclick={handleTopicClick}
+        >{channelInfo.topic}</span>
       {/if}
     {/if}
   </div>
@@ -136,6 +199,30 @@
     overflow: hidden;
     text-overflow: ellipsis;
     min-width: 0;
+    cursor: pointer;
+  }
+
+  .topic.topic-expanded {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+  }
+
+  .topic.topic-editable {
+    cursor: text;
+  }
+
+  .topic-edit {
+    font-size: var(--font-sm);
+    color: var(--text-primary);
+    background: var(--surface-high);
+    border: 1px solid var(--accent-primary);
+    border-radius: 4px;
+    padding: 2px 6px;
+    min-width: 0;
+    flex: 1;
+    font-family: inherit;
+    outline: none;
   }
 
   .actions {

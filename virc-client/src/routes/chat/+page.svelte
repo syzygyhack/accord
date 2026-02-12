@@ -4,7 +4,7 @@
   import { negotiateCaps } from '$lib/irc/cap';
   import { authenticateSASL } from '$lib/irc/sasl';
   import { registerHandler } from '$lib/irc/handler';
-  import { join, chathistory, markread, tagmsg, redact, privmsg } from '$lib/irc/commands';
+  import { join, chathistory, markread, tagmsg, redact, privmsg, topic } from '$lib/irc/commands';
   import { getCredentials, getToken, fetchToken, startTokenRefresh, stopTokenRefresh } from '$lib/api/auth';
   import { connectToVoice, disconnectVoice } from '$lib/voice/room';
   import { voiceState, toggleMute, toggleDeafen } from '$lib/state/voice.svelte';
@@ -490,6 +490,12 @@
     }
   }
 
+  /** Send a TOPIC command when the user edits the channel topic. */
+  function handleTopicEdit(channel: string, newTopic: string): void {
+    if (!conn) return;
+    topic(conn, channel, newTopic);
+  }
+
   /** Insert @nick mention into the message input via custom event. */
   function handleMemberMention(nick: string): void {
     window.dispatchEvent(
@@ -664,7 +670,7 @@
 
   <!-- Center column: Header + Messages + Input -->
   <div class="center-panel">
-    <HeaderBar onToggleMembers={toggleMembers} membersVisible={showMembers} />
+    <HeaderBar onToggleMembers={toggleMembers} membersVisible={showMembers} onTopicEdit={handleTopicEdit} />
 
     <div class="message-area">
       <ErrorBoundary>
