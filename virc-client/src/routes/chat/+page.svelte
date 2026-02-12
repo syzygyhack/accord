@@ -20,6 +20,8 @@
     channelUIState,
     setActiveChannel,
     setCategories,
+    isDMTarget,
+    openDM,
   } from '$lib/state/channels.svelte';
   import { markRead } from '$lib/state/notifications.svelte';
   import { getUnreadCount } from '$lib/state/notifications.svelte';
@@ -81,6 +83,11 @@
   // Rate limit state
   let rateLimitSeconds = $state(0);
   let rateLimitTimer: ReturnType<typeof setInterval> | null = null;
+
+  // Derived: is the active channel a DM?
+  let isActiveDM = $derived(
+    channelUIState.activeChannel ? isDMTarget(channelUIState.activeChannel) : false
+  );
 
   // Derived disconnect state for MessageInput
   let isDisconnected = $derived(
@@ -725,8 +732,8 @@
     {/if}
   </div>
 
-  <!-- Right column: Member list -->
-  {#if showMembers}
+  <!-- Right column: Member list (hidden for DMs) -->
+  {#if showMembers && !isActiveDM}
     <div class="right-panel">
       <MemberList onmention={handleMemberMention} />
     </div>

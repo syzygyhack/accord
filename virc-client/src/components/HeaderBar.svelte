@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { channelUIState, getChannel } from '$lib/state/channels.svelte';
+  import { channelUIState, getChannel, isDMTarget } from '$lib/state/channels.svelte';
   import { getMember } from '$lib/state/members.svelte';
   import { userState } from '$lib/state/user.svelte';
 
@@ -15,6 +15,12 @@
     channelUIState.activeChannel
       ? getChannel(channelUIState.activeChannel)
       : null
+  );
+
+  let isDM = $derived(
+    channelUIState.activeChannel
+      ? isDMTarget(channelUIState.activeChannel)
+      : false
   );
 
   let isVoice = $derived(() => {
@@ -70,7 +76,9 @@
   <div class="channel-info">
     {#if channelUIState.activeChannel}
       <span class="channel-label">
-        {#if isVoice()}
+        {#if isDM}
+          <span class="hash">@</span>
+        {:else if isVoice()}
           <svg class="channel-type-icon" width="16" height="16" viewBox="0 0 16 16">
             <path
               d="M8 1a3 3 0 0 0-3 3v4a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zM5 8a1 1 0 0 0-2 0 5 5 0 0 0 4 4.9V14H5a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2H9v-1.1A5 5 0 0 0 13 8a1 1 0 0 0-2 0 3 3 0 0 1-6 0z"
@@ -80,31 +88,33 @@
         {:else}
           <span class="hash">#</span>
         {/if}
-        <span class="channel-name">{channelUIState.activeChannel.replace(/^#/, '')}</span>
+        <span class="channel-name">{isDM ? channelUIState.activeChannel : channelUIState.activeChannel.replace(/^#/, '')}</span>
       </span>
 
-      {#if topicEditing}
-        <span class="divider"></span>
-        <!-- svelte-ignore a11y_autofocus -->
-        <input
-          class="topic-edit"
-          type="text"
-          bind:value={editValue}
-          onkeydown={handleEditKeydown}
-          onblur={handleEditBlur}
-          autofocus
-        />
-      {:else if channelInfo?.topic}
-        <span class="divider"></span>
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <span
-          class="topic"
-          class:topic-expanded={topicExpanded}
-          class:topic-editable={isOp()}
-          title={topicExpanded ? undefined : channelInfo.topic}
-          onclick={handleTopicClick}
-        >{channelInfo.topic}</span>
+      {#if !isDM}
+        {#if topicEditing}
+          <span class="divider"></span>
+          <!-- svelte-ignore a11y_autofocus -->
+          <input
+            class="topic-edit"
+            type="text"
+            bind:value={editValue}
+            onkeydown={handleEditKeydown}
+            onblur={handleEditBlur}
+            autofocus
+          />
+        {:else if channelInfo?.topic}
+          <span class="divider"></span>
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <span
+            class="topic"
+            class:topic-expanded={topicExpanded}
+            class:topic-editable={isOp()}
+            title={topicExpanded ? undefined : channelInfo.topic}
+            onclick={handleTopicClick}
+          >{channelInfo.topic}</span>
+        {/if}
       {/if}
     {/if}
   </div>

@@ -56,14 +56,19 @@
             {@const dmUnread = getUnreadCount(dm.nick)}
             {@const dmMentions = getMentionCount(dm.nick)}
             <button
-              class="channel-item"
+              class="channel-item dm-item"
               class:active={channelUIState.activeChannel === dm.nick}
               class:has-unread={dmUnread > 0}
               class:has-mentions={dmMentions > 0}
               onclick={() => handleChannelClick(dm.nick, false)}
             >
               <span class="channel-icon dm-icon">@</span>
-              <span class="channel-name">{dm.nick}</span>
+              <div class="dm-content">
+                <span class="channel-name">{dm.nick}</span>
+                {#if dm.lastMessage}
+                  <span class="dm-preview">{dm.lastMessage}</span>
+                {/if}
+              </div>
               {#if dmUnread > 0}
                 <span class="unread-badge" class:mention-badge={dmMentions > 0}>
                   {dmMentions > 0 ? dmMentions : dmUnread}
@@ -293,6 +298,28 @@
   .dm-icon {
     font-size: var(--font-sm);
     font-weight: var(--weight-bold);
+  }
+
+  .dm-item {
+    align-items: flex-start;
+  }
+
+  .dm-content {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+    gap: 1px;
+  }
+
+  .dm-preview {
+    font-size: var(--font-xs);
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: var(--weight-normal, 400);
+    line-height: 1.3;
   }
 
   .channel-name {

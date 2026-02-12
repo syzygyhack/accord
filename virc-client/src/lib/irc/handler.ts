@@ -24,6 +24,8 @@ import {
 	getChannelsForNick,
 	setTopic,
 	setNamesLoaded,
+	updateDMLastMessage,
+	isDMTarget,
 } from '../state/channels.svelte';
 import { setOnline, setOffline } from '../state/presence.svelte';
 import { getActiveChannel } from '../state/channels.svelte';
@@ -269,22 +271,37 @@ export function handleMessage(parsed: ParsedMessage): void {
 }
 
 function handlePrivmsg(parsed: ParsedMessage): void {
-	const target = parsed.params[0];
-	const msg = privmsgToMessage(parsed, target);
+	const rawTarget = parsed.params[0];
+	const senderNick = parsed.source?.nick ?? '';
+	const senderAccount = parsed.tags['account'] ?? '';
+
+	// Determine the buffer target: if the message is addressed to our nick
+	// (i.e. a DM), use the sender's nick as the buffer key so all DMs
+	// with that person end up in the same buffer.
+	const isIncomingDM = rawTarget === userState.nick;
+	const bufferTarget = isIncomingDM ? senderNick : rawTarget;
+	const msg = privmsgToMessage(parsed, bufferTarget);
 
 	// Clear typing indicator for this user
 	if (msg.nick) {
-		clearTyping(target, msg.nick);
+		clearTyping(bufferTarget, msg.nick);
 	}
 
-	addMessage(target, msg);
+	addMessage(bufferTarget, msg);
 
-	// Track unread if this message is for a non-active channel
+	// If this is an incoming DM, ensure a DM conversation entry exists
+	if (isIncomingDM && senderNick) {
+		const preview = msg.text.length > 80 ? msg.text.slice(0, 80) + '...' : msg.text;
+		updateDMLastMessage(senderNick, senderAccount, preview);
+	}
+
+	// Track unread if this message is for a non-active channel/DM
 	const activeChannel = getActiveChannel();
-	if (target !== activeChannel) {
+	if (bufferTarget !== activeChannel) {
 		const myAccount = userState.account ?? '';
-		const isMention = myAccount !== '' && msg.text.includes(`@${myAccount}`);
-		incrementUnread(target, isMention);
+		// DMs are always considered mentions
+		const isMention = isIncomingDM || (myAccount !== '' && msg.text.includes(`@${myAccount}`));
+		incrementUnread(bufferTarget, isMention);
 	}
 }
 

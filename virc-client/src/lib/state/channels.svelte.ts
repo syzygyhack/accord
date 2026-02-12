@@ -125,7 +125,9 @@ export interface ChannelCategory {
 
 export interface DMConversation {
 	nick: string;
+	account: string;
 	lastMessage?: string;
+	lastTime?: Date;
 }
 
 interface ChannelUIStore {
@@ -172,13 +174,57 @@ export function toggleCategory(name: string): void {
 }
 
 /** Add a DM conversation to the sidebar. */
-export function addDMConversation(nick: string, lastMessage?: string): void {
+export function addDMConversation(nick: string, account = '', lastMessage?: string): void {
 	const existing = channelUIState.dmConversations.find((d) => d.nick === nick);
 	if (existing) {
-		if (lastMessage !== undefined) existing.lastMessage = lastMessage;
+		if (lastMessage !== undefined) {
+			existing.lastMessage = lastMessage;
+			existing.lastTime = new Date();
+		}
+		if (account) existing.account = account;
 	} else {
-		channelUIState.dmConversations.push({ nick, lastMessage });
+		channelUIState.dmConversations.push({
+			nick,
+			account,
+			lastMessage,
+			lastTime: lastMessage ? new Date() : undefined,
+		});
 	}
+	// Keep DMs sorted by most recent message first
+	sortDMConversations();
+}
+
+/**
+ * Open a DM conversation: add to the list if not present, then set as active channel.
+ */
+export function openDM(nick: string, account = ''): void {
+	addDMConversation(nick, account);
+	setActiveChannel(nick);
+}
+
+/**
+ * Update the last message for a DM conversation and re-sort.
+ * Called by the message handler on incoming DMs.
+ */
+export function updateDMLastMessage(nick: string, account: string, lastMessage: string): void {
+	addDMConversation(nick, account, lastMessage);
+}
+
+/** Sort DM conversations by most recent message (newest first). */
+function sortDMConversations(): void {
+	channelUIState.dmConversations.sort((a, b) => {
+		const timeA = a.lastTime?.getTime() ?? 0;
+		const timeB = b.lastTime?.getTime() ?? 0;
+		return timeB - timeA;
+	});
+}
+
+/**
+ * Check if a target is a DM (not a channel).
+ * Channels start with # or &; everything else is a DM nick.
+ */
+export function isDMTarget(target: string): boolean {
+	return !target.startsWith('#') && !target.startsWith('&');
 }
 
 /** Reset UI state. */

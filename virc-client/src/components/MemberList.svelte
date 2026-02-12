@@ -1,6 +1,6 @@
 <script lang="ts">
   import { memberState, getMembersByRole, type Member } from '$lib/state/members.svelte';
-  import { channelUIState, addDMConversation, setActiveChannel } from '$lib/state/channels.svelte';
+  import { channelUIState, openDM } from '$lib/state/channels.svelte';
   import { nickColor } from '$lib/irc/format';
 
   /**
@@ -138,9 +138,7 @@
   /** "Send Message" from context menu: open/focus DM conversation. */
   function handleSendMessage(): void {
     if (!contextMenu) return;
-    const nick = contextMenu.nick;
-    addDMConversation(nick);
-    setActiveChannel(nick);
+    openDM(contextMenu.nick);
     closeContextMenu();
   }
 
