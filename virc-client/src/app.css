@@ -1,0 +1,174 @@
+/* ==========================================================================
+   virc — Global Design Tokens & Base Styles
+   Source of truth: FRONTEND.md
+   ========================================================================== */
+
+/* Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+/* ==========================================================================
+   Dark Theme (MVP default — only theme for MVP)
+   ========================================================================== */
+
+:root[data-theme="dark"] {
+  /* Surface hierarchy */
+  --surface-lowest:   #1a1a1e;
+  --surface-low:      #1e1f24;
+  --surface-base:     #27282d;
+  --surface-high:     #2e3035;
+  --surface-highest:  #383a40;
+
+  /* Text hierarchy */
+  --text-primary:     #e0e0e4;
+  --text-secondary:   #9a9da3;
+  --text-muted:       #5c5f66;
+  --text-link:        #5b9ef0;
+  --text-inverse:     #1a1a1e;
+
+  /* Interactive states */
+  --interactive-normal: #b0b3b8;
+  --interactive-hover:  #dcddde;
+  --interactive-active: #ffffff;
+  --interactive-muted:  #4e5058;
+
+  /* Accent / Brand */
+  --accent-primary:   #5b9ef0;
+  --accent-secondary: #4a8fe0;
+  --accent-bg:        rgba(91, 158, 240, 0.12);
+
+  /* Status */
+  --status-online:    #23a559;
+  --status-idle:      #f0b232;
+  --status-dnd:       #f23f43;
+  --status-offline:   #80848e;
+
+  /* Semantic */
+  --danger:           #e04040;
+  --warning:          #f0b232;
+  --success:          #3dba6c;
+  --info:             #5b9ef0;
+
+  /* Message-specific */
+  --msg-hover-bg:         rgba(0, 0, 0, 0.06);
+  --msg-mention-bg:       rgba(250, 180, 50, 0.08);
+  --msg-mention-border:   #f0b232;
+}
+
+/* ==========================================================================
+   Typography
+   ========================================================================== */
+
+:root {
+  /* Font stacks */
+  --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+
+  /* Font size scale */
+  --font-xs:   11px;
+  --font-sm:   12px;
+  --font-base: 14px;
+  --font-md:   16px;
+  --font-lg:   20px;
+  --font-xl:   24px;
+
+  /* Font weights */
+  --weight-normal:   400;
+  --weight-medium:   500;
+  --weight-semibold: 600;
+  --weight-bold:     700;
+}
+
+/* ==========================================================================
+   Animation Durations
+   ========================================================================== */
+
+:root {
+  --duration-message:  100ms;
+  --duration-channel:  120ms;
+  --duration-modal:    150ms;
+  --duration-sidebar:  200ms;
+  --duration-tooltip:  80ms;
+  --duration-reaction: 200ms;
+  --duration-toolbar:  80ms;
+  --delay-tooltip:     300ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-message:  0ms;
+    --duration-channel:  0ms;
+    --duration-modal:    0ms;
+    --duration-sidebar:  0ms;
+    --duration-tooltip:  0ms;
+    --duration-reaction: 0ms;
+    --duration-toolbar:  0ms;
+    --delay-tooltip:     0ms;
+  }
+}
+
+/* ==========================================================================
+   Base Styles
+   ========================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: var(--font-base);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-primary);
+  font-size: var(--font-base);
+  font-weight: var(--weight-normal);
+  line-height: 1.5;
+  background: var(--surface-base);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ==========================================================================
+   Scrollbar (dark theme)
+   ========================================================================== */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--surface-highest);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--interactive-muted);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-highest) transparent;
+}
+
+/* ==========================================================================
+   Code / Monospace
+   ========================================================================== */
+
+code,
+kbd,
+pre,
+samp {
+  font-family: var(--font-mono);
+}
