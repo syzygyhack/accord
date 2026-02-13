@@ -35,4 +35,7 @@ export const env = {
   get SERVER_NAME() {
     return optional("SERVER_NAME", "");
   },
+  get ALLOWED_ORIGIN() {
+    return optional("ALLOWED_ORIGIN", "");
+  },
 } as const;

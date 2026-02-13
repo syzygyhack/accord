@@ -13,6 +13,9 @@ import {
 	addReaction,
 	removeReaction,
 	prependMessages,
+	appendMessages,
+	getMessages,
+	notifyHistoryBatchComplete,
 	type Message,
 	type MessageType,
 } from '../state/messages.svelte';
@@ -31,6 +34,11 @@ import { setOnline, setOffline } from '../state/presence.svelte';
 import { getActiveChannel } from '../state/channels.svelte';
 import { incrementUnread, setLastReadMsgid } from '../state/notifications.svelte';
 import { userState } from '../state/user.svelte';
+import {
+	setTyping as setTypingStore,
+	clearTyping as clearTypingStore,
+	resetTyping,
+} from '../state/typing.svelte';
 import {
 	memberState as richMemberState,
 	addMember as addRichMember,
@@ -54,21 +62,19 @@ interface BatchState {
 
 const activeBatches = new Map<string, BatchState>();
 
-/** Typing state: target -> Map<nick, timeout handle>. */
+/** Typing timeout timers: target -> Map<nick, timeout handle>. */
 const typingTimers = new Map<string, Map<string, ReturnType<typeof setTimeout>>>();
-
-/** Typing state readable by UI: target -> Set<nick>. */
-export const typingState = new Map<string, Set<string>>();
 
 const TYPING_TIMEOUT_MS = 6_000;
 
+/**
+ * Mark a user as typing. Updates the shared reactive store and sets
+ * a timeout to auto-clear after TYPING_TIMEOUT_MS.
+ */
 function setTyping(target: string, nick: string): void {
-	if (!typingState.has(target)) {
-		typingState.set(target, new Set());
-	}
-	typingState.get(target)!.add(nick);
+	setTypingStore(target, nick);
 
-	// Clear after timeout
+	// Manage auto-clear timers
 	if (!typingTimers.has(target)) {
 		typingTimers.set(target, new Map());
 	}
@@ -87,11 +93,7 @@ function setTyping(target: string, nick: string): void {
 }
 
 function clearTyping(target: string, nick: string): void {
-	const nicks = typingState.get(target);
-	if (nicks) {
-		nicks.delete(nick);
-		if (nicks.size === 0) typingState.delete(target);
-	}
+	clearTypingStore(target, nick);
 
 	const timers = typingTimers.get(target);
 	if (timers) {
@@ -471,16 +473,47 @@ function handleBatchedMessage(batchRef: string, parsed: ParsedMessage): void {
 	if (!batch) return;
 
 	if (parsed.command === 'PRIVMSG') {
-		const target = parsed.params[0];
-		const msg = privmsgToMessage(parsed, target);
+		const rawTarget = parsed.params[0];
+		const senderNick = parsed.source?.nick ?? '';
+
+		// Apply the same DM buffer routing as live messages: if the message
+		// is addressed to our nick (incoming DM), use the sender's nick as
+		// the buffer key.
+		const isIncomingDM = rawTarget === userState.nick;
+		const bufferTarget = isIncomingDM ? senderNick : rawTarget;
+
+		const msg = privmsgToMessage(parsed, bufferTarget);
 		batch.messages.push(msg);
 	}
 }
 
 function finalizeBatch(batch: BatchState): void {
-	if (batch.type === 'chathistory' && batch.target && batch.messages.length > 0) {
-		// CHATHISTORY results are prepended (they're historical)
-		prependMessages(batch.target, batch.messages);
+	if (batch.type === 'chathistory' && batch.target) {
+		let resolvedTarget = batch.target;
+		if (batch.messages.length > 0) {
+			// Determine the correct buffer target from the messages
+			// (they already have DM-resolved targets from handleBatchedMessage).
+			const bufferTarget = batch.messages[0].target;
+			resolvedTarget = bufferTarget;
+
+			// Determine whether to prepend (older history) or append (gap-fill).
+			// Compare the batch's oldest message against the buffer's newest.
+			const existing = getMessages(bufferTarget);
+			const batchOldest = batch.messages[0].time;
+			const bufferNewest = existing.length > 0 ? existing[existing.length - 1].time : null;
+
+			if (bufferNewest && batchOldest > bufferNewest) {
+				// Batch messages are newer than buffer → append (gap-fill / AFTER)
+				appendMessages(bufferTarget, batch.messages);
+			} else {
+				// Batch messages are older than buffer → prepend (BEFORE / LATEST)
+				prependMessages(bufferTarget, batch.messages);
+			}
+		}
+		// Always signal completion so the UI can clear its loading state,
+		// even when the batch is empty (no older messages exist).
+		// Pass the target channel so the UI can ignore batches for other channels.
+		notifyHistoryBatchComplete(resolvedTarget);
 	}
 }
 
@@ -626,17 +659,30 @@ function handleAway(parsed: ParsedMessage): void {
 	}
 }
 
+/** Reference to the currently registered handler so it can be removed on reconnect. */
+let activeHandler: ((line: string) => void) | null = null;
+let activeConn: IRCConnection | null = null;
+
 /**
  * Register the message handler on an IRCConnection.
  * Parses each raw line and dispatches to the handler.
+ * Safe to call multiple times (e.g. on reconnect) — removes the previous
+ * handler before attaching a new one.
  */
 export function registerHandler(conn: IRCConnection): void {
-	conn.on('message', (line: string) => {
+	// Remove previous handler if it exists
+	if (activeHandler && activeConn) {
+		activeConn.off('message', activeHandler);
+	}
+
+	activeHandler = (line: string) => {
 		const parsed = parseMessage(line);
 		if (parsed.command) {
 			handleMessage(parsed);
 		}
-	});
+	};
+	activeConn = conn;
+	conn.on('message', activeHandler);
 }
 
 /** Clear all batch and typing state (for testing or reconnect). */
@@ -648,5 +694,5 @@ export function resetHandlerState(): void {
 		}
 	}
 	typingTimers.clear();
-	typingState.clear();
+	resetTyping();
 }

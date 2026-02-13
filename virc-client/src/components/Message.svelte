@@ -91,6 +91,13 @@
 			onscrolltomessage?.(message.replyTo);
 		}
 	}
+
+	/** Insert @nick mention when clicking a nick in a message. */
+	function handleNickClick() {
+		window.dispatchEvent(
+			new CustomEvent('virc:insert-mention', { detail: { nick: message.nick } })
+		);
+	}
 </script>
 
 <div
@@ -151,7 +158,7 @@
 			</div>
 			<div class="message-body">
 				<div class="message-meta">
-					<span class="nick" style="color: {color}">{message.nick}</span>
+					<span class="nick" style="color: {color}" role="button" tabindex="0" onclick={handleNickClick} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNickClick(); } }}>{message.nick}</span>
 					<span class="timestamp">{fullTimestamp}</span>
 				</div>
 				{#if message.isRedacted}

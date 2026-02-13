@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
-	import { getMessages, getCursors, type Message, type MessageType } from '$lib/state/messages.svelte';
+	import { getMessages, getCursors, historyBatch, type Message, type MessageType } from '$lib/state/messages.svelte';
 	import { channelUIState } from '$lib/state/channels.svelte';
 	import { getLastReadMsgid } from '$lib/state/notifications.svelte';
 	import MessageComponent from './Message.svelte';
@@ -74,20 +74,38 @@
 	);
 
 	/**
-	 * The msgid of the first unread message (the message after lastReadMsgid).
+	 * The msgid of the first unread message.
 	 * Used to position the UnreadDivider.
 	 *
-	 * Computed once as a value (not a callable function) so the template doesn't
-	 * re-execute the findIndex for every message entry.
+	 * The lastReadMsgid may be either a msgid or a timestamp= value from the
+	 * server's MARKREAD response. We handle both:
+	 * - If it matches a msgid, the divider goes after that message.
+	 * - If it looks like a timestamp (ISO 8601), the divider goes after the
+	 *   last message with time <= the timestamp.
 	 */
 	let firstUnreadMsgid = $derived.by(() => {
 		if (!channelUIState.activeChannel) return null;
 		const lastRead = getLastReadMsgid(channelUIState.activeChannel);
 		if (!lastRead) return null;
 
+		// Try matching as a msgid first
 		const idx = messages.findIndex((m) => m.msgid === lastRead);
-		if (idx === -1 || idx >= messages.length - 1) return null;
-		return messages[idx + 1].msgid;
+		if (idx !== -1) {
+			if (idx >= messages.length - 1) return null;
+			return messages[idx + 1].msgid;
+		}
+
+		// Try parsing as a timestamp (MARKREAD server responses use timestamp=)
+		const ts = new Date(lastRead);
+		if (!isNaN(ts.getTime())) {
+			for (let i = 0; i < messages.length; i++) {
+				if (messages[i].time > ts) {
+					return messages[i].msgid;
+				}
+			}
+		}
+
+		return null;
 	});
 
 	/**
@@ -212,7 +230,8 @@
 	/** Scroll to a specific message by msgid. */
 	function handleScrollToMessage(msgid: string): void {
 		if (!scrollContainer) return;
-		const el = scrollContainer.querySelector(`[data-msgid="${msgid}"]`);
+		// Use CSS.escape to prevent selector injection from untrusted msgid values
+		const el = scrollContainer.querySelector(`[data-msgid="${CSS.escape(msgid)}"]`);
 		if (el) {
 			el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 		}
@@ -254,6 +273,21 @@
 		}
 
 		prevMessageCount = currentCount;
+	});
+
+	/**
+	 * Effect: clear loading state when a history batch completes with no messages.
+	 * Without this, an empty CHATHISTORY response leaves isLoadingHistory stuck.
+	 * Only reacts to batches for the current channel to avoid false clears.
+	 */
+	$effect(() => {
+		// Subscribe to the batch-complete signal
+		void historyBatch.seq;
+		const batchTarget = historyBatch.target;
+		if (isLoadingHistory && batchTarget === channelUIState.activeChannel && messages.length === prevMessageCount) {
+			// Batch completed for this channel but no new messages — nothing more to load
+			isLoadingHistory = false;
+		}
 	});
 
 	/** Effect: scroll to bottom when active channel changes. */

@@ -141,6 +141,23 @@ export function prependMessages(target: string, msgs: Message[]): void {
 	updateCursors(target);
 }
 
+/**
+ * Append messages to the end of a channel buffer (for gap-fill / AFTER history).
+ * Evicts from the beginning if the total exceeds the max capacity.
+ */
+export function appendMessages(target: string, msgs: Message[]): void {
+	ensureChannel(target);
+	const existing = messageState.channels.get(target)!;
+	const combined = [...existing, ...msgs];
+
+	if (combined.length > MAX_MESSAGES_PER_CHANNEL) {
+		combined.splice(0, combined.length - MAX_MESSAGES_PER_CHANNEL);
+	}
+
+	messageState.channels.set(target, combined);
+	updateCursors(target);
+}
+
 /** Get the CHATHISTORY cursors for a channel. */
 export function getCursors(target: string): ChannelCursors {
 	return messageState.cursors.get(target) ?? { oldestMsgid: null, newestMsgid: null };
@@ -158,6 +175,19 @@ export function updateSendState(target: string, msgid: string, state: SendState)
 	if (msg) {
 		msg.sendState = state;
 	}
+}
+
+/**
+ * Signal bumped when a history batch completes (even if the batch was empty).
+ * Tracks the target channel so consumers can ignore batches for other channels.
+ * Wrapped in an object to satisfy Svelte 5's "no reassigned $state exports" rule.
+ */
+export const historyBatch = $state({ seq: 0, target: '' });
+
+/** Signal that a CHATHISTORY batch completed (may be empty). */
+export function notifyHistoryBatchComplete(target?: string): void {
+	historyBatch.seq++;
+	historyBatch.target = target ?? '';
 }
 
 /** Reset all message state. */

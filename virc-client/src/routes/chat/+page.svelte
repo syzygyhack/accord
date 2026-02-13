@@ -140,6 +140,7 @@
 		// Clear reply/emoji/edit state on channel switch
 		replyContext = null;
 		editingMsgid = null;
+		editingChannel = null;
 		emojiPickerTarget = null;
 		emojiPickerPosition = null;
 		deleteTarget = null;
@@ -582,8 +583,9 @@
 		}
 	}
 
-	// Track the msgid being edited — redaction deferred until user confirms send
+	// Track the msgid and channel being edited — redaction deferred until user confirms send
 	let editingMsgid: string | null = $state(null);
+	let editingChannel: string | null = $state(null);
 
 	/**
 	* "Edit" the last message by the current user:
@@ -602,8 +604,9 @@
 		for (let i = msgs.length - 1; i >= 0; i--) {
 			const m = msgs[i];
 			if (m.nick === nick && m.type === 'privmsg' && !m.isRedacted) {
-				// Store the msgid for deferred redaction on send
+				// Store the msgid and channel for deferred redaction on send
 				editingMsgid = m.msgid;
+				editingChannel = channel;
 				// Set the input textarea value by dispatching a custom event
 				// The MessageInput component will pick this up
 				window.dispatchEvent(
@@ -616,21 +619,21 @@
 
 	/** Called by MessageInput after a successful send while editing. */
 	function handleEditComplete(): void {
-		if (!editingMsgid || !conn) {
+		if (!editingMsgid || !editingChannel || !conn) {
 			editingMsgid = null;
+			editingChannel = null;
 			return;
 		}
-		const channel = channelUIState.activeChannel;
-		if (channel) {
-			redact(conn, channel, editingMsgid);
-			redactMessage(channel, editingMsgid);
-		}
+		redact(conn, editingChannel, editingMsgid);
+		redactMessage(editingChannel, editingMsgid);
 		editingMsgid = null;
+		editingChannel = null;
 	}
 
 	/** Called when the user cancels editing (Escape or clearing input). */
 	function handleEditCancel(): void {
 		editingMsgid = null;
+		editingChannel = null;
 	}
 
 	/** Send a TOPIC command when the user edits the channel topic. */

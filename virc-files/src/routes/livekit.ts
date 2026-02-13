@@ -8,11 +8,12 @@ const livekit = new Hono<AppEnv>();
 
 livekit.post("/api/livekit/token", authMiddleware, async (c) => {
   const user = c.get("user");
-  const body = await c.req.json<{ room?: string }>();
-  const { room } = body;
+  const body = await c.req.json<{ channel?: string; room?: string }>();
+  // Accept "channel" (client sends this) or "room" for backwards compat
+  const room = body.channel ?? body.room;
 
   if (!room) {
-    return c.json({ error: "Missing room" }, 400);
+    return c.json({ error: "Missing channel" }, 400);
   }
 
   const at = new AccessToken(env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET, {
@@ -28,7 +29,7 @@ livekit.post("/api/livekit/token", authMiddleware, async (c) => {
   });
 
   const token = await at.toJwt();
-  return c.json({ token });
+  return c.json({ token, url: env.LIVEKIT_URL });
 });
 
 export { livekit };

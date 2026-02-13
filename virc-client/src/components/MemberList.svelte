@@ -130,6 +130,15 @@
 		contextMenu = { nick, x: event.clientX, y: event.clientY };
 	}
 
+	/** Open context menu via keyboard (Enter/Space on focused member). */
+	function handleMemberKeydown(event: KeyboardEvent, nick: string): void {
+		if (event.key === 'Enter' || event.key === ' ') {
+			event.preventDefault();
+			const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+			contextMenu = { nick, x: rect.left + rect.width / 2, y: rect.bottom };
+		}
+	}
+
 	/** Close context menu. */
 	function closeContextMenu(): void {
 		contextMenu = null;
@@ -187,14 +196,17 @@
 				</button>
 
 				{#if !group.collapsed}
-					<div class="role-members" role="list">
+					<div class="role-members" role="listbox" aria-label="{group.name} members">
 						{#each group.members as member (member.nick)}
 							{@const presence = presenceInfo(member)}
 							{@const color = getMemberColor(member)}
 							<div
 								class="member-row"
-								role="listitem"
+								role="option"
+								tabindex="0"
+								aria-selected="false"
 								oncontextmenu={(e) => handleContextMenu(e, member.nick)}
+								onkeydown={(e) => handleMemberKeydown(e, member.nick)}
 							>
 								<span class="presence-dot {presence.className}">{presence.dot}</span>
 								<span class="member-nick" style="color: {color}">{member.nick}</span>

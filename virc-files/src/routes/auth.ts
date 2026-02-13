@@ -5,6 +5,15 @@ import { env } from "../env.js";
 const auth = new Hono();
 
 auth.post("/api/auth", async (c) => {
+  // Origin check: reject cross-origin POSTs when ALLOWED_ORIGIN is configured
+  const allowed = env.ALLOWED_ORIGIN;
+  if (allowed) {
+    const origin = c.req.header("Origin") ?? "";
+    if (origin && origin !== allowed) {
+      return c.json({ error: "Origin not allowed" }, 403);
+    }
+  }
+
   const body = await c.req.json<{ account?: string; password?: string }>();
   const { account, password } = body;
 

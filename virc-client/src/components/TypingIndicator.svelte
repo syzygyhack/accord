@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { getTypingUsers } from '$lib/state/typing.svelte';
+	import { typingState } from '$lib/state/typing.svelte';
 
 	interface Props {
 		channel: string;
@@ -7,24 +8,27 @@
 
 	let { channel }: Props = $props();
 
-	// Re-poll typing users periodically to catch expirations
+	// Re-poll typing users periodically to catch expirations.
+	// Only runs the interval when someone is actually typing.
 	let tick = $state(0);
-	let interval: ReturnType<typeof setInterval> | undefined;
 
 	$effect(() => {
-		interval = setInterval(() => {
+		// Subscribe to changes on the channel's typing map
+		const hasTypers = typingState.channels.has(channel);
+		if (!hasTypers) {
+			tick = 0;
+			return;
+		}
+
+		const interval = setInterval(() => {
 			tick++;
 		}, 1_000);
 
-		return () => {
-			if (interval !== undefined) {
-				clearInterval(interval);
-			}
-		};
+		return () => clearInterval(interval);
 	});
 
 	let typingUsers = $derived.by(() => {
-		// Reference tick to trigger re-evaluation every second
+		// Reference tick to trigger re-evaluation every second when active
 		void tick;
 		return getTypingUsers(channel);
 	});

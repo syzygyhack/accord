@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { handleMessage, typingState, resetHandlerState, registerHandler } from './handler';
+import { handleMessage, resetHandlerState, registerHandler } from './handler';
 import { parseMessage } from './parser';
 import {
 	getMessages,
@@ -22,6 +22,10 @@ import {
 	getMembers,
 	resetMembers,
 } from '../state/members.svelte';
+import {
+	typingState,
+	resetTyping,
+} from '../state/typing.svelte';
 import type { IRCConnection } from './connection';
 
 /** Parse a raw IRC line and pass it through the handler. */
@@ -35,6 +39,7 @@ beforeEach(() => {
 	resetChannels();
 	resetPresence();
 	resetMembers();
+	resetTyping();
 	resetHandlerState();
 	vi.useFakeTimers();
 });
@@ -79,11 +84,11 @@ describe('PRIVMSG handling', () => {
 	it('clears typing indicator on PRIVMSG', () => {
 		// Set up typing state
 		handle('@+typing=active :alice!a@host TAGMSG #test');
-		expect(typingState.get('#test')?.has('alice')).toBe(true);
+		expect(typingState.channels.get('#test')?.has('alice')).toBe(true);
 
 		// PRIVMSG should clear it
 		handle('@msgid=x;account=alice :alice!a@host PRIVMSG #test :done typing');
-		expect(typingState.get('#test')?.has('alice')).toBeFalsy();
+		expect(typingState.channels.get('#test')?.has('alice')).toBeFalsy();
 	});
 });
 
@@ -105,21 +110,21 @@ describe('TAGMSG handling', () => {
 
 	it('handles +typing=active', () => {
 		handle('@+typing=active :alice!a@host TAGMSG #test');
-		expect(typingState.get('#test')?.has('alice')).toBe(true);
+		expect(typingState.channels.get('#test')?.has('alice')).toBe(true);
 	});
 
 	it('handles +typing=done', () => {
 		handle('@+typing=active :alice!a@host TAGMSG #test');
 		handle('@+typing=done :alice!a@host TAGMSG #test');
-		expect(typingState.get('#test')?.has('alice')).toBeFalsy();
+		expect(typingState.channels.get('#test')?.has('alice')).toBeFalsy();
 	});
 
 	it('typing expires after timeout', () => {
 		handle('@+typing=active :alice!a@host TAGMSG #test');
-		expect(typingState.get('#test')?.has('alice')).toBe(true);
+		expect(typingState.channels.get('#test')?.has('alice')).toBe(true);
 
 		vi.advanceTimersByTime(6_000);
-		expect(typingState.get('#test')?.has('alice')).toBeFalsy();
+		expect(typingState.channels.get('#test')?.has('alice')).toBeFalsy();
 	});
 });
 
