@@ -14,6 +14,10 @@ import {
 	updateSendState,
 	updateMessageText,
 	resolveEditChain,
+	pinMessage,
+	unpinMessage,
+	getPinnedMessages,
+	isPinned,
 	type Message,
 } from './messages.svelte';
 
@@ -366,6 +370,60 @@ describe('message state', () => {
 			const msg = getMessage('#test', 'ORIG1');
 			expect(msg).not.toBeNull();
 			expect(msg!.text).toBe('edited');
+		});
+	});
+
+	describe('pinned messages', () => {
+		it('pins a message by msgid for a channel', () => {
+			pinMessage('#test', 'msg-1');
+			expect(isPinned('#test', 'msg-1')).toBe(true);
+		});
+
+		it('returns pinned message ids for a channel', () => {
+			pinMessage('#test', 'msg-1');
+			pinMessage('#test', 'msg-2');
+			const pinned = getPinnedMessages('#test');
+			expect(pinned.has('msg-1')).toBe(true);
+			expect(pinned.has('msg-2')).toBe(true);
+			expect(pinned.size).toBe(2);
+		});
+
+		it('unpins a message', () => {
+			pinMessage('#test', 'msg-1');
+			expect(isPinned('#test', 'msg-1')).toBe(true);
+			unpinMessage('#test', 'msg-1');
+			expect(isPinned('#test', 'msg-1')).toBe(false);
+		});
+
+		it('returns empty set for channel with no pins', () => {
+			const pinned = getPinnedMessages('#empty');
+			expect(pinned.size).toBe(0);
+		});
+
+		it('tracks pins per channel independently', () => {
+			pinMessage('#a', 'msg-1');
+			pinMessage('#b', 'msg-2');
+			expect(isPinned('#a', 'msg-1')).toBe(true);
+			expect(isPinned('#a', 'msg-2')).toBe(false);
+			expect(isPinned('#b', 'msg-2')).toBe(true);
+			expect(isPinned('#b', 'msg-1')).toBe(false);
+		});
+
+		it('is idempotent — pinning twice does not duplicate', () => {
+			pinMessage('#test', 'msg-1');
+			pinMessage('#test', 'msg-1');
+			expect(getPinnedMessages('#test').size).toBe(1);
+		});
+
+		it('unpinning a non-pinned message is a no-op', () => {
+			unpinMessage('#test', 'msg-1');
+			expect(isPinned('#test', 'msg-1')).toBe(false);
+		});
+
+		it('resetMessages clears pinned messages', () => {
+			pinMessage('#test', 'msg-1');
+			resetMessages();
+			expect(isPinned('#test', 'msg-1')).toBe(false);
 		});
 	});
 });

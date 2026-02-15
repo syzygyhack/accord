@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { channelUIState, getChannel, isDMTarget } from '$lib/state/channels.svelte';
 	import { getMember } from '$lib/state/members.svelte';
+	import { getPinnedMessages, getMessage } from '$lib/state/messages.svelte';
+	import type { Message } from '$lib/state/messages.svelte';
+	import { nickColor } from '$lib/irc/format';
 	import { userState } from '$lib/state/user.svelte';
 	import { voiceState } from '$lib/state/voice.svelte';
 
@@ -12,9 +15,10 @@
 		showSidebarToggle?: boolean;
 		onVoiceCall?: (target: string) => void;
 		onVideoCall?: (target: string) => void;
+		onScrollToMessage?: (msgid: string) => void;
 	}
 
-	let { onToggleMembers, membersVisible = false, onTopicEdit, onToggleSidebar, showSidebarToggle = false, onVoiceCall, onVideoCall }: Props = $props();
+	let { onToggleMembers, membersVisible = false, onTopicEdit, onToggleSidebar, showSidebarToggle = false, onVoiceCall, onVideoCall, onScrollToMessage }: Props = $props();
 
 	let channelInfo = $derived(
 		channelUIState.activeChannel
@@ -51,6 +55,34 @@
 	let topicExpanded = $state(false);
 	let topicEditing = $state(false);
 	let editValue = $state('');
+	let showPinnedDropdown = $state(false);
+
+	/** Pinned message IDs for the active channel. */
+	let pinnedMsgids = $derived(
+		channelUIState.activeChannel
+			? getPinnedMessages(channelUIState.activeChannel)
+			: new Set<string>()
+	);
+
+	/** Resolve pinned IDs to full Message objects (skips deleted/missing). */
+	let pinnedMessagesList = $derived.by((): Message[] => {
+		if (!channelUIState.activeChannel || pinnedMsgids.size === 0) return [];
+		const result: Message[] = [];
+		for (const msgid of pinnedMsgids) {
+			const msg = getMessage(channelUIState.activeChannel, msgid);
+			if (msg) result.push(msg);
+		}
+		return result;
+	});
+
+	function togglePinnedDropdown(): void {
+		showPinnedDropdown = !showPinnedDropdown;
+	}
+
+	function handlePinnedMessageClick(msgid: string): void {
+		showPinnedDropdown = false;
+		onScrollToMessage?.(msgid);
+	}
 
 	function handleTopicClick(): void {
 		if (isOp) {
@@ -179,6 +211,42 @@
 				</svg>
 			</button>
 		{/if}
+		<div class="pin-wrapper">
+			<button
+				class="action-button"
+				class:active={showPinnedDropdown}
+				title="Pinned Messages"
+				aria-label="Pinned Messages"
+				onclick={togglePinnedDropdown}
+			>
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+					<path
+						d="M16 9V4h1a1 1 0 0 0 0-2H7a1 1 0 0 0 0 2h1v5a3 3 0 0 1-3 3v2h5.97v7l1 1 1-1v-7H19v-2a3 3 0 0 1-3-3z"
+						fill="currentColor"
+					/>
+				</svg>
+				{#if pinnedMsgids.size > 0}
+					<span class="pin-badge">{pinnedMsgids.size}</span>
+				{/if}
+			</button>
+			{#if showPinnedDropdown}
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div class="pinned-dropdown" onmouseleave={() => (showPinnedDropdown = false)}>
+					<div class="pinned-header">Pinned Messages</div>
+					{#if pinnedMessagesList.length === 0}
+						<div class="pinned-empty">No pinned messages in this channel.</div>
+					{:else}
+						{#each pinnedMessagesList as msg (msg.msgid)}
+							<button class="pinned-item" onclick={() => handlePinnedMessageClick(msg.msgid)}>
+								<span class="pinned-nick" style="color: {nickColor(msg.account)}">{msg.nick}</span>
+								<span class="pinned-text">{msg.text.length > 80 ? msg.text.slice(0, 80) + '...' : msg.text}</span>
+								<span class="pinned-time">{msg.time.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+							</button>
+						{/each}
+					{/if}
+				</div>
+			{/if}
+		</div>
 		<button
 			class="action-button"
 			class:active={membersVisible}
@@ -319,5 +387,93 @@
 	.hamburger-button {
 		flex-shrink: 0;
 		margin-right: 8px;
+	}
+
+	/* Pinned messages */
+	.pin-wrapper {
+		position: relative;
+	}
+
+	.pin-badge {
+		position: absolute;
+		top: 2px;
+		right: 2px;
+		min-width: 14px;
+		height: 14px;
+		padding: 0 3px;
+		background: var(--danger);
+		color: #fff;
+		border-radius: 7px;
+		font-size: 10px;
+		font-weight: var(--weight-bold);
+		line-height: 14px;
+		text-align: center;
+		pointer-events: none;
+	}
+
+	.pinned-dropdown {
+		position: absolute;
+		top: 100%;
+		right: 0;
+		width: 360px;
+		max-height: 400px;
+		overflow-y: auto;
+		background: var(--surface-low);
+		border: 1px solid var(--surface-highest);
+		border-radius: 8px;
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+		z-index: 100;
+	}
+
+	.pinned-header {
+		padding: 12px 16px 8px;
+		font-size: var(--font-sm);
+		font-weight: var(--weight-semibold);
+		color: var(--text-secondary);
+		border-bottom: 1px solid var(--surface-highest);
+	}
+
+	.pinned-empty {
+		padding: 24px 16px;
+		font-size: var(--font-sm);
+		color: var(--text-muted);
+		text-align: center;
+	}
+
+	.pinned-item {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		width: 100%;
+		padding: 8px 16px;
+		border: none;
+		background: none;
+		text-align: left;
+		cursor: pointer;
+		font-family: var(--font-primary);
+		transition: background var(--duration-channel);
+	}
+
+	.pinned-item:hover {
+		background: var(--surface-high);
+	}
+
+	.pinned-nick {
+		font-size: var(--font-sm);
+		font-weight: var(--weight-semibold);
+	}
+
+	.pinned-text {
+		font-size: var(--font-sm);
+		color: var(--text-primary);
+		line-height: 1.3;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.pinned-time {
+		font-size: var(--font-xs);
+		color: var(--text-muted);
 	}
 </style>

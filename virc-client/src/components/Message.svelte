@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { renderMessage, nickColor } from '$lib/irc/format';
-	import { getMessage } from '$lib/state/messages.svelte';
+	import { getMessage, isPinned } from '$lib/state/messages.svelte';
 	import { userState } from '$lib/state/user.svelte';
+	import { appSettings } from '$lib/state/appSettings.svelte';
 	import { extractMediaUrls } from '$lib/media';
 	import { getCustomEmojiUrl } from '$lib/emoji';
 	import type { Message } from '$lib/state/messages.svelte';
@@ -11,9 +12,11 @@
 		isGrouped: boolean;
 		isFirstInGroup: boolean;
 		compact?: boolean;
+		isOp?: boolean;
 		onreply?: (msgid: string) => void;
 		onreact?: (msgid: string) => void;
 		onmore?: (msgid: string, event: MouseEvent) => void;
+		onpin?: (msgid: string) => void;
 		ontogglereaction?: (msgid: string, emoji: string) => void;
 		onscrolltomessage?: (msgid: string) => void;
 		onretry?: (msgid: string) => void;
@@ -25,9 +28,11 @@
 		isGrouped,
 		isFirstInGroup,
 		compact = false,
+		isOp = false,
 		onreply,
 		onreact,
 		onmore,
+		onpin,
 		ontogglereaction,
 		onscrolltomessage,
 		onretry,
@@ -36,12 +41,16 @@
 
 	let isFailed = $derived(message.sendState === 'failed');
 	let isSending = $derived(message.sendState === 'sending');
+	let devTooltip = $derived(appSettings.developerMode ? `msgid: ${message.msgid}` : undefined);
 
 	function handleRetry() {
 		onretry?.(message.msgid);
 	}
 
 	let hovered = $state(false);
+	let moreMenuOpen = $state(false);
+
+	let pinned = $derived(isPinned(message.target, message.msgid));
 
 	let color = $derived(nickColor(message.account));
 
@@ -118,6 +127,20 @@
 
 	function handleMore(event: MouseEvent) {
 		onmore?.(message.msgid, event);
+		moreMenuOpen = false;
+	}
+
+	function handlePin() {
+		onpin?.(message.msgid);
+		moreMenuOpen = false;
+	}
+
+	function toggleMoreMenu() {
+		moreMenuOpen = !moreMenuOpen;
+	}
+
+	function closeMoreMenu() {
+		moreMenuOpen = false;
 	}
 
 	function handleToggleReaction(emoji: string) {
@@ -143,6 +166,7 @@
 	class:message-failed={isFailed}
 	class:message-sending={isSending}
 	role="article"
+	title={devTooltip}
 	aria-label="{message.nick}: {message.isRedacted ? 'message deleted' : message.text.slice(0, 100)}"
 	onmouseenter={() => (hovered = true)}
 	onmouseleave={() => (hovered = false)}
@@ -161,11 +185,28 @@
 					<path d="M6.6 3.4L1.2 7.6a.5.5 0 000 .8l5.4 4.2a.5.5 0 00.8-.4V10c3 0 5.4.8 7 3.6.2.4.6.4.6-.1C15 9.1 12 5.5 7.4 5.2V3.8a.5.5 0 00-.8-.4z"/>
 				</svg>
 			</button>
-			<button class="toolbar-btn toolbar-btn-danger" title="Delete" aria-label="Delete message" onclick={handleMore}>
-				<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-					<path d="M5.5 1.5A.5.5 0 016 1h4a.5.5 0 01.5.5V2h3a.5.5 0 010 1h-.538l-.853 10.24A1.5 1.5 0 0110.62 14.5H5.38a1.5 1.5 0 01-1.489-1.26L3.038 3H2.5a.5.5 0 010-1h3v-.5zM4.046 3l.84 10.08a.5.5 0 00.497.42h5.236a.5.5 0 00.497-.42L11.954 3H4.046zM6.5 5a.5.5 0 01.5.5v7a.5.5 0 01-1 0v-7a.5.5 0 01.5-.5zm3 0a.5.5 0 01.5.5v7a.5.5 0 01-1 0v-7a.5.5 0 01.5-.5z"/>
-				</svg>
-			</button>
+			<div class="toolbar-more-wrapper">
+				<button class="toolbar-btn" title="More" aria-label="More actions" onclick={toggleMoreMenu}>
+					<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+						<circle cx="3" cy="8" r="1.5"/>
+						<circle cx="8" cy="8" r="1.5"/>
+						<circle cx="13" cy="8" r="1.5"/>
+					</svg>
+				</button>
+				{#if moreMenuOpen}
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div class="more-menu" onmouseleave={closeMoreMenu}>
+						{#if isOp}
+							<button class="more-menu-item" onclick={handlePin}>
+								{pinned ? 'Unpin Message' : 'Pin Message'}
+							</button>
+						{/if}
+						<button class="more-menu-item more-menu-item-danger" onclick={(e) => handleMore(e)}>
+							Delete Message
+						</button>
+					</div>
+				{/if}
+			</div>
 		</div>
 	{/if}
 
@@ -269,6 +310,7 @@
 	class:message-failed={isFailed}
 	class:message-sending={isSending}
 	role="article"
+	title={devTooltip}
 	aria-label="{message.nick}: {message.isRedacted ? 'message deleted' : message.text.slice(0, 100)}"
 	onmouseenter={() => (hovered = true)}
 	onmouseleave={() => (hovered = false)}
@@ -287,11 +329,28 @@
 					<path d="M6.6 3.4L1.2 7.6a.5.5 0 000 .8l5.4 4.2a.5.5 0 00.8-.4V10c3 0 5.4.8 7 3.6.2.4.6.4.6-.1C15 9.1 12 5.5 7.4 5.2V3.8a.5.5 0 00-.8-.4z"/>
 				</svg>
 			</button>
-			<button class="toolbar-btn toolbar-btn-danger" title="Delete" aria-label="Delete message" onclick={handleMore}>
-				<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-					<path d="M5.5 1.5A.5.5 0 016 1h4a.5.5 0 01.5.5V2h3a.5.5 0 010 1h-.538l-.853 10.24A1.5 1.5 0 0110.62 14.5H5.38a1.5 1.5 0 01-1.489-1.26L3.038 3H2.5a.5.5 0 010-1h3v-.5zM4.046 3l.84 10.08a.5.5 0 00.497.42h5.236a.5.5 0 00.497-.42L11.954 3H4.046zM6.5 5a.5.5 0 01.5.5v7a.5.5 0 01-1 0v-7a.5.5 0 01.5-.5zm3 0a.5.5 0 01.5.5v7a.5.5 0 01-1 0v-7a.5.5 0 01.5-.5z"/>
-				</svg>
-			</button>
+			<div class="toolbar-more-wrapper">
+				<button class="toolbar-btn" title="More" aria-label="More actions" onclick={toggleMoreMenu}>
+					<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+						<circle cx="3" cy="8" r="1.5"/>
+						<circle cx="8" cy="8" r="1.5"/>
+						<circle cx="13" cy="8" r="1.5"/>
+					</svg>
+				</button>
+				{#if moreMenuOpen}
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div class="more-menu" onmouseleave={closeMoreMenu}>
+						{#if isOp}
+							<button class="more-menu-item" onclick={handlePin}>
+								{pinned ? 'Unpin Message' : 'Pin Message'}
+							</button>
+						{/if}
+						<button class="more-menu-item more-menu-item-danger" onclick={(e) => handleMore(e)}>
+							Delete Message
+						</button>
+					</div>
+				{/if}
+			</div>
 		</div>
 	{/if}
 
@@ -564,6 +623,50 @@
 	.toolbar-btn-danger:hover {
 		background: var(--danger-bg);
 		color: var(--danger);
+	}
+
+	/* More menu dropdown */
+	.toolbar-more-wrapper {
+		position: relative;
+	}
+
+	.more-menu {
+		position: absolute;
+		top: 100%;
+		right: 0;
+		min-width: 160px;
+		background: var(--surface-low);
+		border: 1px solid var(--surface-highest);
+		border-radius: 4px;
+		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+		z-index: 20;
+		padding: 4px 0;
+	}
+
+	.more-menu-item {
+		display: block;
+		width: 100%;
+		padding: 6px 12px;
+		border: none;
+		background: none;
+		color: var(--text-primary);
+		font-family: var(--font-primary);
+		font-size: var(--font-sm);
+		text-align: left;
+		cursor: pointer;
+		white-space: nowrap;
+	}
+
+	.more-menu-item:hover {
+		background: var(--surface-high);
+	}
+
+	.more-menu-item-danger {
+		color: var(--danger);
+	}
+
+	.more-menu-item-danger:hover {
+		background: var(--danger-bg);
 	}
 
 	/* Reply Preview */

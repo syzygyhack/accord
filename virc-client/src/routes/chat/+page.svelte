@@ -29,7 +29,8 @@
 	} from '$lib/state/channels.svelte';
 	import { markRead } from '$lib/state/notifications.svelte';
 	import { getUnreadCount } from '$lib/state/notifications.svelte';
-	import { getCursors, getMessage, getMessages, redactMessage, addReaction, removeReaction, updateSendState, addMessage } from '$lib/state/messages.svelte';
+	import { getMember } from '$lib/state/members.svelte';
+	import { getCursors, getMessage, getMessages, redactMessage, addReaction, removeReaction, updateSendState, addMessage, pinMessage, unpinMessage, isPinned } from '$lib/state/messages.svelte';
 	import type { Message } from '$lib/state/messages.svelte';
 	import { addServer, getActiveServer } from '$lib/state/servers.svelte';
 	import { installGlobalHandler, registerKeybindings } from '$lib/keybindings';
@@ -47,7 +48,9 @@
 	import ConnectionBanner from '../../components/ConnectionBanner.svelte';
 	import VoiceOverlay from '../../components/VoiceOverlay.svelte';
 	import ServerList from '../../components/ServerList.svelte';
+	import RawIrcPanel from '../../components/RawIrcPanel.svelte';
 	import UserProfilePopout from '../../components/UserProfilePopout.svelte';
+	import { appSettings } from '$lib/state/appSettings.svelte';
 	import { applyServerTheme, clearServerTheme, parseServerTheme } from '$lib/state/theme.svelte';
 	import { setCustomEmoji, clearCustomEmoji } from '$lib/emoji';
 
@@ -166,6 +169,14 @@
 	let isActiveDM = $derived(
 		channelUIState.activeChannel ? isDMTarget(channelUIState.activeChannel) : false
 	);
+
+	/** Whether the current user has op (@) or higher in the active channel. */
+	let isOp = $derived.by(() => {
+		if (!channelUIState.activeChannel || !userState.nick) return false;
+		const member = getMember(channelUIState.activeChannel, userState.nick);
+		if (!member || !member.highestMode) return false;
+		return ['~', '&', '@'].includes(member.highestMode);
+	});
 
 	// Derived disconnect state for MessageInput
 	let isDisconnected = $derived(
@@ -342,6 +353,17 @@
 	function handleMore(msgid: string, _event: MouseEvent): void {
 		if (!channelUIState.activeChannel) return;
 		deleteTarget = { msgid, channel: channelUIState.activeChannel };
+	}
+
+	/** Pin/unpin a message in the active channel. */
+	function handlePin(msgid: string): void {
+		const channel = channelUIState.activeChannel;
+		if (!channel) return;
+		if (isPinned(channel, msgid)) {
+			unpinMessage(channel, msgid);
+		} else {
+			pinMessage(channel, msgid);
+		}
 	}
 
 	/** Confirm message deletion — send REDACT. */
@@ -903,6 +925,13 @@
 		editingChannel = null;
 	}
 
+	/** Scroll to a specific message in the message list (used by pinned messages). */
+	function handleScrollToMessage(msgid: string): void {
+		window.dispatchEvent(
+			new CustomEvent('virc:scroll-to-message', { detail: { msgid } })
+		);
+	}
+
 	/** Send a TOPIC command when the user edits the channel topic. */
 	function handleTopicEdit(channel: string, newTopic: string): void {
 		if (!conn) return;
@@ -1272,6 +1301,7 @@
 			showSidebarToggle={sidebarIsOverlay}
 			onVoiceCall={handleDMVoiceCall}
 			onVideoCall={handleDMVideoCall}
+			onScrollToMessage={handleScrollToMessage}
 		/>
 
 		<div class="message-area">
@@ -1302,12 +1332,18 @@
 						onreply={handleReply}
 						onreact={handleReact}
 						onmore={handleMore}
+						onpin={handlePin}
 						ontogglereaction={handleToggleReaction}
 						onretry={handleRetry}
 						onnickclick={handleNickClick}
+						{isOp}
 					/>
 				{/if}
 			</ErrorBoundary>
+
+			{#if appSettings.showRawIrc}
+				<RawIrcPanel />
+			{/if}
 		</div>
 
 		{#if channelUIState.activeChannel}

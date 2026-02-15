@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { tick, untrack } from 'svelte';
+	import { tick, untrack, onMount, onDestroy } from 'svelte';
 	import { getMessages, getCursors, historyBatch, type Message, type MessageType } from '$lib/state/messages.svelte';
 	import { channelUIState } from '$lib/state/channels.svelte';
 	import { getLastReadMsgid } from '$lib/state/notifications.svelte';
@@ -14,9 +14,11 @@
 		onreply?: (msgid: string) => void;
 		onreact?: (msgid: string) => void;
 		onmore?: (msgid: string, event: MouseEvent) => void;
+		onpin?: (msgid: string) => void;
 		ontogglereaction?: (msgid: string, emoji: string) => void;
 		onretry?: (msgid: string) => void;
 		onnickclick?: (nick: string, account: string, event: MouseEvent) => void;
+		isOp?: boolean;
 	}
 
 	let {
@@ -24,9 +26,11 @@
 		onreply,
 		onreact,
 		onmore,
+		onpin,
 		ontogglereaction,
 		onretry,
 		onnickclick,
+		isOp = false,
 	}: Props = $props();
 
 	/** Return the icon for a system message type. */
@@ -341,6 +345,20 @@
 
 		tick().then(() => scrollToBottom());
 	});
+
+	/** Listen for external scroll-to-message requests (e.g. from pinned messages). */
+	function handleExternalScroll(e: Event): void {
+		const msgid = (e as CustomEvent<{ msgid: string }>).detail.msgid;
+		handleScrollToMessage(msgid);
+	}
+
+	onMount(() => {
+		window.addEventListener('virc:scroll-to-message', handleExternalScroll);
+	});
+
+	onDestroy(() => {
+		window.removeEventListener('virc:scroll-to-message', handleExternalScroll);
+	});
 </script>
 
 <div
@@ -440,9 +458,11 @@
 						isGrouped={entry.isGrouped}
 						isFirstInGroup={entry.isFirstInGroup}
 						compact={isCompact}
+						{isOp}
 						{onreply}
 						{onreact}
 						{onmore}
+						{onpin}
 						{ontogglereaction}
 						{onretry}
 						{onnickclick}

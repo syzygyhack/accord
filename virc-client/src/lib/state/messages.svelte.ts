@@ -47,6 +47,44 @@ const channelCursors = new Map<string, ChannelCursors>();
  */
 const editMap = new Map<string, string>();
 
+// --- Pinned messages (per-channel, client-side with localStorage) ---
+const PINNED_STORAGE_KEY = 'virc:pinnedMessages';
+
+/** Per-channel pinned message IDs. */
+const pinnedMessages = new Map<string, Set<string>>();
+
+/** Load pinned messages from localStorage on init. */
+function loadPinnedMessages(): void {
+	try {
+		const raw = localStorage.getItem(PINNED_STORAGE_KEY);
+		if (!raw) return;
+		const data = JSON.parse(raw) as Record<string, string[]>;
+		for (const [channel, msgids] of Object.entries(data)) {
+			pinnedMessages.set(channel, new Set(msgids));
+		}
+	} catch {
+		// Corrupted data — ignore
+	}
+}
+
+/** Persist pinned messages to localStorage. */
+function savePinnedMessages(): void {
+	const data: Record<string, string[]> = {};
+	for (const [channel, msgids] of pinnedMessages) {
+		if (msgids.size > 0) {
+			data[channel] = [...msgids];
+		}
+	}
+	try {
+		localStorage.setItem(PINNED_STORAGE_KEY, JSON.stringify(data));
+	} catch {
+		// Storage full or unavailable — ignore
+	}
+}
+
+// Load on module init
+loadPinnedMessages();
+
 // --- Reactive version counter — bump this on every mutation ---
 let _version = $state(0);
 
@@ -278,11 +316,49 @@ export function notifyHistoryBatchComplete(target?: string): void {
 	historyBatch.target = target ?? '';
 }
 
+/** Pin a message in a channel. */
+export function pinMessage(target: string, msgid: string): void {
+	if (!pinnedMessages.has(target)) {
+		pinnedMessages.set(target, new Set());
+	}
+	pinnedMessages.get(target)!.add(msgid);
+	savePinnedMessages();
+	notify();
+}
+
+/** Unpin a message in a channel. */
+export function unpinMessage(target: string, msgid: string): void {
+	const pinned = pinnedMessages.get(target);
+	if (!pinned) return;
+	pinned.delete(msgid);
+	if (pinned.size === 0) {
+		pinnedMessages.delete(target);
+	}
+	savePinnedMessages();
+	notify();
+}
+
+/** Get the set of pinned message IDs for a channel. */
+export function getPinnedMessages(target: string): Set<string> {
+	// Touch _version for reactivity
+	void _version;
+	return pinnedMessages.get(target) ?? new Set();
+}
+
+/** Check if a message is pinned in a channel. */
+export function isPinned(target: string, msgid: string): boolean {
+	// Touch _version for reactivity
+	void _version;
+	return pinnedMessages.get(target)?.has(msgid) ?? false;
+}
+
 /** Reset all message state. */
 export function resetMessages(): void {
 	channelMessages.clear();
 	channelCursors.clear();
 	editMap.clear();
+	pinnedMessages.clear();
+	savePinnedMessages();
 	notify();
 }
 
