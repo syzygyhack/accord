@@ -8,7 +8,14 @@
 	} from '$lib/state/channels.svelte';
 	import { getActiveServer } from '$lib/state/servers.svelte';
 	import { voiceState, type VoiceParticipant } from '$lib/state/voice.svelte';
-	import { getUnreadCount, getMentionCount } from '$lib/state/notifications.svelte';
+	import {
+		getUnreadCount,
+		getMentionCount,
+		isMuted,
+		getNotificationLevel,
+		setNotificationLevel,
+		type NotificationLevel,
+	} from '$lib/state/notifications.svelte';
 	import VoicePanel from './VoicePanel.svelte';
 	import UserPanel from './UserPanel.svelte';
 	import type { Room } from 'livekit-client';
@@ -24,6 +31,52 @@
 
 	/** Collapsed state for the "Other" category. */
 	let otherCollapsed = $state(false);
+
+	/** Context menu state for notification level picker. */
+	let contextMenu = $state<{ channel: string; x: number; y: number } | null>(null);
+
+	const notificationOptions: { level: NotificationLevel; label: string }[] = [
+		{ level: 'all', label: 'All messages' },
+		{ level: 'mentions', label: 'Mentions only' },
+		{ level: 'nothing', label: 'Nothing' },
+		{ level: 'mute', label: 'Mute' },
+	];
+
+	function handleContextMenu(e: MouseEvent, channel: string): void {
+		e.preventDefault();
+		contextMenu = { channel, x: e.clientX, y: e.clientY };
+	}
+
+	function handleNotificationLevelSelect(level: NotificationLevel): void {
+		if (contextMenu) {
+			setNotificationLevel(contextMenu.channel, level);
+			contextMenu = null;
+		}
+	}
+
+	function closeContextMenu(): void {
+		contextMenu = null;
+	}
+
+	/**
+	 * Whether to show the unread badge for a channel.
+	 * Muted channels suppress unread indicators unless there are @mentions.
+	 */
+	function shouldShowUnread(channel: string, unreadCount: number, mentionCount: number): boolean {
+		if (unreadCount === 0) return false;
+		if (isMuted(channel)) return mentionCount > 0;
+		return true;
+	}
+
+	/**
+	 * Whether to apply unread text styling for a channel.
+	 * Muted channels don't get bold/white text unless there are @mentions.
+	 */
+	function hasVisibleUnread(channel: string, unreadCount: number, mentionCount: number): boolean {
+		if (unreadCount === 0) return false;
+		if (isMuted(channel)) return mentionCount > 0;
+		return true;
+	}
 
 	/**
 	* Channels in channelState that don't appear in any virc.json category.
@@ -78,7 +131,9 @@
 	}
 </script>
 
-<aside class="channel-sidebar" aria-label="Channels">
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<aside class="channel-sidebar" aria-label="Channels" onclick={closeContextMenu}>
 	<div class="server-header">
 		<span class="server-name">{getActiveServer()?.name ?? 'virc'}</span>
 	</div>
@@ -146,13 +201,16 @@
 						{#each cat.channels as ch (ch)}
 							{@const chUnread = getUnreadCount(ch)}
 							{@const chMentions = getMentionCount(ch)}
+							{@const chMuted = isMuted(ch)}
 							<button
 								class="channel-item"
 								class:active={!cat.voice && channelUIState.activeChannel === ch}
 								class:voice-connected={cat.voice && voiceState.currentRoom === ch}
-								class:has-unread={chUnread > 0}
+								class:has-unread={hasVisibleUnread(ch, chUnread, chMentions)}
 								class:has-mentions={chMentions > 0}
+								class:is-muted={chMuted}
 								onclick={() => handleChannelClick(ch, !!cat.voice)}
+								oncontextmenu={(e) => handleContextMenu(e, ch)}
 							>
 								{#if cat.voice}
 									<svg class="channel-icon voice-icon" width="14" height="14" viewBox="0 0 16 16">
@@ -165,7 +223,7 @@
 									<span class="channel-icon hash-icon">#</span>
 								{/if}
 								<span class="channel-name">{ch.replace(/^#/, '')}</span>
-								{#if chUnread > 0}
+								{#if shouldShowUnread(ch, chUnread, chMentions)}
 									<span class="unread-badge" class:mention-badge={chMentions > 0}>
 										{chMentions > 0 ? chMentions : chUnread}
 									</span>
@@ -231,16 +289,19 @@
 						{#each otherChannels as ch (ch)}
 							{@const chUnread = getUnreadCount(ch)}
 							{@const chMentions = getMentionCount(ch)}
+							{@const chMuted = isMuted(ch)}
 							<button
 								class="channel-item"
 								class:active={channelUIState.activeChannel === ch}
-								class:has-unread={chUnread > 0}
+								class:has-unread={hasVisibleUnread(ch, chUnread, chMentions)}
 								class:has-mentions={chMentions > 0}
+								class:is-muted={chMuted}
 								onclick={() => handleChannelClick(ch, false)}
+								oncontextmenu={(e) => handleContextMenu(e, ch)}
 							>
 								<span class="channel-icon hash-icon">#</span>
 								<span class="channel-name">{ch.replace(/^#/, '')}</span>
-								{#if chUnread > 0}
+								{#if shouldShowUnread(ch, chUnread, chMentions)}
 									<span class="unread-badge" class:mention-badge={chMentions > 0}>
 										{chMentions > 0 ? chMentions : chUnread}
 									</span>
@@ -259,6 +320,39 @@
 
 	<UserPanel onSettingsClick={() => onSettingsClick?.()} />
 </aside>
+
+{#if contextMenu}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<div class="context-menu-overlay" onclick={closeContextMenu} oncontextmenu={(e) => { e.preventDefault(); closeContextMenu(); }}>
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+		<div
+			class="context-menu"
+			style="left: {contextMenu.x}px; top: {contextMenu.y}px;"
+			onclick={(e) => e.stopPropagation()}
+			role="menu"
+		>
+			<div class="context-menu-header">Notifications</div>
+			{#each notificationOptions as opt (opt.level)}
+				<button
+					class="context-menu-item"
+					class:active={getNotificationLevel(contextMenu.channel) === opt.level}
+					onclick={() => handleNotificationLevelSelect(opt.level)}
+					role="menuitem"
+				>
+					<span class="context-menu-check">
+						{#if getNotificationLevel(contextMenu.channel) === opt.level}
+							<svg width="12" height="12" viewBox="0 0 16 16">
+								<path d="M3 8l3.5 3.5L13 4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+							</svg>
+						{/if}
+					</span>
+					{opt.label}
+				</button>
+			{/each}
+		</div>
+	</div>
+{/if}
 
 <style>
 	.channel-sidebar {
@@ -377,6 +471,16 @@
 		background: var(--success-bg);
 		color: var(--success, #3ba55d);
 		font-weight: var(--weight-medium);
+	}
+
+	/* Muted channels: italic, dimmed text */
+	.channel-item.is-muted {
+		color: var(--text-muted);
+		font-style: italic;
+	}
+
+	.channel-item.is-muted:hover {
+		color: var(--text-secondary);
 	}
 
 	.channel-icon {
@@ -520,5 +624,67 @@
 		align-items: center;
 		flex-shrink: 0;
 		color: var(--text-muted);
+	}
+
+	/* Context menu for notification level */
+	.context-menu-overlay {
+		position: fixed;
+		inset: 0;
+		z-index: 1000;
+	}
+
+	.context-menu {
+		position: fixed;
+		min-width: 180px;
+		background: var(--surface-highest);
+		border-radius: 6px;
+		padding: 4px;
+		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+		z-index: 1001;
+	}
+
+	.context-menu-header {
+		padding: 6px 8px;
+		font-size: var(--font-xs);
+		font-weight: var(--weight-semibold);
+		color: var(--text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+	}
+
+	.context-menu-item {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		width: 100%;
+		padding: 6px 8px;
+		background: none;
+		border: none;
+		border-radius: 3px;
+		cursor: pointer;
+		color: var(--text-primary);
+		font-size: var(--font-sm);
+		font-family: var(--font-primary);
+		text-align: left;
+		transition: background 80ms;
+	}
+
+	.context-menu-item:hover {
+		background: var(--accent-bg);
+		color: var(--text-primary);
+	}
+
+	.context-menu-item.active {
+		color: var(--accent-primary);
+	}
+
+	.context-menu-check {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 12px;
+		height: 12px;
+		flex-shrink: 0;
+		color: var(--accent-primary);
 	}
 </style>
