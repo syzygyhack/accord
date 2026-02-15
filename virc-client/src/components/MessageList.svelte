@@ -4,6 +4,8 @@
 	import { channelUIState } from '$lib/state/channels.svelte';
 	import { getLastReadMsgid } from '$lib/state/notifications.svelte';
 	import { themeState } from '$lib/state/theme.svelte';
+	import { appSettings } from '$lib/state/appSettings.svelte';
+	import { isSystemMessage, summarizeCollapsedGroup, filterSystemMessage } from '$lib/systemMessages';
 	import MessageComponent from './Message.svelte';
 	import UnreadDivider from './UnreadDivider.svelte';
 
@@ -14,6 +16,7 @@
 		onmore?: (msgid: string, event: MouseEvent) => void;
 		ontogglereaction?: (msgid: string, emoji: string) => void;
 		onretry?: (msgid: string) => void;
+		onnickclick?: (nick: string, account: string, event: MouseEvent) => void;
 	}
 
 	let {
@@ -23,14 +26,8 @@
 		onmore,
 		ontogglereaction,
 		onretry,
+		onnickclick,
 	}: Props = $props();
-
-	/** System message types. */
-	const SYSTEM_TYPES: Set<MessageType> = new Set(['join', 'part', 'quit', 'nick', 'mode']);
-
-	function isSystemMessage(msg: Message): boolean {
-		return SYSTEM_TYPES.has(msg.type);
-	}
 
 	/** Return the icon for a system message type. */
 	function systemIcon(type: MessageType): string {
@@ -49,6 +46,9 @@
 
 	/** Minimum consecutive system messages before collapsing. */
 	const COLLAPSE_THRESHOLD = 3;
+
+	/** Window for "smart" system message filtering — 15 minutes. */
+	const SMART_WINDOW_MS = 15 * 60 * 1000;
 
 	/** How close to the bottom (in px) counts as "at bottom" for auto-scroll. */
 	const SCROLL_BOTTOM_THRESHOLD = 48;
@@ -112,9 +112,33 @@
 		return null;
 	});
 
+	/** Current system message display preference. */
+	let systemDisplay = $derived(appSettings.systemMessageDisplay);
+
+	/**
+	 * Set of nicks who sent a privmsg in the last 15 minutes.
+	 * Used by 'smart' filtering to decide which join/part/etc. events to show.
+	 */
+	let recentSpeakers = $derived.by(() => {
+		const speakers = new Set<string>();
+		if (systemDisplay !== 'smart') return speakers;
+		const now = Date.now();
+		for (let i = messages.length - 1; i >= 0; i--) {
+			const m = messages[i];
+			if (now - m.time.getTime() > SMART_WINDOW_MS) break;
+			if (m.type === 'privmsg') {
+				speakers.add(m.nick);
+			}
+		}
+		return speakers;
+	});
+
 	/**
 	 * Render entries: regular messages and system messages, with consecutive
 	 * system messages collapsed into groups when there are 3+.
+	 *
+	 * System messages are first filtered by the systemMessageDisplay setting,
+	 * then consecutive runs of visible system messages are collapsed.
 	 */
 	type RenderEntry =
 		| { kind: 'message'; message: Message; isGrouped: boolean; isFirstInGroup: boolean }
@@ -123,38 +147,42 @@
 
 	let renderEntries = $derived.by(() => {
 		const result: RenderEntry[] = [];
+		const now = new Date();
 		let i = 0;
 
 		while (i < messages.length) {
 			const msg = messages[i];
 
 			if (isSystemMessage(msg)) {
-				// Collect consecutive system messages
-				const systemRun: Message[] = [msg];
-				let j = i + 1;
+				// Collect consecutive system messages, applying the display filter
+				const visibleRun: Message[] = [];
+				let j = i;
 				while (j < messages.length && isSystemMessage(messages[j])) {
-					systemRun.push(messages[j]);
+					if (filterSystemMessage(messages[j], systemDisplay, recentSpeakers, now)) {
+						visibleRun.push(messages[j]);
+					}
 					j++;
 				}
 
-				if (systemRun.length >= COLLAPSE_THRESHOLD) {
+				if (visibleRun.length >= COLLAPSE_THRESHOLD) {
 					// Collapse into a group
-					const key = systemRun[0].msgid;
-					result.push({ kind: 'collapsed', messages: systemRun, key });
+					const key = visibleRun[0].msgid;
+					result.push({ kind: 'collapsed', messages: visibleRun, key });
 				} else {
 					// Render individually
-					for (const sysMsg of systemRun) {
+					for (const sysMsg of visibleRun) {
 						result.push({ kind: 'system', message: sysMsg });
 					}
 				}
 				i = j;
 			} else {
-				// Regular message — compute grouping
-				const prev = i > 0 ? messages[i - 1] : null;
+				// Regular message — compute grouping against previous rendered entry
+				const prevEntry = result.length > 0 ? result[result.length - 1] : null;
 				let isGrouped = false;
 				let isFirstInGroup = true;
 
-				if (prev && !isSystemMessage(prev)) {
+				if (prevEntry && prevEntry.kind === 'message') {
+					const prev = prevEntry.message;
 					const sameAuthor = prev.nick === msg.nick;
 					const withinWindow =
 						msg.time.getTime() - prev.time.getTime() < GROUPING_WINDOW_MS;
@@ -391,7 +419,7 @@
 						class="collapse-toggle"
 						onclick={() => toggleCollapsedGroup(entry.key)}
 					>
-						{entry.messages.length} events &mdash; click to expand
+						{summarizeCollapsedGroup(entry.messages)} &mdash; click to expand
 					</button>
 				{/if}
 			{:else if entry.kind === 'system'}
@@ -417,6 +445,7 @@
 						{onmore}
 						{ontogglereaction}
 						{onretry}
+						{onnickclick}
 						onscrolltomessage={handleScrollToMessage}
 					/>
 				</div>

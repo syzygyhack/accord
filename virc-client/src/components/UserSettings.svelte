@@ -5,7 +5,7 @@
 	import { clearToken } from '$lib/api/auth';
 	import { formatMessage } from '$lib/irc/parser';
 	import { audioSettings, type VideoQuality } from '$lib/state/audioSettings.svelte';
-	import { appSettings, type ZoomLevel } from '$lib/state/appSettings.svelte';
+	import { appSettings, type ZoomLevel, type SystemMessageDisplay } from '$lib/state/appSettings.svelte';
 	import { themeState, setTheme, type Theme } from '$lib/state/theme.svelte';
 	import type { IRCConnection } from '$lib/irc/connection';
 
@@ -58,6 +58,12 @@
 		{ value: 'light', label: 'Light', desc: 'Light backgrounds, dark text' },
 		{ value: 'amoled', label: 'AMOLED', desc: 'True black for OLED screens' },
 		{ value: 'compact', label: 'Compact', desc: 'IRC-style dense layout' },
+	];
+
+	const systemMsgOptions: { value: SystemMessageDisplay; label: string; desc: string }[] = [
+		{ value: 'all', label: 'All', desc: 'Show every join, part, quit, nick, and mode event' },
+		{ value: 'smart', label: 'Smart', desc: 'Only show events for users who spoke recently' },
+		{ value: 'none', label: 'None', desc: 'Hide all system messages' },
 	];
 
 	function handleKeydown(e: KeyboardEvent): void {
@@ -597,6 +603,25 @@
 										<span class="zoom-option-pct">{opt.value}%</span>
 									</div>
 									<span class="zoom-option-desc">{opt.desc}</span>
+								</button>
+							{/each}
+						</div>
+					</div>
+
+					<div class="section-divider"></div>
+
+					<div class="settings-section">
+						<h3 class="section-title">System Messages</h3>
+						<p class="setting-hint">Controls visibility of join, part, quit, nick, and mode events. 3+ consecutive events are collapsed automatically.</p>
+						<div class="sysmsg-options">
+							{#each systemMsgOptions as opt (opt.value)}
+								<button
+									class="sysmsg-option"
+									class:active={appSettings.systemMessageDisplay === opt.value}
+									onclick={() => appSettings.systemMessageDisplay = opt.value}
+								>
+									<span class="sysmsg-option-label">{opt.label}</span>
+									<span class="sysmsg-option-desc">{opt.desc}</span>
 								</button>
 							{/each}
 						</div>
@@ -1325,6 +1350,48 @@
 	}
 
 	.zoom-option-desc {
+		font-size: var(--font-xs);
+		color: var(--text-muted);
+	}
+
+	/* ---- System Messages ---- */
+
+	.sysmsg-options {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.sysmsg-option {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: 12px 16px;
+		background: var(--surface-low);
+		border: 1px solid var(--surface-highest);
+		border-radius: 6px;
+		cursor: pointer;
+		text-align: left;
+		font-family: var(--font-primary);
+		transition: background var(--duration-channel), border-color var(--duration-channel);
+	}
+
+	.sysmsg-option:hover {
+		background: var(--surface-high);
+	}
+
+	.sysmsg-option.active {
+		border-color: var(--accent-primary);
+		background: var(--accent-bg);
+	}
+
+	.sysmsg-option-label {
+		font-size: var(--font-base);
+		font-weight: var(--weight-medium);
+		color: var(--text-primary);
+	}
+
+	.sysmsg-option-desc {
 		font-size: var(--font-xs);
 		color: var(--text-muted);
 	}
