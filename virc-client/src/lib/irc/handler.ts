@@ -18,6 +18,7 @@ import {
 	appendMessages,
 	getMessages,
 	notifyHistoryBatchComplete,
+	replaceOptimisticMessage,
 	type Message,
 	type MessageType,
 } from '../state/messages.svelte';
@@ -303,7 +304,13 @@ function handlePrivmsg(parsed: ParsedMessage): void {
 		clearTyping(bufferTarget, msg.nick);
 	}
 
-	addMessage(bufferTarget, msg);
+	// For own echo-messages, replace the optimistic placeholder instead of adding a duplicate
+	const isOwnEcho = senderNick === userState.nick;
+	if (isOwnEcho && replaceOptimisticMessage(bufferTarget, msg)) {
+		// Optimistic message was replaced — skip addMessage
+	} else {
+		addMessage(bufferTarget, msg);
+	}
 
 	// If this is an incoming DM, ensure a DM conversation entry exists
 	if (isIncomingDM && senderNick) {
@@ -311,9 +318,11 @@ function handlePrivmsg(parsed: ParsedMessage): void {
 		updateDMLastMessage(senderNick, senderAccount, preview);
 	}
 
-	// Track unread if this message is for a non-active channel/DM
+	// Track unread if this message is for a non-active channel/DM.
+	// Skip own messages (echoed back via echo-message cap).
+	const isOwnMessage = senderNick === userState.nick;
 	const activeChannel = getActiveChannel();
-	if (bufferTarget !== activeChannel) {
+	if (bufferTarget !== activeChannel && !isOwnMessage) {
 		const myAccount = userState.account ?? '';
 		// DMs are always considered mentions
 		const isMention = isIncomingDM || (myAccount !== '' && msg.text.includes(`@${myAccount}`));

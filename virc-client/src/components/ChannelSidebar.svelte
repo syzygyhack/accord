@@ -17,9 +17,10 @@
 		onVoiceChannelClick?: (channel: string) => void;
 		voiceRoom?: Room | null;
 		onSettingsClick?: () => void;
+		onVoiceExpand?: () => void;
 	}
 
-	let { onVoiceChannelClick, voiceRoom = null, onSettingsClick }: Props = $props();
+	let { onVoiceChannelClick, voiceRoom = null, onSettingsClick, onVoiceExpand }: Props = $props();
 
 	/** Collapsed state for the "Other" category. */
 	let otherCollapsed = $state(false);
@@ -56,10 +57,24 @@
 		toggleCategory(cat.name);
 	}
 
-	/** Get voice participants for a channel as an array. */
+	/**
+	 * Get voice participants for a channel as an array.
+	 * If we're in this room, use LiveKit data (has speaking/mute info).
+	 * Otherwise, fall back to IRC channel membership so users can see
+	 * who's in a voice channel without joining it.
+	 */
 	function getVoiceParticipants(channel: string): VoiceParticipant[] {
-		if (voiceState.currentRoom !== channel) return [];
-		return Array.from(voiceState.participants.values());
+		if (voiceState.currentRoom === channel) {
+			return Array.from(voiceState.participants.values());
+		}
+		// Fall back to IRC membership for voice channels we haven't joined
+		const ch = channelState.channels.get(channel);
+		if (!ch) return [];
+		const members: VoiceParticipant[] = [];
+		for (const [nick] of ch.members) {
+			members.push({ nick, isSpeaking: false, isMuted: false, isDeafened: false, hasVideo: false, hasScreenShare: false });
+		}
+		return members;
 	}
 </script>
 
@@ -157,7 +172,7 @@
 								{/if}
 							</button>
 
-							{#if cat.voice && voiceState.currentRoom === ch}
+							{#if cat.voice}
 								{@const participants = getVoiceParticipants(ch)}
 								{#if participants.length > 0}
 									<div class="voice-participants">
@@ -238,11 +253,11 @@
 		{/if}
 	</div>
 
-	<UserPanel onSettingsClick={() => onSettingsClick?.()} {voiceRoom} />
-
 	{#if voiceState.isConnected}
-		<VoicePanel />
+		<VoicePanel {voiceRoom} onexpand={onVoiceExpand} />
 	{/if}
+
+	<UserPanel onSettingsClick={() => onSettingsClick?.()} />
 </aside>
 
 <style>

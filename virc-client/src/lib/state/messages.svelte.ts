@@ -67,6 +67,14 @@ function updateCursors(target: string): void {
 	cursors.newestMsgid = msgs[msgs.length - 1].msgid;
 }
 
+/** Counter for generating unique local IDs for optimistic messages. */
+let _localMsgCounter = 0;
+
+/** Generate a unique local msgid for optimistic messages. */
+export function generateLocalMsgid(): string {
+	return `_local_${++_localMsgCounter}`;
+}
+
 /** Add a message to a channel buffer, evicting the oldest if over capacity. */
 export function addMessage(target: string, msg: Message): void {
 	ensureChannel(target);
@@ -79,6 +87,33 @@ export function addMessage(target: string, msg: Message): void {
 
 	updateCursors(target);
 	notify();
+}
+
+/**
+ * Replace an optimistic (local) message with the server-echoed version.
+ * Matches by local msgid prefix and same nick+text content.
+ * Returns true if a replacement was made.
+ */
+export function replaceOptimisticMessage(target: string, echoMsg: Message): boolean {
+	const msgs = channelMessages.get(target);
+	if (!msgs) return false;
+
+	// Find the oldest pending optimistic message from this nick with the same text
+	for (let i = 0; i < msgs.length; i++) {
+		const m = msgs[i];
+		if (
+			m.msgid.startsWith('_local_') &&
+			m.nick === echoMsg.nick &&
+			m.text === echoMsg.text
+		) {
+			// Replace with server-confirmed message
+			msgs[i] = echoMsg;
+			updateCursors(target);
+			notify();
+			return true;
+		}
+	}
+	return false;
 }
 
 /** Look up a single message by msgid within a channel. */

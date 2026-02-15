@@ -14,6 +14,20 @@ export interface VoiceParticipant {
 	isSpeaking: boolean;
 	isMuted: boolean;
 	isDeafened: boolean;
+	hasVideo: boolean;
+	hasScreenShare: boolean;
+}
+
+/** A video track attached to a participant for rendering in the grid. */
+export interface VideoTrackInfo {
+	/** Participant nick. */
+	nick: string;
+	/** 'camera' or 'screen'. */
+	source: 'camera' | 'screen';
+	/** The underlying MediaStreamTrack to attach to a <video> element. */
+	track: MediaStreamTrack;
+	/** LiveKit track SID for keying. */
+	sid: string;
 }
 
 // --- Internal storage for Map (non-reactive) ---
@@ -24,12 +38,22 @@ function notifyMap(): void {
 	_mapVersion++;
 }
 
+// --- Video tracks (non-reactive storage with version counter) ---
+const _videoTracks: VideoTrackInfo[] = [];
+let _videoVersion = $state(0);
+
+function notifyVideo(): void {
+	_videoVersion++;
+}
+
 // --- Scalar fields (these work fine with $state proxy) ---
 interface VoiceScalars {
 	isConnected: boolean;
 	currentRoom: string | null;
 	localMuted: boolean;
 	localDeafened: boolean;
+	localVideoEnabled: boolean;
+	localScreenShareEnabled: boolean;
 	connectDuration: number;
 }
 
@@ -38,6 +62,8 @@ const _scalars: VoiceScalars = $state({
 	currentRoom: null,
 	localMuted: false,
 	localDeafened: false,
+	localVideoEnabled: false,
+	localScreenShareEnabled: false,
 	connectDuration: 0,
 });
 
@@ -52,8 +78,14 @@ export const voiceState = {
 	set localMuted(v: boolean) { _scalars.localMuted = v; },
 	get localDeafened() { return _scalars.localDeafened; },
 	set localDeafened(v: boolean) { _scalars.localDeafened = v; },
+	get localVideoEnabled() { return _scalars.localVideoEnabled; },
+	set localVideoEnabled(v: boolean) { _scalars.localVideoEnabled = v; },
+	get localScreenShareEnabled() { return _scalars.localScreenShareEnabled; },
+	set localScreenShareEnabled(v: boolean) { _scalars.localScreenShareEnabled = v; },
 	get connectDuration() { return _scalars.connectDuration; },
 	set connectDuration(v: number) { _scalars.connectDuration = v; },
+	/** All active video tracks (camera + screen share) from all participants. */
+	get videoTracks(): readonly VideoTrackInfo[] { void _videoVersion; return _videoTracks; },
 };
 
 /** Handle for the duration counter so we can cancel it. */
@@ -64,8 +96,12 @@ export function setConnected(room: string): void {
 	_scalars.isConnected = true;
 	_scalars.currentRoom = room;
 	_scalars.connectDuration = 0;
+	_scalars.localVideoEnabled = false;
+	_scalars.localScreenShareEnabled = false;
 	_participants.clear();
+	_videoTracks.length = 0;
 	notifyMap();
+	notifyVideo();
 
 	stopDurationTimer();
 	durationTimer = setInterval(() => {
@@ -78,10 +114,14 @@ export function setDisconnected(): void {
 	_scalars.isConnected = false;
 	_scalars.currentRoom = null;
 	_participants.clear();
+	_videoTracks.length = 0;
 	_scalars.localMuted = false;
 	_scalars.localDeafened = false;
+	_scalars.localVideoEnabled = false;
+	_scalars.localScreenShareEnabled = false;
 	_scalars.connectDuration = 0;
 	notifyMap();
+	notifyVideo();
 
 	stopDurationTimer();
 }
@@ -120,12 +160,16 @@ export function updateParticipant(
 		isSpeaking: false,
 		isMuted: false,
 		isDeafened: false,
+		hasVideo: false,
+		hasScreenShare: false,
 	};
 	_participants.set(nick, {
 		nick,
 		isSpeaking: state.isSpeaking !== undefined ? state.isSpeaking : base.isSpeaking,
 		isMuted: state.isMuted !== undefined ? state.isMuted : base.isMuted,
 		isDeafened: state.isDeafened !== undefined ? state.isDeafened : base.isDeafened,
+		hasVideo: state.hasVideo !== undefined ? state.hasVideo : base.hasVideo,
+		hasScreenShare: state.hasScreenShare !== undefined ? state.hasScreenShare : base.hasScreenShare,
 	});
 	notifyMap();
 }
@@ -134,6 +178,27 @@ export function updateParticipant(
 export function removeParticipant(nick: string): void {
 	_participants.delete(nick);
 	notifyMap();
+}
+
+/** Add a video track to the active tracks list. */
+export function addVideoTrack(info: VideoTrackInfo): void {
+	// Avoid duplicates by SID
+	const idx = _videoTracks.findIndex((t) => t.sid === info.sid);
+	if (idx !== -1) {
+		_videoTracks[idx] = info;
+	} else {
+		_videoTracks.push(info);
+	}
+	notifyVideo();
+}
+
+/** Remove a video track by SID. */
+export function removeVideoTrack(sid: string): void {
+	const idx = _videoTracks.findIndex((t) => t.sid === sid);
+	if (idx !== -1) {
+		_videoTracks.splice(idx, 1);
+		notifyVideo();
+	}
 }
 
 /** Stop the duration counter. */

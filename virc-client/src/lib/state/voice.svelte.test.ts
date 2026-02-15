@@ -7,6 +7,8 @@ import {
 	toggleDeafen,
 	updateParticipant,
 	removeParticipant,
+	addVideoTrack,
+	removeVideoTrack,
 } from './voice.svelte';
 
 describe('voiceState', () => {
@@ -26,7 +28,10 @@ describe('voiceState', () => {
 		expect(voiceState.participants.size).toBe(0);
 		expect(voiceState.localMuted).toBe(false);
 		expect(voiceState.localDeafened).toBe(false);
+		expect(voiceState.localVideoEnabled).toBe(false);
+		expect(voiceState.localScreenShareEnabled).toBe(false);
 		expect(voiceState.connectDuration).toBe(0);
+		expect(voiceState.videoTracks.length).toBe(0);
 	});
 
 	it('setConnected() marks as connected and starts duration counter', () => {
@@ -123,6 +128,8 @@ describe('voiceState', () => {
 		expect(p!.isSpeaking).toBe(false);
 		expect(p!.isMuted).toBe(false);
 		expect(p!.isDeafened).toBe(false);
+		expect(p!.hasVideo).toBe(false);
+		expect(p!.hasScreenShare).toBe(false);
 	});
 
 	it('updateParticipant() adds a new participant with specified state', () => {
@@ -159,5 +166,57 @@ describe('voiceState', () => {
 		updateParticipant('alice', {});
 		removeParticipant('unknown');
 		expect(voiceState.participants.size).toBe(1);
+	});
+
+	it('updateParticipant() tracks video and screen share flags', () => {
+		updateParticipant('alice', { hasVideo: true });
+		const p = voiceState.participants.get('alice');
+		expect(p!.hasVideo).toBe(true);
+		expect(p!.hasScreenShare).toBe(false);
+
+		updateParticipant('alice', { hasScreenShare: true });
+		const p2 = voiceState.participants.get('alice');
+		expect(p2!.hasVideo).toBe(true);
+		expect(p2!.hasScreenShare).toBe(true);
+	});
+
+	it('addVideoTrack() adds a track and removeVideoTrack() removes it', () => {
+		const fakeTrack = {} as MediaStreamTrack;
+		addVideoTrack({ nick: 'alice', source: 'camera', track: fakeTrack, sid: 'track-1' });
+		expect(voiceState.videoTracks.length).toBe(1);
+		expect(voiceState.videoTracks[0].nick).toBe('alice');
+		expect(voiceState.videoTracks[0].source).toBe('camera');
+
+		removeVideoTrack('track-1');
+		expect(voiceState.videoTracks.length).toBe(0);
+	});
+
+	it('addVideoTrack() deduplicates by SID', () => {
+		const fakeTrack = {} as MediaStreamTrack;
+		addVideoTrack({ nick: 'alice', source: 'camera', track: fakeTrack, sid: 'track-1' });
+		addVideoTrack({ nick: 'alice', source: 'camera', track: fakeTrack, sid: 'track-1' });
+		expect(voiceState.videoTracks.length).toBe(1);
+	});
+
+	it('setConnected() clears video tracks', () => {
+		const fakeTrack = {} as MediaStreamTrack;
+		addVideoTrack({ nick: 'alice', source: 'screen', track: fakeTrack, sid: 'track-1' });
+		expect(voiceState.videoTracks.length).toBe(1);
+
+		setConnected('#voice');
+		expect(voiceState.videoTracks.length).toBe(0);
+	});
+
+	it('setDisconnected() clears video state', () => {
+		setConnected('#voice');
+		voiceState.localVideoEnabled = true;
+		voiceState.localScreenShareEnabled = true;
+		const fakeTrack = {} as MediaStreamTrack;
+		addVideoTrack({ nick: 'alice', source: 'camera', track: fakeTrack, sid: 'track-1' });
+
+		setDisconnected();
+		expect(voiceState.localVideoEnabled).toBe(false);
+		expect(voiceState.localScreenShareEnabled).toBe(false);
+		expect(voiceState.videoTracks.length).toBe(0);
 	});
 });

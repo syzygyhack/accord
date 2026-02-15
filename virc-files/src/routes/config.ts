@@ -77,7 +77,7 @@ function buildDefaultConfig(serverName: string): object {
       categories: [
         {
           name: "Text Channels",
-          channels: ["#general"],
+          channels: ["#general", "#events", "#links"],
         },
         {
           name: "Voice Channels",

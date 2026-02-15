@@ -2,6 +2,7 @@
 	import { channelUIState, getChannel, isDMTarget } from '$lib/state/channels.svelte';
 	import { getMember } from '$lib/state/members.svelte';
 	import { userState } from '$lib/state/user.svelte';
+	import { voiceState } from '$lib/state/voice.svelte';
 
 	interface Props {
 		onToggleMembers?: () => void;
@@ -9,9 +10,11 @@
 		onTopicEdit?: (channel: string, newTopic: string) => void;
 		onToggleSidebar?: () => void;
 		showSidebarToggle?: boolean;
+		onVoiceCall?: (target: string) => void;
+		onVideoCall?: (target: string) => void;
 	}
 
-	let { onToggleMembers, membersVisible = false, onTopicEdit, onToggleSidebar, showSidebarToggle = false }: Props = $props();
+	let { onToggleMembers, membersVisible = false, onTopicEdit, onToggleSidebar, showSidebarToggle = false, onVoiceCall, onVideoCall }: Props = $props();
 
 	let channelInfo = $derived(
 		channelUIState.activeChannel
@@ -23,6 +26,10 @@
 		channelUIState.activeChannel
 			? isDMTarget(channelUIState.activeChannel)
 			: false
+	);
+
+	let isInDMCall = $derived(
+		isDM && voiceState.isConnected && voiceState.currentRoom?.startsWith('dm:')
 	);
 
 	let isVoice = $derived.by(() => {
@@ -136,6 +143,42 @@
 	</div>
 
 	<div class="actions">
+		{#if isDM && channelUIState.activeChannel}
+			<button
+				class="action-button"
+				class:active={isInDMCall}
+				title={isInDMCall ? 'End Call' : 'Start Voice Call'}
+				aria-label={isInDMCall ? 'End Call' : 'Start Voice Call'}
+				onclick={() => onVoiceCall?.(channelUIState.activeChannel!)}
+			>
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+					<path
+						d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 0 0-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"
+						fill="currentColor"
+					/>
+					{#if isInDMCall}
+						<line x1="3" y1="3" x2="21" y2="21" stroke="var(--danger)" stroke-width="2.5" stroke-linecap="round" />
+					{/if}
+				</svg>
+			</button>
+			<button
+				class="action-button"
+				class:active={isInDMCall && voiceState.localVideoEnabled}
+				title={isInDMCall ? 'Toggle Video' : 'Start Video Call'}
+				aria-label={isInDMCall ? 'Toggle Video' : 'Start Video Call'}
+				onclick={() => onVideoCall?.(channelUIState.activeChannel!)}
+			>
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+					<path
+						d="M15 8v8H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2zm6-1.8L17 9v6l4 2.8V6.2z"
+						fill="currentColor"
+					/>
+					{#if isInDMCall && !voiceState.localVideoEnabled}
+						<line x1="3" y1="3" x2="21" y2="21" stroke="var(--danger)" stroke-width="2.5" stroke-linecap="round" />
+					{/if}
+				</svg>
+			</button>
+		{/if}
 		<button
 			class="action-button"
 			class:active={membersVisible}

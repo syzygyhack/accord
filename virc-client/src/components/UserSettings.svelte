@@ -4,7 +4,7 @@
 	import { userState, logout } from '$lib/state/user.svelte';
 	import { clearToken } from '$lib/api/auth';
 	import { formatMessage } from '$lib/irc/parser';
-	import { audioSettings } from '$lib/state/audioSettings.svelte';
+	import { audioSettings, type VideoQuality } from '$lib/state/audioSettings.svelte';
 	import { appSettings, type ZoomLevel } from '$lib/state/appSettings.svelte';
 	import type { IRCConnection } from '$lib/irc/connection';
 
@@ -25,6 +25,7 @@
 	// Voice & Audio device lists (enumerated at runtime)
 	let audioInputDevices: MediaDeviceInfo[] = $state([]);
 	let audioOutputDevices: MediaDeviceInfo[] = $state([]);
+	let videoInputDevices: MediaDeviceInfo[] = $state([]);
 
 	// PTT keybind capture state
 	let capturingPTTKey = $state(false);
@@ -33,10 +34,17 @@
 
 	let tabTitle = $derived(
 		activeTab === 'account' ? 'My Account' :
-		activeTab === 'voice' ? 'Voice & Audio' :
+		activeTab === 'voice' ? 'Voice & Video' :
 		activeTab === 'appearance' ? 'Appearance' :
 		'About'
 	);
+
+	const videoQualityOptions: { value: VideoQuality; label: string; resolution: string }[] = [
+		{ value: '360', label: '360p', resolution: '640 x 360' },
+		{ value: '720', label: '720p', resolution: '1280 x 720' },
+		{ value: '1080', label: '1080p', resolution: '1920 x 1080' },
+		{ value: '1440', label: '1440p', resolution: '2560 x 1440' },
+	];
 
 	const zoomOptions: { value: ZoomLevel; label: string; desc: string }[] = [
 		{ value: 100, label: 'Spacious', desc: 'Most room for content' },
@@ -157,6 +165,7 @@
 			const devices = await navigator.mediaDevices.enumerateDevices();
 			audioInputDevices = devices.filter(d => d.kind === 'audioinput');
 			audioOutputDevices = devices.filter(d => d.kind === 'audiooutput');
+			videoInputDevices = devices.filter(d => d.kind === 'videoinput');
 		} catch (err) {
 			console.error('[virc] Device enumeration failed:', err);
 		}
@@ -164,9 +173,9 @@
 
 	function deviceLabel(device: MediaDeviceInfo, index: number): string {
 		if (device.label) return device.label;
-		return device.kind === 'audioinput'
-			? `Microphone ${index + 1}`
-			: `Speaker ${index + 1}`;
+		if (device.kind === 'audioinput') return `Microphone ${index + 1}`;
+		if (device.kind === 'videoinput') return `Camera ${index + 1}`;
+		return `Speaker ${index + 1}`;
 	}
 
 	// Mic tester state
@@ -338,7 +347,7 @@
 					Appearance
 				</button>
 				<button class="nav-item" class:active={activeTab === 'voice'} onclick={() => activeTab = 'voice'}>
-					Voice & Audio
+					Voice & Video
 				</button>
 				<button class="nav-item disabled" disabled>
 					Notifications
@@ -441,6 +450,33 @@
 					</div>
 
 					<div class="settings-section">
+						<h3 class="section-title">Camera</h3>
+						<select class="device-select" bind:value={audioSettings.videoDeviceId}>
+							<option value="default">Default</option>
+							{#each videoInputDevices as device, i (device.deviceId)}
+								<option value={device.deviceId}>{deviceLabel(device, i)}</option>
+							{/each}
+						</select>
+					</div>
+
+					<div class="settings-section">
+						<h3 class="section-title">Video Quality</h3>
+						<p class="setting-hint">Resolution for your camera stream. Higher values use more bandwidth.</p>
+						<div class="quality-options">
+							{#each videoQualityOptions as opt (opt.value)}
+								<button
+									class="quality-option"
+									class:active={audioSettings.videoQuality === opt.value}
+									onclick={() => audioSettings.videoQuality = opt.value}
+								>
+									<span class="quality-label">{opt.label}</span>
+									<span class="quality-res">{opt.resolution}</span>
+								</button>
+							{/each}
+						</div>
+					</div>
+
+					<div class="settings-section">
 						<h3 class="section-title">Noise Suppression</h3>
 						<p class="setting-hint">Reduces background noise during voice chat. Disable for music or high-fidelity audio.</p>
 						<label class="toggle-row">
@@ -515,8 +551,8 @@
 						{/if}
 					</div>
 
-					{#if audioInputDevices.length === 0 && audioOutputDevices.length === 0}
-						<p class="device-hint">No audio devices detected. Join a voice channel first to grant microphone permission, then reopen settings.</p>
+					{#if audioInputDevices.length === 0 && audioOutputDevices.length === 0 && videoInputDevices.length === 0}
+						<p class="device-hint">No media devices detected. Join a voice channel first to grant microphone permission, then reopen settings.</p>
 					{/if}
 				{:else if activeTab === 'appearance'}
 					<div class="settings-section">
@@ -913,6 +949,47 @@
 	.device-select:focus {
 		outline: none;
 		border-color: var(--accent-primary);
+	}
+
+	.quality-options {
+		display: flex;
+		gap: 8px;
+	}
+
+	.quality-option {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 2px;
+		padding: 8px 4px;
+		background: var(--surface-low);
+		border: 1px solid var(--surface-highest);
+		border-radius: 4px;
+		cursor: pointer;
+		font-family: var(--font-primary);
+		transition: background var(--duration-channel), border-color var(--duration-channel);
+	}
+
+	.quality-option:hover {
+		background: var(--surface-high);
+	}
+
+	.quality-option.active {
+		border-color: var(--accent-primary);
+		background: var(--accent-bg);
+	}
+
+	.quality-label {
+		font-size: var(--font-sm);
+		font-weight: var(--weight-semibold);
+		color: var(--text-primary);
+	}
+
+	.quality-res {
+		font-size: var(--font-xs);
+		color: var(--text-muted);
+		font-family: var(--font-mono);
 	}
 
 	.device-hint {

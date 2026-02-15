@@ -7,6 +7,7 @@
 	import { filterCommands, type CommandDef } from './SlashCommandMenu.svelte';
 	import { getMember } from '$lib/state/members.svelte';
 	import { userState } from '$lib/state/user.svelte';
+	import { addMessage, generateLocalMsgid } from '$lib/state/messages.svelte';
 
 	interface ReplyContext {
 		msgid: string;
@@ -336,6 +337,22 @@
 
 		// Convert markdown to mIRC codes
 		const ircText = markdownToIRC(messageText);
+
+		// Add optimistic message immediately so it appears without waiting for server echo
+		addMessage(target, {
+			msgid: generateLocalMsgid(),
+			nick: userState.nick ?? '',
+			account: userState.account ?? '',
+			target,
+			text: ircText,
+			time: new Date(),
+			tags: {},
+			replyTo: reply?.msgid,
+			reactions: new Map(),
+			isRedacted: false,
+			type: 'privmsg',
+			sendState: 'sending',
+		});
 
 		if (reply) {
 			// Send with reply tag

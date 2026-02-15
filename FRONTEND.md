@@ -553,15 +553,16 @@ When connected to a voice channel, a small panel appears at the bottom of the ch
 │ 🔊 Lobby                │
 │ Connected • 00:42:15    │
 ├─────────────────────────┤
-│  [🎤]  [🎧]  [📺]  [📞] │
-│  Mic  Deafen Share Hang │
+│  [🎤] [🎧] [📹] [📺] [📞] │
+│  Mic  Deaf  Cam Share Hang │
 └─────────────────────────┘
 ```
 
 **Controls:**
 - **Mute toggle** (microphone icon): Toggles mic. Red slash when muted.
 - **Deafen toggle** (headphones icon): Mutes all incoming audio. Also mutes your mic.
-- **Screen share** (monitor icon): Start/stop screen sharing.
+- **Camera toggle** (camera icon): Start/stop camera video. Accent color when active.
+- **Screen share** (monitor icon): Start/stop screen sharing. Accent color when active.
 - **Disconnect** (phone icon, red): Leave voice channel.
 - **Click channel name**: Expands to show full voice overlay / participant list.
 
@@ -717,6 +718,8 @@ Served at `GET https://<server>/.well-known/virc.json` by virc-files. See PLAN.m
 | `Ctrl+K` | Quick switch (search channels/DMs/servers) |
 | `Ctrl+Shift+M` | Toggle mute (voice) |
 | `Ctrl+Shift+D` | Toggle deafen (voice) |
+| `Ctrl+Shift+V` | Toggle camera (voice) |
+| `Ctrl+Shift+S` | Toggle screen share (voice) |
 | `Alt+Up/Down` | Navigate channels (prev/next) |
 | `Alt+Shift+Up/Down` | Navigate unread channels |
 | `Ctrl+[` / `Ctrl+]` | Navigate servers (prev/next) |

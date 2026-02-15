@@ -6,7 +6,7 @@
 	import { registerHandler, resetHandlerState } from '$lib/irc/handler';
 	import { join, chathistory, markread, tagmsg, redact, privmsg, topic, monitor, who } from '$lib/irc/commands';
 	import { getCredentials, getToken, fetchToken, startTokenRefresh, stopTokenRefresh } from '$lib/api/auth';
-	import { connectToVoice, disconnectVoice, toggleMute as toggleMuteRoom, toggleDeafen as toggleDeafenRoom } from '$lib/voice/room';
+	import { connectToVoice, disconnectVoice, toggleMute as toggleMuteRoom, toggleDeafen as toggleDeafenRoom, toggleVideo as toggleVideoRoom, toggleScreenShare as toggleScreenShareRoom } from '$lib/voice/room';
 	import { voiceState, updateParticipant } from '$lib/state/voice.svelte';
 	import { audioSettings } from '$lib/state/audioSettings.svelte';
 	import type { Room } from 'livekit-client';
@@ -45,6 +45,7 @@
 	import UserSettings from '../../components/UserSettings.svelte';
 	import ErrorBoundary from '../../components/ErrorBoundary.svelte';
 	import ConnectionBanner from '../../components/ConnectionBanner.svelte';
+	import VoiceOverlay from '../../components/VoiceOverlay.svelte';
 
 	/** virc.json config shape (subset we consume). */
 	interface VircConfig {
@@ -93,6 +94,11 @@
 
 	// Settings modal state
 	let showSettings = $state(false);
+
+	// Voice overlay state
+	let showVoiceOverlay = $state(false);
+	/** Set when user explicitly closes overlay — suppresses auto-open until next connect. */
+	let overlayDismissed = $state(false);
 
 	// Auth expiry state
 	let authExpired = $state(false);
@@ -438,6 +444,88 @@
 	}
 
 	/**
+	 * Handle a DM voice call: toggle voice connection for a 1:1 call.
+	 * Uses a deterministic room name based on the two participants (sorted).
+	 */
+	async function handleDMVoiceCall(target: string): Promise<void> {
+		// If already in a DM call with this target, disconnect (toggle)
+		const dmRoom = getDMRoomName(target);
+		if (voiceState.currentRoom === dmRoom && voiceRoom) {
+			await disconnectVoice(voiceRoom);
+			voiceRoom = null;
+			return;
+		}
+
+		// If in another voice session, disconnect first
+		if (voiceRoom) {
+			const prevChannel = voiceState.currentRoom;
+			await disconnectVoice(voiceRoom);
+			voiceRoom = null;
+			if (conn && prevChannel && prevChannel.startsWith('#')) {
+				conn.send(`PART ${prevChannel}`);
+			}
+		}
+
+		try {
+			// Request mic permission
+			const permStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+			for (const track of permStream.getTracks()) track.stop();
+
+			const server = getActiveServer();
+			if (!server?.filesUrl) throw new Error('Voice requires a files server');
+
+			const jwt = getToken();
+			if (!jwt) throw new Error('Not authenticated');
+
+			const res = await fetch(`${server.filesUrl}/api/livekit/token`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${jwt}`,
+				},
+				body: JSON.stringify({ channel: dmRoom }),
+			});
+
+			if (!res.ok) throw new Error(`Failed to get voice token (${res.status})`);
+			const data = (await res.json()) as { token: string; url: string };
+
+			voiceRoom = await connectToVoice(dmRoom, data.url, data.token);
+		} catch (e) {
+			console.error('DM voice call failed:', e);
+			const msg = e instanceof Error ? e.message : String(e);
+			voiceError = `Voice call failed: ${msg}`;
+			setTimeout(() => { voiceError = null; }, 5_000);
+		}
+	}
+
+	/**
+	 * Generate a deterministic room name for a DM voice call.
+	 * Sorts the two nicks alphabetically so both participants get the same room.
+	 */
+	function getDMRoomName(target: string): string {
+		const nicks = [userState.nick ?? '', target].sort();
+		return `dm:${nicks[0]}:${nicks[1]}`;
+	}
+
+	/**
+	 * Handle a DM video call: start voice + enable camera.
+	 * If already in a call, just toggle the camera.
+	 */
+	async function handleDMVideoCall(target: string): Promise<void> {
+		const dmRoom = getDMRoomName(target);
+		// If already in the call, just toggle camera
+		if (voiceState.currentRoom === dmRoom && voiceRoom) {
+			await toggleVideoRoom(voiceRoom);
+			return;
+		}
+		// Not in a call yet — start voice call first, then enable camera
+		await handleDMVoiceCall(target);
+		if (voiceRoom) {
+			await toggleVideoRoom(voiceRoom);
+		}
+	}
+
+	/**
 	* Fetch virc.json from the files server.
 	* Returns parsed config or null on failure.
 	*/
@@ -524,6 +612,9 @@
 				filesUrl,
 				icon: serverIcon && filesUrl ? `${filesUrl}${serverIcon}` : null,
 			});
+
+			// Update window title with server name (sets Tauri window title too)
+			document.title = serverName;
 
 			// 7. Populate categories from virc.json
 			const categories = config?.channels?.categories ?? [
@@ -862,6 +953,11 @@
 			{
 				key: 'Escape',
 				handler: () => {
+					if (showVoiceOverlay) {
+						showVoiceOverlay = false;
+						overlayDismissed = true;
+						return true;
+					}
 					if (showSettings) {
 						showSettings = false;
 						return true;
@@ -924,6 +1020,34 @@
 					return false;
 				},
 				description: 'Toggle voice deafen',
+			},
+			// Ctrl+Shift+V — Toggle camera
+			{
+				key: 'V',
+				ctrl: true,
+				shift: true,
+				handler: () => {
+					if (voiceState.isConnected && voiceRoom) {
+						toggleVideoRoom(voiceRoom);
+						return true;
+					}
+					return false;
+				},
+				description: 'Toggle camera',
+			},
+			// Ctrl+Shift+S — Toggle screen share
+			{
+				key: 'S',
+				ctrl: true,
+				shift: true,
+				handler: () => {
+					if (voiceState.isConnected && voiceRoom) {
+						toggleScreenShareRoom(voiceRoom);
+						return true;
+					}
+					return false;
+				},
+				description: 'Toggle screen share',
 			},
 		]);
 	}
@@ -1003,6 +1127,30 @@
 			.catch((err) => console.error('[virc] Failed to switch output device:', err));
 	});
 
+	// Switch video device when changed in settings while connected with camera on.
+	$effect(() => {
+		const deviceId = audioSettings.videoDeviceId;
+		if (!voiceRoom || !voiceState.localVideoEnabled) return;
+		voiceRoom.switchActiveDevice('videoinput', deviceId)
+			.catch((err) => console.error('[virc] Failed to switch video device:', err));
+	});
+
+	// Auto-open voice overlay when video tracks first appear (camera/screen share).
+	// Respects user dismissal — won't re-open until next voice session.
+	$effect(() => {
+		if (voiceState.videoTracks.length > 0 && voiceState.isConnected && !overlayDismissed) {
+			showVoiceOverlay = true;
+		}
+	});
+
+	// Auto-close voice overlay when voice disconnects and reset dismissal flag.
+	$effect(() => {
+		if (!voiceState.isConnected) {
+			showVoiceOverlay = false;
+			overlayDismissed = false;
+		}
+	});
+
 	onMount(() => {
 		setupKeybindings();
 		document.addEventListener('keydown', handlePTTKeyDown);
@@ -1045,7 +1193,7 @@
 <div class="chat-layout">
 	<!-- Left column: Channel sidebar -->
 	<div class="left-panel" class:overlay={sidebarIsOverlay} class:visible={sidebarIsOverlay && showSidebar}>
-		<ChannelSidebar onVoiceChannelClick={handleVoiceChannelClick} {voiceRoom} onSettingsClick={() => (showSettings = true)} />
+		<ChannelSidebar onVoiceChannelClick={handleVoiceChannelClick} {voiceRoom} onSettingsClick={() => (showSettings = true)} onVoiceExpand={() => (showVoiceOverlay = true)} />
 	</div>
 
 	<!-- Sidebar overlay backdrop -->
@@ -1061,6 +1209,8 @@
 			onTopicEdit={handleTopicEdit}
 			onToggleSidebar={toggleSidebar}
 			showSidebarToggle={sidebarIsOverlay}
+			onVoiceCall={handleDMVoiceCall}
+			onVideoCall={handleDMVideoCall}
 		/>
 
 		<div class="message-area">
@@ -1172,6 +1322,11 @@
 <!-- User Settings modal -->
 {#if showSettings}
 	<UserSettings onclose={() => (showSettings = false)} connection={conn} />
+{/if}
+
+<!-- Voice overlay (expanded view with video grid + participants) -->
+{#if showVoiceOverlay && voiceState.isConnected && voiceRoom}
+	<VoiceOverlay {voiceRoom} onclose={() => { showVoiceOverlay = false; overlayDismissed = true; }} />
 {/if}
 
 <style>
