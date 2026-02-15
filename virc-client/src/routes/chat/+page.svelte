@@ -160,6 +160,9 @@
 		connectionState.status === 'disconnected' || connectionState.status === 'reconnecting'
 	);
 
+	// Derived filesUrl for file uploads
+	let activeFilesUrl = $derived(getActiveServer()?.filesUrl ?? null);
+
 	/**
 	* Effect: when active channel changes, mark it read and sync via MARKREAD.
 	* - Resets local unread/mention counts.
@@ -1262,6 +1265,7 @@
 				oneditcancel={handleEditCancel}
 				disconnected={isDisconnected}
 				{rateLimitSeconds}
+				filesUrl={activeFilesUrl}
 			/>
 		{:else}
 			<div class="message-input-area">

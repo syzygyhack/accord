@@ -8,6 +8,8 @@
 	import { getMember } from '$lib/state/members.svelte';
 	import { userState } from '$lib/state/user.svelte';
 	import { addMessage, generateLocalMsgid } from '$lib/state/messages.svelte';
+	import { uploadFile } from '$lib/files/upload';
+	import { getToken } from '$lib/api/auth';
 
 	interface ReplyContext {
 		msgid: string;
@@ -29,14 +31,129 @@
 		oneditcancel?: () => void;
 		disconnected?: boolean;
 		rateLimitSeconds?: number;
+		filesUrl?: string | null;
 	}
 
-	let { target, connection, reply = null, oncancelreply, oneditlast, editing = false, editMsgid = null, oneditcomplete, oneditcancel, disconnected = false, rateLimitSeconds = 0 }: Props = $props();
+	let { target, connection, reply = null, oncancelreply, oneditlast, editing = false, editMsgid = null, oneditcomplete, oneditcancel, disconnected = false, rateLimitSeconds = 0, filesUrl = null }: Props = $props();
 
 	let text = $state('');
 	let textarea: HTMLTextAreaElement | undefined = $state();
 
 	let inputDisabled = $derived(disconnected || rateLimitSeconds > 0);
+
+	// --- Staged file attachments ---
+
+	interface StagedFile {
+		file: File;
+		preview?: string;
+	}
+
+	let stagedFiles: StagedFile[] = $state([]);
+	let uploading = $state(false);
+	let uploadError: string | null = $state(null);
+	let fileInput: HTMLInputElement | undefined = $state();
+	let dragOver = $state(false);
+
+	/** Format bytes into a human-readable size string. */
+	function formatSize(bytes: number): string {
+		if (bytes < 1024) return `${bytes} B`;
+		if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+		return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+	}
+
+	/** Stage files for upload, generating image previews where applicable. */
+	function stageFiles(files: FileList | File[]): void {
+		uploadError = null;
+		for (const file of files) {
+			const staged: StagedFile = { file };
+			if (file.type.startsWith('image/')) {
+				staged.preview = URL.createObjectURL(file);
+			}
+			stagedFiles = [...stagedFiles, staged];
+		}
+	}
+
+	/** Remove a staged file by index. */
+	function removeStagedFile(index: number): void {
+		const removed = stagedFiles[index];
+		if (removed?.preview) {
+			URL.revokeObjectURL(removed.preview);
+		}
+		stagedFiles = stagedFiles.filter((_, i) => i !== index);
+	}
+
+	/** Clear all staged files. */
+	function clearStagedFiles(): void {
+		for (const sf of stagedFiles) {
+			if (sf.preview) URL.revokeObjectURL(sf.preview);
+		}
+		stagedFiles = [];
+	}
+
+	/** Handle the [+] button click. */
+	function openFilePicker(): void {
+		fileInput?.click();
+	}
+
+	/** Handle file input change. */
+	function handleFileInputChange(event: Event): void {
+		const input = event.target as HTMLInputElement;
+		if (input.files && input.files.length > 0) {
+			stageFiles(input.files);
+		}
+		// Reset the input so the same file can be selected again
+		input.value = '';
+	}
+
+	// --- Drag and drop ---
+
+	function handleDragEnter(event: DragEvent): void {
+		event.preventDefault();
+		dragOver = true;
+	}
+
+	function handleDragOver(event: DragEvent): void {
+		event.preventDefault();
+		dragOver = true;
+	}
+
+	function handleDragLeave(event: DragEvent): void {
+		event.preventDefault();
+		// Only clear dragOver if we're leaving the container (not entering a child)
+		const related = event.relatedTarget as Node | null;
+		const container = event.currentTarget as HTMLElement;
+		if (!related || !container.contains(related)) {
+			dragOver = false;
+		}
+	}
+
+	function handleDrop(event: DragEvent): void {
+		event.preventDefault();
+		dragOver = false;
+		if (event.dataTransfer?.files && event.dataTransfer.files.length > 0) {
+			stageFiles(event.dataTransfer.files);
+		}
+	}
+
+	// --- Paste handler for images ---
+
+	function handlePaste(event: ClipboardEvent): void {
+		if (!event.clipboardData) return;
+
+		const items = event.clipboardData.items;
+		const imageFiles: File[] = [];
+		for (const item of items) {
+			if (item.type.startsWith('image/')) {
+				const file = item.getAsFile();
+				if (file) imageFiles.push(file);
+			}
+		}
+
+		if (imageFiles.length > 0) {
+			event.preventDefault();
+			stageFiles(imageFiles);
+		}
+	}
 
 	// --- Slash command menu state ---
 
@@ -138,6 +255,10 @@
 		window.removeEventListener('virc:edit-message', handleEditMessage);
 		window.removeEventListener('virc:insert-mention', handleInsertMention);
 		clearTypingTimer();
+		// Clean up object URLs for staged file previews
+		for (const sf of stagedFiles) {
+			if (sf.preview) URL.revokeObjectURL(sf.preview);
+		}
 	});
 
 	let statusMessage = $derived.by(() => {
@@ -318,12 +439,14 @@
 
 	// --- Send message ---
 
-	function send(): void {
+	async function send(): Promise<void> {
 		const trimmed = text.trim();
-		if (!trimmed || !connection || inputDisabled) return;
+		const hasFiles = stagedFiles.length > 0;
+
+		if ((!trimmed && !hasFiles) || !connection || inputDisabled) return;
 
 		// Check for slash commands (// escapes to send a literal /message)
-		if (trimmed.startsWith('/') && !trimmed.startsWith('//')) {
+		if (trimmed.startsWith('/') && !trimmed.startsWith('//') && !hasFiles) {
 			if (handleSlashCommand(trimmed)) {
 				text = '';
 				cancelReply();
@@ -333,16 +456,52 @@
 			}
 		}
 
-		// Strip leading // escape to send literal /text
-		const messageText = trimmed.startsWith('//') ? trimmed.slice(1) : trimmed;
+		// Upload staged files first
+		let fileUrls: string[] = [];
+		if (hasFiles) {
+			const token = getToken();
+			if (!token || !filesUrl) {
+				uploadError = 'Not authenticated for file uploads';
+				return;
+			}
+
+			uploading = true;
+			uploadError = null;
+
+			try {
+				for (const staged of stagedFiles) {
+					const result = await uploadFile(staged.file, token, filesUrl);
+					// Build a full URL from the relative path
+					const fullUrl = `${filesUrl.replace(/\/+$/, '')}${result.url}`;
+					fileUrls.push(fullUrl);
+				}
+			} catch (e) {
+				uploading = false;
+				uploadError = e instanceof Error ? e.message : 'Upload failed';
+				return;
+			}
+
+			uploading = false;
+			clearStagedFiles();
+		}
+
+		// Build the final message text (message text + file URLs)
+		let rawMessage = trimmed;
+		if (trimmed.startsWith('//')) {
+			rawMessage = trimmed.slice(1);
+		}
+
+		if (fileUrls.length > 0) {
+			const urlSuffix = fileUrls.join(' ');
+			rawMessage = rawMessage ? `${rawMessage} ${urlSuffix}` : urlSuffix;
+		}
+
+		if (!rawMessage) return;
 
 		// Convert markdown to mIRC codes
-		const ircText = markdownToIRC(messageText);
+		const ircText = markdownToIRC(rawMessage);
 
 		if (editing && editMsgid) {
-			// Editing: REDACT the original first, then send PRIVMSG with +virc/edit tag.
-			// Skip optimistic message — the original stays in-place and is updated when
-			// the echo comes back with the +virc/edit tag via the handler.
 			oneditcomplete?.();
 			privmsg(connection, target, ircText, editMsgid);
 		} else {
@@ -363,7 +522,6 @@
 			});
 
 			if (reply) {
-				// Send with reply tag
 				const tags = `@+draft/reply=${reply.msgid}`;
 				connection.send(`${tags} PRIVMSG ${target} :${ircText}`);
 			} else {
@@ -423,8 +581,14 @@
 			}
 		}
 
-		// Escape cancels reply or edit
+		// Escape cancels staged files, reply, or edit
 		if (event.key === 'Escape') {
+			if (stagedFiles.length > 0) {
+				event.preventDefault();
+				clearStagedFiles();
+				uploadError = null;
+				return;
+			}
 			if (editing) {
 				event.preventDefault();
 				text = '';
@@ -474,7 +638,15 @@
 	);
 </script>
 
-<div class="message-input-container">
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+	class="message-input-container"
+	class:drag-over={dragOver}
+	ondragenter={handleDragEnter}
+	ondragover={handleDragOver}
+	ondragleave={handleDragLeave}
+	ondrop={handleDrop}
+>
 	{#if statusMessage}
 		<div class="input-status-bar" class:input-status-warning={rateLimitSeconds > 0} class:input-status-offline={disconnected} role="status" aria-live="polite">
 			{statusMessage}
@@ -497,6 +669,38 @@
 		</div>
 	{/if}
 
+	{#if stagedFiles.length > 0}
+		<div class="attachment-bar">
+			{#each stagedFiles as staged, i}
+				<div class="attachment-item" class:attachment-uploading={uploading}>
+					{#if staged.preview}
+						<img class="attachment-thumb" src={staged.preview} alt={staged.file.name} />
+					{:else}
+						<span class="attachment-icon">
+							<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+								<path d="M4 0h5.293A1 1 0 0 1 10 .293L13.707 4a1 1 0 0 1 .293.707V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2zm5.5 1.5v2a1 1 0 0 0 1 1h2l-3-3z"/>
+							</svg>
+						</span>
+					{/if}
+					<span class="attachment-name">{staged.file.name}</span>
+					<span class="attachment-size">({formatSize(staged.file.size)})</span>
+					{#if uploading}
+						<span class="attachment-status">uploading...</span>
+					{/if}
+					<button class="attachment-remove" title="Remove file" onclick={() => removeStagedFile(i)}>
+						<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+							<path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+						</svg>
+					</button>
+				</div>
+			{/each}
+		</div>
+	{/if}
+
+	{#if uploadError}
+		<div class="upload-error" role="alert">{uploadError}</div>
+	{/if}
+
 	<div class="input-row" class:input-disabled={inputDisabled}>
 		{#if showSlashMenu}
 			<SlashCommandMenu
@@ -506,6 +710,17 @@
 				onhover={(i) => slashSelectedIndex = i}
 			/>
 		{/if}
+		<button
+			class="file-upload-btn"
+			title="Attach file"
+			onclick={openFilePicker}
+			disabled={inputDisabled || !filesUrl}
+			aria-label="Attach file"
+		>
+			<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+				<path d="M10 4a1 1 0 0 1 1 1v4h4a1 1 0 1 1 0 2h-4v4a1 1 0 1 1-2 0v-4H5a1 1 0 1 1 0-2h4V5a1 1 0 0 1 1-1z"/>
+			</svg>
+		</button>
 		<textarea
 			bind:this={textarea}
 			bind:value={text}
@@ -514,8 +729,17 @@
 			disabled={inputDisabled}
 			onkeydown={handleKeydown}
 			oninput={handleInput}
+			onpaste={handlePaste}
 		></textarea>
 	</div>
+	<input
+		bind:this={fileInput}
+		type="file"
+		multiple
+		class="file-input-hidden"
+		onchange={handleFileInputChange}
+		tabindex="-1"
+	/>
 </div>
 
 <style>
@@ -581,7 +805,8 @@
 		position: relative;
 	}
 
-	.reply-bar + .input-row {
+	.reply-bar + .input-row,
+	.reply-bar + .attachment-bar + .input-row {
 		border-radius: 0 0 8px 8px;
 		border-top: 1px solid var(--surface-highest);
 	}
@@ -642,5 +867,152 @@
 
 	.input-disabled {
 		opacity: 0.6;
+	}
+
+	/* File upload button */
+	.file-upload-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		padding: 0;
+		border: none;
+		background: transparent;
+		color: var(--interactive-normal);
+		cursor: pointer;
+		border-radius: 4px;
+		flex-shrink: 0;
+		margin-right: 6px;
+		transition: color 0.1s ease, background 0.1s ease;
+	}
+
+	.file-upload-btn:hover:not(:disabled) {
+		color: var(--interactive-hover);
+		background: var(--surface-highest);
+	}
+
+	.file-upload-btn:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+
+	/* Hidden file input */
+	.file-input-hidden {
+		position: absolute;
+		width: 0;
+		height: 0;
+		overflow: hidden;
+		opacity: 0;
+		pointer-events: none;
+	}
+
+	/* Attachment preview bar */
+	.attachment-bar {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+		padding: 8px 12px;
+		background: var(--surface-high);
+		border-radius: 8px 8px 0 0;
+		border-bottom: 1px solid var(--surface-highest);
+	}
+
+	.reply-bar + .attachment-bar {
+		border-radius: 0;
+	}
+
+	.input-status-bar + .attachment-bar {
+		border-radius: 0;
+	}
+
+	.attachment-bar + .input-row {
+		border-radius: 0 0 8px 8px;
+		border-top: none;
+	}
+
+	.attachment-item {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 4px 8px;
+		background: var(--surface-base);
+		border-radius: 4px;
+		font-size: var(--font-sm);
+		color: var(--text-secondary);
+		max-width: 100%;
+	}
+
+	.attachment-uploading {
+		opacity: 0.7;
+	}
+
+	.attachment-thumb {
+		width: 24px;
+		height: 24px;
+		object-fit: cover;
+		border-radius: 3px;
+		flex-shrink: 0;
+	}
+
+	.attachment-icon {
+		display: flex;
+		align-items: center;
+		flex-shrink: 0;
+		color: var(--text-muted);
+	}
+
+	.attachment-name {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		min-width: 0;
+		color: var(--text-primary);
+	}
+
+	.attachment-size {
+		flex-shrink: 0;
+		color: var(--text-muted);
+	}
+
+	.attachment-status {
+		flex-shrink: 0;
+		color: var(--accent-primary);
+		font-style: italic;
+	}
+
+	.attachment-remove {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 20px;
+		height: 20px;
+		padding: 0;
+		border: none;
+		background: transparent;
+		color: var(--interactive-normal);
+		cursor: pointer;
+		border-radius: 3px;
+		flex-shrink: 0;
+	}
+
+	.attachment-remove:hover {
+		color: var(--danger);
+		background: var(--surface-highest);
+	}
+
+	/* Upload error */
+	.upload-error {
+		padding: 4px 12px;
+		font-size: var(--font-xs);
+		color: var(--danger);
+		background: var(--danger-bg);
+	}
+
+	/* Drag-and-drop visual feedback */
+	.drag-over {
+		outline: 2px dashed var(--accent-primary);
+		outline-offset: -2px;
+		border-radius: 8px;
 	}
 </style>
