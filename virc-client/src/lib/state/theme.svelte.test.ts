@@ -188,6 +188,28 @@ describe('theme state', () => {
 		});
 	});
 
+	describe('isCompact', () => {
+		it('returns true when theme is compact', () => {
+			setTheme('compact');
+			expect(themeState.isCompact).toBe(true);
+		});
+
+		it('returns false for dark theme', () => {
+			setTheme('dark');
+			expect(themeState.isCompact).toBe(false);
+		});
+
+		it('returns false for light theme', () => {
+			setTheme('light');
+			expect(themeState.isCompact).toBe(false);
+		});
+
+		it('returns false for amoled theme', () => {
+			setTheme('amoled');
+			expect(themeState.isCompact).toBe(false);
+		});
+	});
+
 	describe('resetTheme', () => {
 		it('resets to dark theme', () => {
 			setTheme('light');

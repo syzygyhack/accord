@@ -9,6 +9,7 @@
 		message: Message;
 		isGrouped: boolean;
 		isFirstInGroup: boolean;
+		compact?: boolean;
 		onreply?: (msgid: string) => void;
 		onreact?: (msgid: string) => void;
 		onmore?: (msgid: string, event: MouseEvent) => void;
@@ -21,6 +22,7 @@
 		message,
 		isGrouped,
 		isFirstInGroup,
+		compact = false,
 		onreply,
 		onreact,
 		onmore,
@@ -125,6 +127,126 @@
 	}
 </script>
 
+{#if compact}
+<div
+	class="message message-compact"
+	class:message-redacted={message.isRedacted}
+	class:message-failed={isFailed}
+	class:message-sending={isSending}
+	role="article"
+	aria-label="{message.nick}: {message.isRedacted ? 'message deleted' : message.text.slice(0, 100)}"
+	onmouseenter={() => (hovered = true)}
+	onmouseleave={() => (hovered = false)}
+	onfocusin={() => (hovered = true)}
+	onfocusout={() => (hovered = false)}
+>
+	{#if !message.isRedacted}
+		<div class="hover-toolbar" class:toolbar-visible={hovered} aria-label="Message actions">
+			<button class="toolbar-btn" title="Add Reaction" aria-label="Add Reaction" onclick={handleReact}>
+				<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+					<path d="M8 1a7 7 0 110 14A7 7 0 018 1zm0 1.2A5.8 5.8 0 1013.8 8 5.8 5.8 0 008 2.2zM5.5 6a1 1 0 110 2 1 1 0 010-2zm5 0a1 1 0 110 2 1 1 0 010-2zm-6 3.5a.6.6 0 01.8-.3A5.3 5.3 0 008 10a5.3 5.3 0 002.7-.8.6.6 0 01.6 1A6.5 6.5 0 018 11.2a6.5 6.5 0 01-3.3-1 .6.6 0 01-.2-.7z"/>
+				</svg>
+			</button>
+			<button class="toolbar-btn" title="Reply" aria-label="Reply" onclick={handleReply}>
+				<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+					<path d="M6.6 3.4L1.2 7.6a.5.5 0 000 .8l5.4 4.2a.5.5 0 00.8-.4V10c3 0 5.4.8 7 3.6.2.4.6.4.6-.1C15 9.1 12 5.5 7.4 5.2V3.8a.5.5 0 00-.8-.4z"/>
+				</svg>
+			</button>
+			<button class="toolbar-btn toolbar-btn-danger" title="Delete" aria-label="Delete message" onclick={handleMore}>
+				<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+					<path d="M5.5 1.5A.5.5 0 016 1h4a.5.5 0 01.5.5V2h3a.5.5 0 010 1h-.538l-.853 10.24A1.5 1.5 0 0110.62 14.5H5.38a1.5 1.5 0 01-1.489-1.26L3.038 3H2.5a.5.5 0 010-1h3v-.5zM4.046 3l.84 10.08a.5.5 0 00.497.42h5.236a.5.5 0 00.497-.42L11.954 3H4.046zM6.5 5a.5.5 0 01.5.5v7a.5.5 0 01-1 0v-7a.5.5 0 01.5-.5zm3 0a.5.5 0 01.5.5v7a.5.5 0 01-1 0v-7a.5.5 0 01.5-.5z"/>
+				</svg>
+			</button>
+		</div>
+	{/if}
+
+	{#if replyParent}
+		<div class="compact-reply-line">
+			<span class="compact-timestamp"></span>
+			<span class="compact-nick"></span>
+			<div class="reply-preview compact-reply-preview" role="button" tabindex="0" onclick={handleScrollToParent} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleScrollToParent(); } }}>
+				<svg class="reply-icon" width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+					<path d="M5 2.3L1 5.6a.4.4 0 000 .6L5 9.5a.4.4 0 00.6-.3V7.5c2.2 0 4 .6 5.2 2.7.2.3.5.3.5-.1C11.3 6.8 9 4.1 5.6 3.9V2.6a.4.4 0 00-.6-.3z"/>
+				</svg>
+				<span class="reply-nick" style="color: {nickColor(replyParent.account)}">
+					{replyParent.nick}
+				</span>
+				<span class="reply-text">
+					{replyParent.isRedacted
+						? '[message deleted]'
+						: replyParent.text.slice(0, 100) + (replyParent.text.length > 100 ? '...' : '')}
+				</span>
+			</div>
+		</div>
+	{/if}
+
+	<div class="compact-row">
+		<span class="compact-timestamp">{timestamp}</span>
+		<span class="compact-nick" style="color: {color}" role="button" tabindex="0" onclick={handleNickClick} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNickClick(); } }}>{message.nick}</span>
+		<div class="compact-text">
+			{#if message.isRedacted}
+				<span class="message-text redacted">[message deleted]</span>
+			{:else}
+				<span class="message-text">{@html renderedText}</span>
+			{/if}
+		</div>
+	</div>
+
+	{#if !message.isRedacted && mediaUrls.length > 0}
+		<div class="compact-media-row">
+			<span class="compact-timestamp"></span>
+			<span class="compact-nick"></span>
+			<div class="media-previews">
+				{#each mediaUrls as media (media.url)}
+					{#if media.type === 'image'}
+						<button class="media-thumbnail-btn" onclick={() => openLightbox(media.url)}>
+							<img class="media-thumbnail" src={media.url} alt="Image preview" loading="lazy" />
+						</button>
+					{:else if media.type === 'video'}
+						<video class="media-video" controls preload="metadata">
+							<source src={media.url} />
+							<track kind="captions" />
+						</video>
+					{:else if media.type === 'audio'}
+						<audio class="media-audio" controls preload="metadata">
+							<source src={media.url} />
+						</audio>
+					{/if}
+				{/each}
+			</div>
+		</div>
+	{/if}
+
+	{#if reactionEntries.length > 0}
+		<div class="compact-reactions-row">
+			<span class="compact-timestamp"></span>
+			<span class="compact-nick"></span>
+			<div class="reactions-bar">
+				{#each reactionEntries as entry (entry.emoji)}
+					<button
+						class="reaction-pill"
+						class:reaction-self={entry.hasSelf}
+						onclick={() => handleToggleReaction(entry.emoji)}
+					>
+						<span class="reaction-emoji">{entry.emoji}</span>
+						<span class="reaction-count">{entry.count}</span>
+					</button>
+				{/each}
+			</div>
+		</div>
+	{/if}
+
+	{#if isFailed}
+		<div class="send-failed">
+			<svg class="send-failed-icon" width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+				<path d="M7 0a7 7 0 110 14A7 7 0 017 0zm0 9.8a.9.9 0 100 1.8.9.9 0 000-1.8zM7.7 3.5H6.3l.2 5h1l.2-5z"/>
+			</svg>
+			<span class="send-failed-text">Failed to send</span>
+			<button class="send-failed-retry" onclick={handleRetry}>Retry</button>
+		</div>
+	{/if}
+</div>
+{:else}
 <div
 	class="message"
 	class:message-grouped={isGrouped && !isFirstInGroup}
@@ -279,6 +401,7 @@
 		</div>
 	{/if}
 </div>
+{/if}
 
 {#if lightboxUrl}
 	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -658,6 +781,70 @@
 		max-height: 90vh;
 		object-fit: contain;
 		border-radius: 4px;
+	}
+
+	/* ==========================================================================
+	   Compact Mode — IRC-inspired high-density layout
+	   ========================================================================== */
+
+	.message-compact {
+		padding: var(--msg-padding-y, 1px) var(--msg-padding-x, 8px);
+		min-height: unset;
+		font-size: var(--msg-font-size, 13px);
+		line-height: var(--msg-line-height, 1.3);
+	}
+
+	.message-compact.message-failed {
+		padding-left: var(--msg-padding-x, 8px);
+		border-left: 3px solid var(--danger);
+	}
+
+	/* Shared grid for compact rows: timestamp | nick | content */
+	.compact-row,
+	.compact-reply-line,
+	.compact-media-row,
+	.compact-reactions-row {
+		display: grid;
+		grid-template-columns: auto var(--nick-width, 120px) 1fr;
+		gap: 0 8px;
+		align-items: baseline;
+	}
+
+	.compact-timestamp {
+		font-size: var(--font-xs);
+		color: var(--text-muted);
+		white-space: nowrap;
+		text-align: right;
+		user-select: none;
+		min-width: 52px;
+	}
+
+	.compact-nick {
+		font-weight: var(--weight-semibold);
+		font-size: var(--msg-font-size, 13px);
+		text-align: right;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		cursor: pointer;
+	}
+
+	.compact-nick:hover {
+		text-decoration: underline;
+	}
+
+	.compact-text {
+		min-width: 0;
+	}
+
+	/* Reply preview in compact mode */
+	.compact-reply-line {
+		padding-bottom: 1px;
+	}
+
+	.compact-reply-preview {
+		padding: 0;
+		gap: 4px;
 	}
 
 	/* Reactions Bar */

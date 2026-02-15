@@ -94,6 +94,8 @@ applyToDOM(_state.current);
 export const themeState = {
 	get current(): Theme { return _state.current; },
 	get serverOverrides(): Record<string, string> { return _state.serverOverrides; },
+	/** True when compact/IRC-classic display mode is active. */
+	get isCompact(): boolean { return _state.current === 'compact'; },
 };
 
 /** Set the active theme. Persists to localStorage and updates DOM. */

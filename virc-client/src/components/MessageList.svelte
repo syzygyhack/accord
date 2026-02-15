@@ -3,6 +3,7 @@
 	import { getMessages, getCursors, historyBatch, type Message, type MessageType } from '$lib/state/messages.svelte';
 	import { channelUIState } from '$lib/state/channels.svelte';
 	import { getLastReadMsgid } from '$lib/state/notifications.svelte';
+	import { themeState } from '$lib/state/theme.svelte';
 	import MessageComponent from './Message.svelte';
 	import UnreadDivider from './UnreadDivider.svelte';
 
@@ -65,6 +66,9 @@
 
 	/** Set of collapsed group keys that the user has expanded. */
 	let expandedGroups: Set<string> = $state(new Set());
+
+	/** Whether compact (IRC classic) display mode is active. */
+	let isCompact = $derived(themeState.isCompact);
 
 	/** Messages for the active channel (shallow copy for Svelte change detection). */
 	let messages = $derived.by(() => {
@@ -407,6 +411,7 @@
 						message={entry.message}
 						isGrouped={entry.isGrouped}
 						isFirstInGroup={entry.isFirstInGroup}
+						compact={isCompact}
 						{onreply}
 						{onreact}
 						{onmore}
