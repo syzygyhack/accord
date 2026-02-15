@@ -20,15 +20,11 @@ if (env.ALLOWED_ORIGIN) {
   app.use("*", cors({ origin: env.ALLOWED_ORIGIN }));
 }
 
-// Rate limiting on sensitive endpoints
-// Auth: strict — 10 attempts per 15 minutes per IP
-app.use("/api/auth", rateLimit({ max: 10, windowMs: 15 * 60 * 1000 }));
-// Preview: moderate — 30 requests per minute per IP
-app.use("/api/preview", rateLimit({ max: 30, windowMs: 60 * 1000 }));
-// Upload: moderate — 20 uploads per minute per IP
-app.use("/api/upload", rateLimit({ max: 20, windowMs: 60 * 1000 }));
-// Invite creation: moderate — 10 per minute per IP
-app.use("/api/invite", rateLimit({ max: 10, windowMs: 60 * 1000 }));
+// Rate limiting on sensitive endpoints (configurable via env)
+app.use("/api/auth", rateLimit({ max: env.RATE_LIMIT_AUTH_MAX, windowMs: env.RATE_LIMIT_AUTH_WINDOW }));
+app.use("/api/preview", rateLimit({ max: env.RATE_LIMIT_PREVIEW_MAX, windowMs: env.RATE_LIMIT_WINDOW }));
+app.use("/api/upload", rateLimit({ max: env.RATE_LIMIT_UPLOAD_MAX, windowMs: env.RATE_LIMIT_WINDOW }));
+app.use("/api/invite", rateLimit({ max: env.RATE_LIMIT_INVITE_MAX, windowMs: env.RATE_LIMIT_WINDOW }));
 
 // Global error handler — prevents stack trace leaks to clients (CR-027)
 app.onError((err, c) => {

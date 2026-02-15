@@ -58,6 +58,21 @@
 	let topicEditing = $state(false);
 	let editValue = $state('');
 	let showPinnedDropdown = $state(false);
+	let pinWrapper: HTMLDivElement | undefined = $state();
+
+	// Close pinned dropdown on click outside
+	$effect(() => {
+		if (!showPinnedDropdown) return;
+		function handleClickOutside(e: MouseEvent) {
+			if (pinWrapper && !pinWrapper.contains(e.target as Node)) {
+				showPinnedDropdown = false;
+			}
+		}
+		requestAnimationFrame(() => {
+			window.addEventListener('click', handleClickOutside, { capture: true });
+		});
+		return () => window.removeEventListener('click', handleClickOutside, { capture: true });
+	});
 
 	/** Pinned message IDs for the active channel. */
 	let pinnedMsgids = $derived(
@@ -213,7 +228,7 @@
 				</svg>
 			</button>
 		{/if}
-		<div class="pin-wrapper">
+		<div class="pin-wrapper" bind:this={pinWrapper}>
 			<button
 				class="action-button"
 				class:active={showPinnedDropdown}
@@ -233,7 +248,7 @@
 			</button>
 			{#if showPinnedDropdown}
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<div class="pinned-dropdown" onmouseleave={() => (showPinnedDropdown = false)}>
+				<div class="pinned-dropdown">
 					<div class="pinned-header">Pinned Messages</div>
 					{#if pinnedMessagesList.length === 0}
 						<div class="pinned-empty">No pinned messages in this channel.</div>

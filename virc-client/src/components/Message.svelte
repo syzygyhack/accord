@@ -189,6 +189,8 @@
 		moreMenuOpen = false;
 	}
 
+	let moreMenuWrapper: HTMLDivElement | undefined = $state();
+
 	function toggleMoreMenu() {
 		moreMenuOpen = !moreMenuOpen;
 	}
@@ -196,6 +198,21 @@
 	function closeMoreMenu() {
 		moreMenuOpen = false;
 	}
+
+	// Close more-menu on click outside
+	$effect(() => {
+		if (!moreMenuOpen) return;
+		function handleClickOutside(e: MouseEvent) {
+			if (moreMenuWrapper && !moreMenuWrapper.contains(e.target as Node)) {
+				moreMenuOpen = false;
+			}
+		}
+		// Delay to avoid catching the opening click
+		requestAnimationFrame(() => {
+			window.addEventListener('click', handleClickOutside, { capture: true });
+		});
+		return () => window.removeEventListener('click', handleClickOutside, { capture: true });
+	});
 
 	function handleToggleReaction(emoji: string) {
 		ontogglereaction?.(message.msgid, emoji);
@@ -239,7 +256,7 @@
 					<path d="M6.6 3.4L1.2 7.6a.5.5 0 000 .8l5.4 4.2a.5.5 0 00.8-.4V10c3 0 5.4.8 7 3.6.2.4.6.4.6-.1C15 9.1 12 5.5 7.4 5.2V3.8a.5.5 0 00-.8-.4z"/>
 				</svg>
 			</button>
-			<div class="toolbar-more-wrapper">
+			<div class="toolbar-more-wrapper" bind:this={moreMenuWrapper}>
 				<button class="toolbar-btn" title="More" aria-label="More actions" onclick={toggleMoreMenu}>
 					<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
 						<circle cx="3" cy="8" r="1.5"/>
@@ -249,7 +266,7 @@
 				</button>
 				{#if moreMenuOpen}
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
-					<div class="more-menu" onmouseleave={closeMoreMenu}>
+					<div class="more-menu">
 						{#if isOp}
 							<button class="more-menu-item" onclick={handlePin}>
 								{pinned ? 'Unpin Message' : 'Pin Message'}
@@ -414,7 +431,7 @@
 					<path d="M6.6 3.4L1.2 7.6a.5.5 0 000 .8l5.4 4.2a.5.5 0 00.8-.4V10c3 0 5.4.8 7 3.6.2.4.6.4.6-.1C15 9.1 12 5.5 7.4 5.2V3.8a.5.5 0 00-.8-.4z"/>
 				</svg>
 			</button>
-			<div class="toolbar-more-wrapper">
+			<div class="toolbar-more-wrapper" bind:this={moreMenuWrapper}>
 				<button class="toolbar-btn" title="More" aria-label="More actions" onclick={toggleMoreMenu}>
 					<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
 						<circle cx="3" cy="8" r="1.5"/>
@@ -424,7 +441,7 @@
 				</button>
 				{#if moreMenuOpen}
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
-					<div class="more-menu" onmouseleave={closeMoreMenu}>
+					<div class="more-menu">
 						{#if isOp}
 							<button class="more-menu-item" onclick={handlePin}>
 								{pinned ? 'Unpin Message' : 'Pin Message'}

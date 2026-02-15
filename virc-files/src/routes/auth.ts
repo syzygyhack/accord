@@ -73,7 +73,7 @@ auth.post("/api/auth", async (c) => {
     sub: account,
     iss: "virc-files",
     iat: now,
-    exp: now + 3600, // 1 hour
+    exp: now + env.JWT_EXPIRY,
     srv: env.SERVER_NAME || "virc.local",
   })
     .setProtectedHeader({ alg: "HS256" })

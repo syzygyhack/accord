@@ -42,6 +42,11 @@ services:
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-devsecret}
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret}
       SERVER_NAME: ${SERVER_NAME:-}
+      ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-}
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-}
+    volumes:
+      - virc-uploads:/app/uploads
+      - virc-data:/app/data
     depends_on:
       - ergo
       - mysql
@@ -63,3 +68,5 @@ services:
 volumes:
   ergo-data:
   mysql-data:
+  virc-uploads:
+  virc-data:
