@@ -46,6 +46,7 @@
 	import ErrorBoundary from '../../components/ErrorBoundary.svelte';
 	import ConnectionBanner from '../../components/ConnectionBanner.svelte';
 	import VoiceOverlay from '../../components/VoiceOverlay.svelte';
+	import { applyServerTheme, clearServerTheme, parseServerTheme } from '$lib/state/theme.svelte';
 
 	/** virc.json config shape (subset we consume). */
 	interface VircConfig {
@@ -58,6 +59,10 @@
 				channels: string[];
 				voice?: boolean;
 			}>;
+		};
+		theme?: {
+			accent?: string;
+			surfaces?: Record<string, string>;
 		};
 	}
 
@@ -618,6 +623,14 @@
 
 			// Update window title with server name (sets Tauri window title too)
 			document.title = serverName;
+
+			// Apply server theme overrides if configured
+			if (config?.theme) {
+				const overrides = parseServerTheme(config.theme);
+				if (Object.keys(overrides).length > 0) {
+					applyServerTheme(overrides);
+				}
+			}
 
 			// 7. Populate categories from virc.json
 			const categories = config?.channels?.categories ?? [
@@ -1188,6 +1201,9 @@
 			}
 			conn = null;
 		}
+
+		// Clear server theme overrides on teardown
+		clearServerTheme();
 	});
 </script>
 

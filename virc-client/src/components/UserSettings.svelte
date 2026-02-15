@@ -6,6 +6,7 @@
 	import { formatMessage } from '$lib/irc/parser';
 	import { audioSettings, type VideoQuality } from '$lib/state/audioSettings.svelte';
 	import { appSettings, type ZoomLevel } from '$lib/state/appSettings.svelte';
+	import { themeState, setTheme, type Theme } from '$lib/state/theme.svelte';
 	import type { IRCConnection } from '$lib/irc/connection';
 
 	interface Props {
@@ -50,6 +51,13 @@
 		{ value: 100, label: 'Spacious', desc: 'Most room for content' },
 		{ value: 125, label: 'Default', desc: 'Balanced zoom level' },
 		{ value: 150, label: 'Compact', desc: 'Zoomed in, tighter layout' },
+	];
+
+	const themeOptions: { value: Theme; label: string; desc: string }[] = [
+		{ value: 'dark', label: 'Dark', desc: 'Default dark theme' },
+		{ value: 'light', label: 'Light', desc: 'Light backgrounds, dark text' },
+		{ value: 'amoled', label: 'AMOLED', desc: 'True black for OLED screens' },
+		{ value: 'compact', label: 'Compact', desc: 'IRC-style dense layout' },
 	];
 
 	function handleKeydown(e: KeyboardEvent): void {
@@ -555,6 +563,25 @@
 						<p class="device-hint">No media devices detected. Join a voice channel first to grant microphone permission, then reopen settings.</p>
 					{/if}
 				{:else if activeTab === 'appearance'}
+					<div class="settings-section">
+						<h3 class="section-title">Theme</h3>
+						<p class="setting-hint">Choose how virc looks. Your theme is the base; server themes layer on top.</p>
+						<div class="theme-options">
+							{#each themeOptions as opt (opt.value)}
+								<button
+									class="theme-option"
+									class:active={themeState.current === opt.value}
+									onclick={() => setTheme(opt.value)}
+								>
+									<span class="theme-option-label">{opt.label}</span>
+									<span class="theme-option-desc">{opt.desc}</span>
+								</button>
+							{/each}
+						</div>
+					</div>
+
+					<div class="section-divider"></div>
+
 					<div class="settings-section">
 						<h3 class="section-title">Zoom Level</h3>
 						<p class="setting-hint">Controls the overall UI scale. Higher values zoom in for a more compact feel.</p>
@@ -1209,6 +1236,46 @@
 	}
 
 	/* ---- Appearance Tab ---- */
+
+	.theme-options {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 8px;
+	}
+
+	.theme-option {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: 12px 16px;
+		background: var(--surface-low);
+		border: 1px solid var(--surface-highest);
+		border-radius: 6px;
+		cursor: pointer;
+		text-align: left;
+		font-family: var(--font-primary);
+		transition: background var(--duration-channel), border-color var(--duration-channel);
+	}
+
+	.theme-option:hover {
+		background: var(--surface-high);
+	}
+
+	.theme-option.active {
+		border-color: var(--accent-primary);
+		background: var(--accent-bg);
+	}
+
+	.theme-option-label {
+		font-size: var(--font-base);
+		font-weight: var(--weight-medium);
+		color: var(--text-primary);
+	}
+
+	.theme-option-desc {
+		font-size: var(--font-xs);
+		color: var(--text-muted);
+	}
 
 	.zoom-options {
 		display: flex;
