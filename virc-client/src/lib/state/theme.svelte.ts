@@ -120,8 +120,8 @@ export function applyServerTheme(overrides: Record<string, string>): void {
 	for (const [key, value] of Object.entries(overrides)) {
 		const cssVar = key.startsWith('--') ? key : `--${key}`;
 		if (!ALLOWED_OVERRIDES.has(cssVar)) continue;
-		// Basic sanitization: reject values with url(), expression(), or semicolons
-		if (/url\s*\(|expression\s*\(|;/i.test(value)) continue;
+		// Sanitization: reject values with url(), expression(), var(), calc(), or semicolons
+		if (/url\s*\(|expression\s*\(|var\s*\(|calc\s*\(|;/i.test(value)) continue;
 		root.style.setProperty(cssVar, value);
 		applied[cssVar] = value;
 	}

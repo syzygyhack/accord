@@ -47,15 +47,19 @@ function loadNotificationLevels(): void {
 /** Persist notification levels to localStorage. */
 function saveNotificationLevels(): void {
 	if (!hasLocalStorage()) return;
-	if (notificationLevels.size === 0) {
-		localStorage.removeItem(NOTIFICATION_LEVELS_KEY);
-		return;
+	try {
+		if (notificationLevels.size === 0) {
+			localStorage.removeItem(NOTIFICATION_LEVELS_KEY);
+			return;
+		}
+		const obj: Record<string, NotificationLevel> = {};
+		for (const [channel, level] of notificationLevels) {
+			obj[channel] = level;
+		}
+		localStorage.setItem(NOTIFICATION_LEVELS_KEY, JSON.stringify(obj));
+	} catch {
+		// Storage full or unavailable
 	}
-	const obj: Record<string, NotificationLevel> = {};
-	for (const [channel, level] of notificationLevels) {
-		obj[channel] = level;
-	}
-	localStorage.setItem(NOTIFICATION_LEVELS_KEY, JSON.stringify(obj));
 }
 
 // Load persisted levels on module init

@@ -1,6 +1,19 @@
 import type { IRCConnection } from './connection';
 import { formatMessage } from './parser';
 
+/**
+ * Escape a tag value per IRCv3 message-tags spec.
+ * Characters that must be escaped: \ ; SPACE CR LF
+ */
+function escapeTagValue(value: string): string {
+	return value
+		.replace(/\\/g, '\\\\')
+		.replace(/;/g, '\\:')
+		.replace(/ /g, '\\s')
+		.replace(/\r/g, '\\r')
+		.replace(/\n/g, '\\n');
+}
+
 /** Join one or more channels. */
 export function join(conn: IRCConnection, channels: string[]): void {
 	conn.send(formatMessage('JOIN', channels.join(',')));
@@ -18,7 +31,7 @@ export function part(conn: IRCConnection, channel: string, reason?: string): voi
 /** Send a PRIVMSG to a target (channel or nick). Optionally attach a +virc/edit tag for edits. */
 export function privmsg(conn: IRCConnection, target: string, text: string, editMsgid?: string): void {
 	if (editMsgid) {
-		conn.send(`@+virc/edit=${editMsgid} ${formatMessage('PRIVMSG', target, text)}`);
+		conn.send(`@+virc/edit=${escapeTagValue(editMsgid)} ${formatMessage('PRIVMSG', target, text)}`);
 	} else {
 		conn.send(formatMessage('PRIVMSG', target, text));
 	}
@@ -30,7 +43,7 @@ export function privmsg(conn: IRCConnection, target: string, text: string, editM
  */
 export function tagmsg(conn: IRCConnection, target: string, tags: Record<string, string>): void {
 	const tagStr = Object.entries(tags)
-		.map(([k, v]) => (v ? `${k}=${v}` : k))
+		.map(([k, v]) => (v ? `${k}=${escapeTagValue(v)}` : k))
 		.join(';');
 	conn.send(`@${tagStr} TAGMSG ${target}`);
 }

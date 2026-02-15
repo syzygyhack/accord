@@ -26,12 +26,22 @@ const defaults: AppSettingsData = {
 	developerMode: false,
 };
 
+const VALID_ZOOM: ReadonlySet<number> = new Set([100, 125, 150]);
+const VALID_SYSTEM_DISPLAY: ReadonlySet<string> = new Set(['all', 'smart', 'none']);
+
 function load(): AppSettingsData {
 	try {
 		const raw = localStorage.getItem(STORAGE_KEY);
 		if (raw) {
 			const parsed = JSON.parse(raw);
-			return { ...defaults, ...parsed };
+			return {
+				zoom: VALID_ZOOM.has(parsed.zoom) ? parsed.zoom : defaults.zoom,
+				systemMessageDisplay: VALID_SYSTEM_DISPLAY.has(parsed.systemMessageDisplay)
+					? parsed.systemMessageDisplay
+					: defaults.systemMessageDisplay,
+				showRawIrc: typeof parsed.showRawIrc === 'boolean' ? parsed.showRawIrc : defaults.showRawIrc,
+				developerMode: typeof parsed.developerMode === 'boolean' ? parsed.developerMode : defaults.developerMode,
+			};
 		}
 	} catch {
 		// Corrupt data — reset to defaults

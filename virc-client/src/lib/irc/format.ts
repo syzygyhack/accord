@@ -42,7 +42,8 @@ function escapeHTML(text: string): string {
 		.replace(/&/g, '&amp;')
 		.replace(/</g, '&lt;')
 		.replace(/>/g, '&gt;')
-		.replace(/"/g, '&quot;');
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#39;');
 }
 
 /**
@@ -264,9 +265,8 @@ export function linkify(text: string): string {
 	return text.replace(
 		/(https?:\/\/[^\s<>"]+)/g,
 		(url) => {
-			const display = url;
 			const href = escapeHTML(url);
-			return `<a href="${href}" target="_blank" rel="noopener noreferrer">${display}</a>`;
+			return `<a href="${href}" target="_blank" rel="noopener noreferrer">${escapeHTML(url)}</a>`;
 		}
 	);
 }
@@ -308,7 +308,7 @@ export function nickColor(account: string): string {
 	for (let i = 0; i < account.length; i++) {
 		hash = ((hash << 5) + hash + account.charCodeAt(i)) | 0;
 	}
-	const hue = Math.abs(hash) % 360;
+	const hue = (hash >>> 0) % 360;
 	return `hsl(${hue}, 65%, 65%)`;
 }
 

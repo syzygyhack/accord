@@ -69,23 +69,31 @@ export class InviteStore {
 
 // --- Helpers ---
 
-/** Generate a 12-char alphanumeric token. */
+/** Generate a 12-char alphanumeric token using rejection sampling to avoid modulo bias. */
 function generateToken(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  const bytes = randomBytes(12);
+  // Largest multiple of 62 that fits in a byte: 62 * 4 = 248
+  const maxValid = 248;
   let result = "";
-  for (let i = 0; i < 12; i++) {
-    result += chars[bytes[i] % chars.length];
+
+  while (result.length < 12) {
+    const bytes = randomBytes(16); // over-fetch to reduce iterations
+    for (let i = 0; i < bytes.length && result.length < 12; i++) {
+      if (bytes[i] < maxValid) {
+        result += chars[bytes[i] % chars.length];
+      }
+    }
   }
+
   return result;
 }
 
-/** Parse duration string like "7d", "1h", "30m" to milliseconds. Returns 0 for "never". */
-function parseDuration(duration: string): number {
+/** Parse duration string like "7d", "1h", "30m" to milliseconds. Returns 0 for "never". Returns null for invalid. */
+function parseDuration(duration: string): number | null {
   if (duration === "never" || duration === "0") return 0;
 
   const match = duration.match(/^(\d+)([dhm])$/);
-  if (!match) return 0;
+  if (!match) return null;
 
   const value = parseInt(match[1], 10);
   const unit = match[2];
@@ -98,7 +106,7 @@ function parseDuration(duration: string): number {
     case "m":
       return value * 60 * 1000;
     default:
-      return 0;
+      return null;
   }
 }
 
@@ -132,20 +140,41 @@ export function createInviteRouter(dataDir?: string) {
   router.post("/api/invite", authMiddleware, async (c) => {
     await ensureLoaded();
 
-    const body = await c.req.json<{
-      channel?: string;
-      expiresIn?: string;
-      maxUses?: number;
-    }>();
+    let body: { channel?: string; expiresIn?: string; maxUses?: number };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body" }, 400);
+    }
 
     if (!body.channel) {
       return c.json({ error: "Missing required field: channel" }, 400);
+    }
+
+    // Validate channel format: must start with #, max 200 chars, safe characters only
+    if (
+      typeof body.channel !== "string" ||
+      !body.channel.startsWith("#") ||
+      body.channel.length > 200 ||
+      /[\s\x00-\x1f,]/.test(body.channel)
+    ) {
+      return c.json({ error: "Invalid channel format" }, 400);
+    }
+
+    // Validate maxUses is a non-negative integer if provided
+    if (body.maxUses !== undefined) {
+      if (typeof body.maxUses !== "number" || !Number.isInteger(body.maxUses) || body.maxUses < 0) {
+        return c.json({ error: "maxUses must be a non-negative integer" }, 400);
+      }
     }
 
     const user = c.get("user");
     const token = generateToken();
     const expiresInStr = body.expiresIn ?? "7d";
     const durationMs = parseDuration(expiresInStr);
+    if (durationMs === null) {
+      return c.json({ error: "Invalid expiresIn format (use e.g. 7d, 1h, 30m, or never)" }, 400);
+    }
     const expiresAt = durationMs > 0 ? Date.now() + durationMs : 0;
     const maxUses = body.maxUses ?? 0;
 
@@ -203,17 +232,23 @@ export function createInviteRouter(dataDir?: string) {
     });
   });
 
-  // DELETE /api/invite/:token — revoke invite (auth required)
+  // DELETE /api/invite/:token — revoke invite (auth required, creator only)
   router.delete("/api/invite/:token", authMiddleware, async (c) => {
     await ensureLoaded();
 
     const token = c.req.param("token");
-    const removed = store.remove(token);
+    const invite = store.findByToken(token);
 
-    if (!removed) {
+    if (!invite) {
       return c.json({ error: "Invite not found" }, 404);
     }
 
+    const user = c.get("user");
+    if (invite.createdBy !== user.sub) {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+
+    store.remove(token);
     await store.save();
     return c.json({ ok: true });
   });

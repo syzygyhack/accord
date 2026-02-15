@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { randomUUID } from "crypto";
-import { join, extname } from "path";
+import { join, extname, resolve } from "path";
 import { mkdir, stat } from "fs/promises";
 import { authMiddleware } from "../middleware/auth.js";
 import type { AppEnv } from "../types.js";
@@ -39,8 +39,7 @@ files.post("/api/upload", authMiddleware, async (c) => {
   const dir = await ensureUploadDir();
   const filePath = join(dir, storedName);
 
-  const buffer = await file.arrayBuffer();
-  await Bun.write(filePath, buffer);
+  await Bun.write(filePath, file);
 
   return c.json({
     url: `/api/files/${storedName}`,
@@ -50,16 +49,28 @@ files.post("/api/upload", authMiddleware, async (c) => {
   });
 });
 
+// No authMiddleware: files use UUID filenames as unguessable tokens.
+// Auth would break inline media embeds in chat clients. This is intentional.
 files.get("/api/files/:filename", async (c) => {
   const filename = c.req.param("filename");
 
-  // Prevent directory traversal
-  if (filename.includes("..") || filename.includes("/") || filename.includes("\\")) {
+  // Prevent directory traversal: reject suspicious characters and null bytes
+  if (
+    filename.includes("..") ||
+    filename.includes("/") ||
+    filename.includes("\\") ||
+    filename.includes("\0")
+  ) {
     return c.json({ error: "Invalid filename" }, 400);
   }
 
-  const dir = env.UPLOAD_DIR;
+  const dir = resolve(env.UPLOAD_DIR);
   const filePath = join(dir, filename);
+
+  // Validate resolved path stays within the upload directory
+  if (!resolve(filePath).startsWith(dir)) {
+    return c.json({ error: "Invalid filename" }, 400);
+  }
 
   try {
     const fileStat = await stat(filePath);
@@ -74,13 +85,36 @@ files.get("/api/files/:filename", async (c) => {
   const ext = extname(filename).toLowerCase();
   const mimeType = getMimeType(ext) || file.type || "application/octet-stream";
 
-  return new Response(file, {
-    headers: {
-      "Content-Type": mimeType,
-      "Cache-Control": "public, max-age=31536000, immutable",
-    },
-  });
+  // Force download for potentially dangerous content types to prevent XSS
+  const forceDownload = UNSAFE_EXTENSIONS.has(ext);
+
+  const headers: Record<string, string> = {
+    "Content-Type": mimeType,
+    "Cache-Control": "public, max-age=31536000, immutable",
+    "X-Content-Type-Options": "nosniff",
+  };
+
+  if (forceDownload) {
+    headers["Content-Disposition"] = `attachment; filename="${filename}"`;
+  }
+
+  return new Response(file, { headers });
 });
+
+/**
+ * Extensions that could execute scripts in the browser.
+ * These are served with Content-Disposition: attachment to prevent XSS.
+ */
+const UNSAFE_EXTENSIONS = new Set([
+  ".svg",
+  ".html",
+  ".htm",
+  ".xhtml",
+  ".xml",
+  ".js",
+  ".mjs",
+  ".css",
+]);
 
 /** Map common extensions to MIME types. */
 function getMimeType(ext: string): string | null {

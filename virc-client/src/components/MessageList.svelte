@@ -162,7 +162,7 @@
 				const visibleRun: Message[] = [];
 				let j = i;
 				while (j < messages.length && isSystemMessage(messages[j])) {
-					if (filterSystemMessage(messages[j], systemDisplay, recentSpeakers, now)) {
+					if (filterSystemMessage(messages[j], systemDisplay, recentSpeakers)) {
 						visibleRun.push(messages[j]);
 					}
 					j++;

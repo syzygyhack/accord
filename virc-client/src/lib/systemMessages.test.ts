@@ -109,34 +109,32 @@ describe('summarizeCollapsedGroup', () => {
 });
 
 describe('filterSystemMessage', () => {
-	const now = new Date('2026-01-15T12:00:00Z');
-
 	it('returns true when display is all', () => {
 		const msg = makeMsg({ type: 'join', nick: 'alice' });
-		expect(filterSystemMessage(msg, 'all', new Set(), now)).toBe(true);
+		expect(filterSystemMessage(msg, 'all', new Set())).toBe(true);
 	});
 
 	it('returns false when display is none', () => {
 		const msg = makeMsg({ type: 'join', nick: 'alice' });
-		expect(filterSystemMessage(msg, 'none', new Set(), now)).toBe(false);
+		expect(filterSystemMessage(msg, 'none', new Set())).toBe(false);
 	});
 
 	it('returns true in smart mode when user recently spoke', () => {
 		const msg = makeMsg({ type: 'join', nick: 'alice' });
 		const recentSpeakers = new Set(['alice']);
-		expect(filterSystemMessage(msg, 'smart', recentSpeakers, now)).toBe(true);
+		expect(filterSystemMessage(msg, 'smart', recentSpeakers)).toBe(true);
 	});
 
 	it('returns false in smart mode when user has not spoken recently', () => {
 		const msg = makeMsg({ type: 'join', nick: 'alice' });
 		const recentSpeakers = new Set(['bob']);
-		expect(filterSystemMessage(msg, 'smart', recentSpeakers, now)).toBe(false);
+		expect(filterSystemMessage(msg, 'smart', recentSpeakers)).toBe(false);
 	});
 
 	it('always returns true for non-system messages regardless of mode', () => {
 		const msg = makeMsg({ type: 'privmsg', nick: 'alice' });
-		expect(filterSystemMessage(msg, 'none', new Set(), now)).toBe(true);
-		expect(filterSystemMessage(msg, 'smart', new Set(), now)).toBe(true);
-		expect(filterSystemMessage(msg, 'all', new Set(), now)).toBe(true);
+		expect(filterSystemMessage(msg, 'none', new Set())).toBe(true);
+		expect(filterSystemMessage(msg, 'smart', new Set())).toBe(true);
+		expect(filterSystemMessage(msg, 'all', new Set())).toBe(true);
 	});
 });

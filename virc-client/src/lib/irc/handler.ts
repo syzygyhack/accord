@@ -338,8 +338,8 @@ function handlePrivmsg(parsed: ParsedMessage): void {
 	const activeChannel = getActiveChannel();
 	if (bufferTarget !== activeChannel && !isOwnMessage) {
 		const myAccount = userState.account ?? '';
-		// DMs are always considered mentions
-		const isMention = isIncomingDM || (myAccount !== '' && msg.text.includes(`@${myAccount}`));
+		// DMs are always considered mentions; word-boundary check for @mentions
+		const isMention = isIncomingDM || (myAccount !== '' && new RegExp(`\\b@${myAccount.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(msg.text));
 		incrementUnread(bufferTarget, isMention);
 	}
 }

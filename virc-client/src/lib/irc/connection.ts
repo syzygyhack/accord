@@ -99,16 +99,17 @@ export class IRCConnection {
 
 	/**
 	 * Send a raw IRC line. Appends \r\n automatically.
-	 * No-op if the WebSocket is not open.
+	 * Returns false if the WebSocket is not open (message was dropped).
 	 */
-	send(line: string): void {
+	send(line: string): boolean {
 		if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-			return;
+			return false;
 		}
 		if (appSettings.showRawIrc) {
 			pushRawLine('out', line);
 		}
 		this.ws.send(line + '\r\n');
+		return true;
 	}
 
 	/**
@@ -206,13 +207,28 @@ export class IRCConnection {
 
 	/**
 	 * Attempt to reconnect by creating a new WebSocket.
+	 * Includes a timeout to prevent hanging handshakes from blocking reconnection.
 	 */
 	private attemptReconnect(): void {
 		this.buffer = '';
 		const ws = new WebSocket(this.url);
 		this.ws = ws;
+		let settled = false;
+
+		const timeout = setTimeout(() => {
+			if (!settled) {
+				settled = true;
+				try { ws.close(); } catch { /* ignore */ }
+				if (!this.intentionalClose) {
+					this.scheduleReconnect();
+				}
+			}
+		}, CONNECT_TIMEOUT_MS);
 
 		ws.onopen = () => {
+			if (settled) return;
+			settled = true;
+			clearTimeout(timeout);
 			this.state = 'connected';
 			this.reconnectAttempt = 0;
 			this.emit('reconnected');
@@ -229,6 +245,9 @@ export class IRCConnection {
 		};
 
 		ws.onclose = () => {
+			if (settled) return;
+			settled = true;
+			clearTimeout(timeout);
 			if (!this.intentionalClose) {
 				this.scheduleReconnect();
 			}

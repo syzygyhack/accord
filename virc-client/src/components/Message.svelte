@@ -105,6 +105,9 @@
 		fetchPreview(url, token, filesUrl).then((result) => {
 			linkPreview = result;
 			previewLoading = false;
+		}).catch(() => {
+			linkPreview = null;
+			previewLoading = false;
 		});
 	});
 

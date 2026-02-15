@@ -10,12 +10,19 @@ function optional(name: string, fallback: string): string {
   return process.env[name] ?? fallback;
 }
 
+let _ergoTokenWarned = false;
+
 export const env = {
   get ERGO_API() {
     return optional("ERGO_API", "http://ergo:8089");
   },
   get ERGO_API_TOKEN() {
-    return optional("ERGO_API_TOKEN", "");
+    const token = optional("ERGO_API_TOKEN", "");
+    if (!token && !_ergoTokenWarned) {
+      _ergoTokenWarned = true;
+      console.warn("WARNING: ERGO_API_TOKEN is not set — Ergo API requests will be unauthenticated");
+    }
+    return token;
   },
   get JWT_SECRET() {
     return required("JWT_SECRET");

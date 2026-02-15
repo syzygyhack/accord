@@ -37,13 +37,11 @@ export function summarizeCollapsedGroup(messages: Message[]): string {
  * @param msg             The message to check.
  * @param display         The current systemMessageDisplay setting.
  * @param recentSpeakers  Set of nicks who sent a privmsg in the last 15 min.
- * @param _now            Current time (unused; reserved for future TTL logic).
  */
 export function filterSystemMessage(
 	msg: Message,
 	display: SystemMessageDisplay,
 	recentSpeakers: Set<string>,
-	_now: Date,
 ): boolean {
 	// Non-system messages are never filtered.
 	if (!isSystemMessage(msg)) return true;

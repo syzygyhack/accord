@@ -254,3 +254,45 @@ describe('renderMessage with custom emoji', () => {
 		expect(result).not.toContain('<img');
 	});
 });
+
+describe('renderMessage XSS safety', () => {
+	it('neutralizes script tags', () => {
+		const result = renderMessage('<script>alert(1)</script>', 'me');
+		expect(result).not.toContain('<script>');
+		expect(result).toContain('&lt;script&gt;');
+	});
+
+	it('neutralizes img onerror payloads', () => {
+		const result = renderMessage('<img onerror=alert(1) src=x>', 'me');
+		expect(result).not.toContain('<img');
+		expect(result).toContain('&lt;img');
+	});
+
+	it('does not create javascript: links', () => {
+		const result = renderMessage('javascript:alert(1)', 'me');
+		expect(result).not.toContain('href="javascript:');
+	});
+
+	it('neutralizes nested HTML in bold formatting', () => {
+		const result = renderMessage('\x02<b onmouseover=alert(1)>test</b>\x02', 'me');
+		// The < and > are escaped, so the browser won't parse this as a real element
+		expect(result).toContain('&lt;b');
+		expect(result).toContain('&gt;');
+		expect(result).not.toMatch(/<b\s/); // No actual <b> HTML tag
+	});
+
+	it('neutralizes event handler attributes', () => {
+		const result = renderMessage('<div onclick="alert(1)">click</div>', 'me');
+		// The < and > are escaped, so the browser won't parse this as a real element
+		expect(result).toContain('&lt;div');
+		expect(result).not.toMatch(/<div\s/); // No actual <div> HTML tag
+	});
+
+	it('escapes HTML entities in URLs used as display text', () => {
+		// Linkify should also escape the display portion of links
+		const result = renderMessage('visit https://example.com/test&param=1', 'me');
+		expect(result).toContain('href=');
+		// The display text should be escaped too
+		expect(result).not.toMatch(/<a[^>]*>[^<]*&[^a]/);
+	});
+});

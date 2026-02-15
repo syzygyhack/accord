@@ -20,9 +20,15 @@ export const rawIrcLog = {
 	get lines() { return _lines; },
 };
 
-/** Append a raw IRC line to the buffer, evicting oldest if over limit. */
+/** Commands that may contain credentials — redact their content. */
+const SENSITIVE_COMMANDS = /^(AUTHENTICATE|PASS)\b/i;
+
+/** Append a raw IRC line to the buffer, evicting oldest if over limit. Redacts sensitive commands. */
 export function pushRawLine(direction: 'in' | 'out', line: string): void {
-	_lines.push({ direction, line, time: new Date() });
+	const redacted = SENSITIVE_COMMANDS.test(line)
+		? line.replace(/\s+.*$/, ' [REDACTED]')
+		: line;
+	_lines.push({ direction, line: redacted, time: new Date() });
 	if (_lines.length > MAX_RAW_LINES) {
 		_lines = _lines.slice(_lines.length - MAX_RAW_LINES);
 	}

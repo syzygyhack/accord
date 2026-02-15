@@ -11,9 +11,9 @@ export interface MediaUrl {
 	type: MediaType;
 }
 
-const IMAGE_EXTENSIONS = /\.(jpe?g|png|gif|webp)/i;
-const VIDEO_EXTENSIONS = /\.(mp4|webm)/i;
-const AUDIO_EXTENSIONS = /\.(mp3|ogg|flac)/i;
+const IMAGE_EXTENSIONS = /\.(jpe?g|png|gif|webp)$/i;
+const VIDEO_EXTENSIONS = /\.(mp4|webm)$/i;
+const AUDIO_EXTENSIONS = /\.(mp3|ogg|flac)$/i;
 
 /**
  * Determine media type from a URL based on file extension.

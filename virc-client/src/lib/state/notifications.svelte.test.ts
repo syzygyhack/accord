@@ -6,6 +6,7 @@ import {
 	getUnreadCount,
 	getMentionCount,
 	getLastReadMsgid,
+	setLastReadMsgid,
 	resetNotifications,
 	getNotificationLevel,
 	setNotificationLevel,
@@ -129,11 +130,20 @@ describe('notifications state', () => {
 	});
 
 	describe('setLastReadMsgid', () => {
-		it('sets lastReadMsgid without resetting counts via markRead', () => {
+		it('sets lastReadMsgid without resetting counts', () => {
 			incrementUnread('#test', false);
-			// markRead resets counts, but we can verify lastReadMsgid is set
-			markRead('#test', 'msg-99');
+			incrementUnread('#test', true);
+			setLastReadMsgid('#test', 'msg-99');
+			// Counts should remain untouched
+			expect(getUnreadCount('#test')).toBe(2);
+			expect(getMentionCount('#test')).toBe(1);
 			expect(getLastReadMsgid('#test')).toBe('msg-99');
+		});
+
+		it('updates an existing lastReadMsgid', () => {
+			setLastReadMsgid('#test', 'msg-1');
+			setLastReadMsgid('#test', 'msg-2');
+			expect(getLastReadMsgid('#test')).toBe('msg-2');
 		});
 	});
 
@@ -298,19 +308,29 @@ describe('notifications state', () => {
 			});
 		});
 
-		describe('loads from localStorage on init', () => {
-			it('loads persisted levels', () => {
-				localStorage.setItem(
-					'virc:notificationLevels',
-					JSON.stringify({ '#test': 'mute', '#dev': 'all' })
-				);
-				// resetNotificationLevels triggers reload from localStorage
-				// We need to test that the module reads from localStorage.
-				// Since the module is already loaded, we test via reset + set flow.
+		describe('localStorage persistence roundtrip', () => {
+			it('persists and retrieves notification levels', () => {
+				// Set levels which persist to localStorage
+				setNotificationLevel('#test', 'mute');
+				setNotificationLevel('#dev', 'all');
+
+				// Verify localStorage has the data
+				const stored = localStorage.getItem('virc:notificationLevels');
+				expect(stored).not.toBeNull();
+				const parsed = JSON.parse(stored!);
+				expect(parsed['#test']).toBe('mute');
+				expect(parsed['#dev']).toBe('all');
+
+				// In-memory levels should reflect what was set
+				expect(getNotificationLevel('#test')).toBe('mute');
+				expect(getNotificationLevel('#dev')).toBe('all');
+			});
+
+			it('reset clears both memory and localStorage', () => {
+				setNotificationLevel('#test', 'mute');
 				resetNotificationLevels();
-				// After reset, levels should be cleared even if localStorage has data
-				// because reset clears both memory and storage
 				expect(getNotificationLevel('#test')).toBe('mentions');
+				expect(localStorage.getItem('virc:notificationLevels')).toBeNull();
 			});
 		});
 	});

@@ -287,8 +287,18 @@ export function getCursors(target: string): ChannelCursors {
 	return channelCursors.get(target) ?? { oldestMsgid: null, newestMsgid: null };
 }
 
-/** Clear all messages for a channel. */
+/** Clear all messages for a channel. Also prunes edit map entries for that channel. */
 export function clearChannel(target: string): void {
+	// Prune edit map entries for messages in this channel before deleting
+	const msgs = channelMessages.get(target);
+	if (msgs) {
+		const msgids = new Set(msgs.map((m) => m.msgid));
+		for (const [originalId] of editMap) {
+			if (msgids.has(originalId)) {
+				editMap.delete(originalId);
+			}
+		}
+	}
 	channelMessages.delete(target);
 	channelCursors.delete(target);
 	notify();
