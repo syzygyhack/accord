@@ -9,6 +9,43 @@ export interface EmojiCategory {
 	emoji: EmojiEntry[];
 }
 
+/** A custom server emoji: name → image URL. */
+export interface CustomEmoji {
+	name: string;
+	url: string;
+}
+
+/**
+ * Module-level store for custom emoji from the server's virc.json.
+ * Set once during connection init; read by emoji picker and format pipeline.
+ */
+let _customEmojiMap: Map<string, string> = new Map();
+
+/** Set the custom emoji map (called when virc.json is fetched). */
+export function setCustomEmoji(emojiMap: Record<string, string>): void {
+	_customEmojiMap = new Map(Object.entries(emojiMap));
+}
+
+/** Get the custom emoji map. */
+export function getCustomEmojiMap(): Map<string, string> {
+	return _customEmojiMap;
+}
+
+/** Get custom emoji as a list for display. */
+export function getCustomEmojiList(): CustomEmoji[] {
+	return Array.from(_customEmojiMap.entries()).map(([name, url]) => ({ name, url }));
+}
+
+/** Look up a custom emoji URL by name. Returns undefined if not found. */
+export function getCustomEmojiUrl(name: string): string | undefined {
+	return _customEmojiMap.get(name);
+}
+
+/** Clear the custom emoji map (e.g. on disconnect). */
+export function clearCustomEmoji(): void {
+	_customEmojiMap = new Map();
+}
+
 const smileys: EmojiEntry[] = [
 	{ emoji: '😀', name: 'grinning face', keywords: ['happy', 'smile', 'joy'] },
 	{ emoji: '😄', name: 'grinning face with smiling eyes', keywords: ['happy', 'laugh'] },
@@ -242,6 +279,14 @@ export function searchEmoji(query: string): EmojiEntry[] {
 			e.name.toLowerCase().includes(q) ||
 			e.keywords.some((k) => k.toLowerCase().includes(q))
 	);
+}
+
+/** Search custom emoji by name substring. Returns matching custom emoji. */
+export function searchCustomEmoji(query: string): CustomEmoji[] {
+	const list = getCustomEmojiList();
+	if (!query.trim()) return list;
+	const q = query.toLowerCase().trim();
+	return list.filter((e) => e.name.toLowerCase().includes(q));
 }
 
 const FREQUENT_KEY = 'virc:frequent-emoji';

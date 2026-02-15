@@ -3,6 +3,7 @@
 	import { getMessage } from '$lib/state/messages.svelte';
 	import { userState } from '$lib/state/user.svelte';
 	import { extractMediaUrls } from '$lib/media';
+	import { getCustomEmojiUrl } from '$lib/emoji';
 	import type { Message } from '$lib/state/messages.svelte';
 
 	interface Props {
@@ -16,6 +17,7 @@
 		ontogglereaction?: (msgid: string, emoji: string) => void;
 		onscrolltomessage?: (msgid: string) => void;
 		onretry?: (msgid: string) => void;
+		onnickclick?: (nick: string, account: string, event: MouseEvent) => void;
 	}
 
 	let {
@@ -29,6 +31,7 @@
 		ontogglereaction,
 		onscrolltomessage,
 		onretry,
+		onnickclick,
 	}: Props = $props();
 
 	let isFailed = $derived(message.sendState === 'failed');
@@ -86,12 +89,20 @@
 	);
 
 	let reactionEntries = $derived.by(() => {
-		const entries: { emoji: string; count: number; hasSelf: boolean }[] = [];
+		const entries: { emoji: string; count: number; hasSelf: boolean; customUrl: string | null }[] = [];
 		for (const [emoji, accounts] of message.reactions) {
+			// Check if this is a custom emoji (:name: format)
+			let customUrl: string | null = null;
+			const customMatch = emoji.match(/^:([a-zA-Z0-9_-]+):$/);
+			if (customMatch) {
+				const url = getCustomEmojiUrl(customMatch[1]);
+				if (url) customUrl = url;
+			}
 			entries.push({
 				emoji,
 				count: accounts.size,
 				hasSelf: accounts.has(userState.account ?? ''),
+				customUrl,
 			});
 		}
 		return entries;
@@ -119,11 +130,9 @@
 		}
 	}
 
-	/** Insert @nick mention when clicking a nick in a message. */
-	function handleNickClick() {
-		window.dispatchEvent(
-			new CustomEvent('virc:insert-mention', { detail: { nick: message.nick } })
-		);
+	/** Open profile popout when clicking a nick in a message. */
+	function handleNickClick(event: MouseEvent) {
+		onnickclick?.(message.nick, message.account, event);
 	}
 </script>
 
@@ -182,7 +191,7 @@
 
 	<div class="compact-row">
 		<span class="compact-timestamp">{timestamp}</span>
-		<span class="compact-nick" style="color: {color}" role="button" tabindex="0" onclick={handleNickClick} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNickClick(); } }}>{message.nick}</span>
+		<span class="compact-nick" style="color: {color}" role="button" tabindex="0" onclick={handleNickClick} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); handleNickClick(new MouseEvent('click', { clientX: rect.left, clientY: rect.bottom })); } }}>{message.nick}</span>
 		<div class="compact-text">
 			{#if message.isRedacted}
 				<span class="message-text redacted">[message deleted]</span>
@@ -228,7 +237,13 @@
 						class:reaction-self={entry.hasSelf}
 						onclick={() => handleToggleReaction(entry.emoji)}
 					>
-						<span class="reaction-emoji">{entry.emoji}</span>
+						<span class="reaction-emoji">
+							{#if entry.customUrl}
+								<img class="reaction-custom-emoji" src={entry.customUrl} alt={entry.emoji} title={entry.emoji} />
+							{:else}
+								{entry.emoji}
+							{/if}
+						</span>
 						<span class="reaction-count">{entry.count}</span>
 					</button>
 				{/each}
@@ -303,7 +318,7 @@
 			</div>
 			<div class="message-body">
 				<div class="message-meta">
-					<span class="nick" style="color: {color}" role="button" tabindex="0" onclick={handleNickClick} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNickClick(); } }}>{message.nick}</span>
+					<span class="nick" style="color: {color}" role="button" tabindex="0" onclick={handleNickClick} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); handleNickClick(new MouseEvent('click', { clientX: rect.left, clientY: rect.bottom })); } }}>{message.nick}</span>
 					<span class="timestamp">{timestamp}</span>
 				</div>
 				{#if message.isRedacted}
@@ -384,7 +399,13 @@
 					class:reaction-self={entry.hasSelf}
 					onclick={() => handleToggleReaction(entry.emoji)}
 				>
-					<span class="reaction-emoji">{entry.emoji}</span>
+					<span class="reaction-emoji">
+						{#if entry.customUrl}
+							<img class="reaction-custom-emoji" src={entry.customUrl} alt={entry.emoji} title={entry.emoji} />
+						{:else}
+							{entry.emoji}
+						{/if}
+					</span>
 					<span class="reaction-count">{entry.count}</span>
 				</button>
 			{/each}
@@ -891,5 +912,22 @@
 		font-weight: var(--weight-semibold);
 		min-width: 1ch;
 		text-align: center;
+	}
+
+	.reaction-custom-emoji {
+		width: 1.2em;
+		height: 1.2em;
+		object-fit: contain;
+		vertical-align: middle;
+	}
+
+	/* Inline custom emoji in message text */
+	.message-text :global(.custom-emoji) {
+		display: inline;
+		height: 1.375em;
+		width: auto;
+		object-fit: contain;
+		vertical-align: middle;
+		margin: -0.2em 0.05em;
 	}
 </style>

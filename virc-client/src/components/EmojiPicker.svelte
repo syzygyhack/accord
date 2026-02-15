@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { categories, searchEmoji, getFrequentEmoji, recordEmojiUse, type EmojiEntry } from '$lib/emoji';
+	import { categories, searchEmoji, searchCustomEmoji, getFrequentEmoji, recordEmojiUse, getCustomEmojiList, type EmojiEntry, type CustomEmoji } from '$lib/emoji';
 
 	interface Props {
 		onselect?: (emoji: string) => void;
@@ -13,6 +13,8 @@
 	let pickerEl: HTMLDivElement | undefined = $state();
 
 	let searchResults = $derived(query.trim() ? searchEmoji(query) : null);
+	let customSearchResults = $derived(query.trim() ? searchCustomEmoji(query) : null);
+	let customEmoji = $derived(getCustomEmojiList());
 	let frequentEmoji = $state(getFrequentEmoji());
 
 	let frequentEntries = $derived(
@@ -35,6 +37,11 @@
 		recordEmojiUse(emoji);
 		frequentEmoji = getFrequentEmoji();
 		onselect?.(emoji);
+	}
+
+	function handleCustomSelect(name: string) {
+		const emojiText = `:${name}:`;
+		onselect?.(emojiText);
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
@@ -79,6 +86,22 @@
 
 	<div class="emoji-scroll">
 		{#if searchResults}
+			{#if customSearchResults && customSearchResults.length > 0}
+				<div class="emoji-category">
+					<div class="emoji-category-header">Server</div>
+					<div class="emoji-grid">
+						{#each customSearchResults as entry (entry.name)}
+							<button
+								class="emoji-btn emoji-btn-custom"
+								title={entry.name}
+								onclick={() => handleCustomSelect(entry.name)}
+							>
+								<img class="custom-emoji-img" src={entry.url} alt={entry.name} loading="lazy" />
+							</button>
+						{/each}
+					</div>
+				</div>
+			{/if}
 			<div class="emoji-grid">
 				{#each searchResults as entry (entry.emoji)}
 					<button
@@ -90,7 +113,7 @@
 					</button>
 				{/each}
 			</div>
-			{#if searchResults.length === 0}
+			{#if searchResults.length === 0 && (!customSearchResults || customSearchResults.length === 0)}
 				<div class="emoji-empty">No emoji found</div>
 			{/if}
 		{:else}
@@ -105,6 +128,23 @@
 								onclick={() => handleSelect(entry.emoji)}
 							>
 								{entry.emoji}
+							</button>
+						{/each}
+					</div>
+				</div>
+			{/if}
+
+			{#if customEmoji.length > 0}
+				<div class="emoji-category">
+					<div class="emoji-category-header">Server</div>
+					<div class="emoji-grid">
+						{#each customEmoji as entry (entry.name)}
+							<button
+								class="emoji-btn emoji-btn-custom"
+								title={entry.name}
+								onclick={() => handleCustomSelect(entry.name)}
+							>
+								<img class="custom-emoji-img" src={entry.url} alt={entry.name} loading="lazy" />
 							</button>
 						{/each}
 					</div>
@@ -221,6 +261,16 @@
 
 	.emoji-btn:active {
 		background: var(--accent-bg);
+	}
+
+	.emoji-btn-custom {
+		padding: 4px;
+	}
+
+	.custom-emoji-img {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
 	}
 
 	.emoji-empty {

@@ -1,5 +1,16 @@
-import { describe, it, expect } from 'vitest';
-import { searchEmoji, categories, allEmoji, type EmojiEntry } from './emoji';
+import { describe, it, expect, afterEach } from 'vitest';
+import {
+	searchEmoji,
+	searchCustomEmoji,
+	categories,
+	allEmoji,
+	setCustomEmoji,
+	getCustomEmojiMap,
+	getCustomEmojiList,
+	getCustomEmojiUrl,
+	clearCustomEmoji,
+	type EmojiEntry,
+} from './emoji';
 
 describe('searchEmoji', () => {
 	it('returns all emoji for empty query', () => {
@@ -90,5 +101,73 @@ describe('categories', () => {
 	it('allEmoji is the flat union of all categories', () => {
 		const manual = categories.flatMap((c) => c.emoji);
 		expect(allEmoji).toEqual(manual);
+	});
+});
+
+describe('custom emoji', () => {
+	afterEach(() => {
+		clearCustomEmoji();
+	});
+
+	it('starts with empty custom emoji map', () => {
+		expect(getCustomEmojiMap().size).toBe(0);
+		expect(getCustomEmojiList()).toEqual([]);
+	});
+
+	it('setCustomEmoji populates the map', () => {
+		setCustomEmoji({
+			catjam: 'https://example.com/catjam.gif',
+			pepethink: 'https://example.com/pepethink.png',
+		});
+		expect(getCustomEmojiMap().size).toBe(2);
+		expect(getCustomEmojiUrl('catjam')).toBe('https://example.com/catjam.gif');
+		expect(getCustomEmojiUrl('pepethink')).toBe('https://example.com/pepethink.png');
+	});
+
+	it('getCustomEmojiUrl returns undefined for unknown names', () => {
+		setCustomEmoji({ catjam: 'https://example.com/catjam.gif' });
+		expect(getCustomEmojiUrl('unknown')).toBeUndefined();
+	});
+
+	it('getCustomEmojiList returns entries', () => {
+		setCustomEmoji({
+			catjam: 'https://example.com/catjam.gif',
+			pepethink: 'https://example.com/pepethink.png',
+		});
+		const list = getCustomEmojiList();
+		expect(list).toHaveLength(2);
+		expect(list[0]).toEqual({ name: 'catjam', url: 'https://example.com/catjam.gif' });
+	});
+
+	it('clearCustomEmoji empties the map', () => {
+		setCustomEmoji({ catjam: 'https://example.com/catjam.gif' });
+		expect(getCustomEmojiMap().size).toBe(1);
+		clearCustomEmoji();
+		expect(getCustomEmojiMap().size).toBe(0);
+	});
+
+	it('searchCustomEmoji returns all for empty query', () => {
+		setCustomEmoji({
+			catjam: 'https://example.com/catjam.gif',
+			pepethink: 'https://example.com/pepethink.png',
+		});
+		const results = searchCustomEmoji('');
+		expect(results).toHaveLength(2);
+	});
+
+	it('searchCustomEmoji filters by name', () => {
+		setCustomEmoji({
+			catjam: 'https://example.com/catjam.gif',
+			pepethink: 'https://example.com/pepethink.png',
+		});
+		const results = searchCustomEmoji('cat');
+		expect(results).toHaveLength(1);
+		expect(results[0].name).toBe('catjam');
+	});
+
+	it('searchCustomEmoji is case-insensitive', () => {
+		setCustomEmoji({ CatJam: 'https://example.com/catjam.gif' });
+		const results = searchCustomEmoji('catjam');
+		expect(results).toHaveLength(1);
 	});
 });

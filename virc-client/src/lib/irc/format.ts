@@ -2,8 +2,10 @@
  * IRC formatting utilities.
  *
  * Handles mIRC formatting codes ↔ HTML conversion, markdown-to-IRC conversion,
- * URL auto-linking, and mention highlighting.
+ * URL auto-linking, mention highlighting, and custom emoji rendering.
  */
+
+import { getCustomEmojiMap } from '$lib/emoji';
 
 // mIRC color palette (indices 0-15)
 const MIRC_COLORS: string[] = [
@@ -311,12 +313,34 @@ export function nickColor(account: string): string {
 }
 
 /**
+ * Replace :customname: patterns with inline <img> tags for custom server emoji.
+ *
+ * Only replaces names that exist in the custom emoji map. Unknown :name: patterns
+ * are left as plain text. Skips patterns inside HTML tags or anchor hrefs.
+ *
+ * **WARNING: XSS Safety** — This function assumes the input text has already
+ * been HTML-escaped. The emoji names are validated against the known map, and
+ * URLs come from the server config (not user input).
+ */
+export function renderCustomEmoji(text: string): string {
+	const emojiMap = getCustomEmojiMap();
+	if (emojiMap.size === 0) return text;
+
+	return text.replace(/:([a-zA-Z0-9_-]+):/g, (match, name: string) => {
+		const url = emojiMap.get(name);
+		if (!url) return match; // Unknown custom emoji — leave as plain text
+		return `<img class="custom-emoji" src="${escapeHTML(url)}" alt=":${escapeHTML(name)}:" title=":${escapeHTML(name)}:" />`;
+	});
+}
+
+/**
  * Render an IRC message to safe HTML.
  *
  * Applies the full rendering pipeline in the **required** order:
  * 1. `renderIRC()` — escapes HTML and converts mIRC formatting codes to HTML tags
  * 2. `linkify()` — wraps URLs in anchor tags (assumes pre-escaped input)
  * 3. `highlightMentions()` — wraps @mentions and #channels in styled spans
+ * 4. `renderCustomEmoji()` — replaces :name: patterns with server custom emoji images
  *
  * **This is the only safe entry point** for rendering user-generated message text
  * to HTML. Do not call `linkify()` or `highlightMentions()` directly on unescaped
@@ -326,5 +350,6 @@ export function renderMessage(text: string, myAccount: string): string {
 	let html = renderIRC(text);
 	html = linkify(html);
 	html = highlightMentions(html, myAccount);
+	html = renderCustomEmoji(html);
 	return html;
 }

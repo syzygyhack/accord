@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { renderIRC, markdownToIRC, linkify, highlightMentions, nickColor } from './format';
+import { describe, it, expect, afterEach } from 'vitest';
+import { renderIRC, markdownToIRC, linkify, highlightMentions, nickColor, renderCustomEmoji, renderMessage } from './format';
+import { setCustomEmoji, clearCustomEmoji } from '$lib/emoji';
 
 describe('renderIRC', () => {
 	it('renders bold', () => {
@@ -182,5 +183,74 @@ describe('nickColor', () => {
 	it('returns different colors for different accounts', () => {
 		// While not guaranteed, these common nicks should differ
 		expect(nickColor('alice')).not.toBe(nickColor('bob'));
+	});
+});
+
+describe('renderCustomEmoji', () => {
+	afterEach(() => {
+		clearCustomEmoji();
+	});
+
+	it('returns text unchanged when no custom emoji are set', () => {
+		expect(renderCustomEmoji('hello :catjam: world')).toBe('hello :catjam: world');
+	});
+
+	it('replaces known custom emoji with img tag', () => {
+		setCustomEmoji({ catjam: 'https://example.com/catjam.gif' });
+		const result = renderCustomEmoji('hello :catjam: world');
+		expect(result).toContain('<img');
+		expect(result).toContain('class="custom-emoji"');
+		expect(result).toContain('src="https://example.com/catjam.gif"');
+		expect(result).toContain('alt=":catjam:"');
+		expect(result).toContain('title=":catjam:"');
+	});
+
+	it('leaves unknown :name: patterns as plain text', () => {
+		setCustomEmoji({ catjam: 'https://example.com/catjam.gif' });
+		const result = renderCustomEmoji('hello :unknown: world');
+		expect(result).toBe('hello :unknown: world');
+	});
+
+	it('handles multiple custom emoji in one message', () => {
+		setCustomEmoji({
+			catjam: 'https://example.com/catjam.gif',
+			pepethink: 'https://example.com/pepethink.png',
+		});
+		const result = renderCustomEmoji(':catjam: then :pepethink:');
+		expect(result).toContain('catjam.gif');
+		expect(result).toContain('pepethink.png');
+	});
+
+	it('handles emoji names with hyphens and underscores', () => {
+		setCustomEmoji({ 'pepe-think_v2': 'https://example.com/pepe.png' });
+		const result = renderCustomEmoji(':pepe-think_v2:');
+		expect(result).toContain('pepe.png');
+	});
+
+	it('escapes HTML in emoji URLs', () => {
+		setCustomEmoji({ xss: 'https://example.com/x"onload="alert(1)' });
+		const result = renderCustomEmoji(':xss:');
+		expect(result).toContain('&quot;');
+		expect(result).not.toContain('"onload=');
+	});
+});
+
+describe('renderMessage with custom emoji', () => {
+	afterEach(() => {
+		clearCustomEmoji();
+	});
+
+	it('renders custom emoji in full pipeline', () => {
+		setCustomEmoji({ catjam: 'https://example.com/catjam.gif' });
+		const result = renderMessage('check this :catjam:', 'alice');
+		expect(result).toContain('<img');
+		expect(result).toContain('catjam.gif');
+	});
+
+	it('leaves unknown emoji as text in full pipeline', () => {
+		setCustomEmoji({ catjam: 'https://example.com/catjam.gif' });
+		const result = renderMessage('hello :unknown:', 'alice');
+		expect(result).toContain(':unknown:');
+		expect(result).not.toContain('<img');
 	});
 });

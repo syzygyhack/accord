@@ -47,7 +47,9 @@
 	import ConnectionBanner from '../../components/ConnectionBanner.svelte';
 	import VoiceOverlay from '../../components/VoiceOverlay.svelte';
 	import ServerList from '../../components/ServerList.svelte';
+	import UserProfilePopout from '../../components/UserProfilePopout.svelte';
 	import { applyServerTheme, clearServerTheme, parseServerTheme } from '$lib/state/theme.svelte';
+	import { setCustomEmoji, clearCustomEmoji } from '$lib/emoji';
 
 	/** virc.json config shape (subset we consume). */
 	interface VircConfig {
@@ -65,6 +67,7 @@
 			accent?: string;
 			surfaces?: Record<string, string>;
 		};
+		emoji?: Record<string, string>;
 	}
 
 	let conn: IRCConnection | null = $state(null);
@@ -105,6 +108,9 @@
 	let showVoiceOverlay = $state(false);
 	/** Set when user explicitly closes overlay — suppresses auto-open until next connect. */
 	let overlayDismissed = $state(false);
+
+	// User profile popout state
+	let profilePopout: { nick: string; account: string; x: number; y: number } | null = $state(null);
 
 	// Auth expiry state
 	let authExpired = $state(false);
@@ -202,13 +208,14 @@
 		// Update MONITOR list for presence tracking in the new channel
 		updateMonitorForChannel(channel);
 
-		// Clear reply/emoji/edit state on channel switch
+		// Clear reply/emoji/edit/popout state on channel switch
 		replyContext = null;
 		editingMsgid = null;
 		editingChannel = null;
 		emojiPickerTarget = null;
 		emojiPickerPosition = null;
 		deleteTarget = null;
+		profilePopout = null;
 	});
 
 	/**
@@ -633,6 +640,22 @@
 				}
 			}
 
+			// 6b. Load custom emoji from virc.json
+			if (config?.emoji && typeof config.emoji === 'object') {
+				// Resolve relative emoji URLs against the files server
+				const resolved: Record<string, string> = {};
+				for (const [name, url] of Object.entries(config.emoji)) {
+					if (url.startsWith('http://') || url.startsWith('https://')) {
+						resolved[name] = url;
+					} else if (filesUrl) {
+						resolved[name] = `${filesUrl}${url}`;
+					} else {
+						resolved[name] = url;
+					}
+				}
+				setCustomEmoji(resolved);
+			}
+
 			// 7. Populate categories from virc.json
 			const categories = config?.channels?.categories ?? [
 				{ name: 'Channels', channels: ['#general'] },
@@ -893,6 +916,16 @@
 		);
 	}
 
+	/** Open user profile popout when clicking a nick in a message. */
+	function handleNickClick(nick: string, account: string, event: MouseEvent): void {
+		profilePopout = { nick, account, x: event.clientX, y: event.clientY };
+	}
+
+	/** Close user profile popout. */
+	function closeProfilePopout(): void {
+		profilePopout = null;
+	}
+
 	// ---------------------------------------------------------------------------
 	// Keyboard shortcuts
 	// ---------------------------------------------------------------------------
@@ -970,6 +1003,10 @@
 			{
 				key: 'Escape',
 				handler: () => {
+					if (profilePopout) {
+						profilePopout = null;
+						return true;
+					}
 					if (showVoiceOverlay) {
 						showVoiceOverlay = false;
 						overlayDismissed = true;
@@ -1203,8 +1240,9 @@
 			conn = null;
 		}
 
-		// Clear server theme overrides on teardown
+		// Clear server theme overrides and custom emoji on teardown
 		clearServerTheme();
+		clearCustomEmoji();
 	});
 </script>
 
@@ -1266,6 +1304,7 @@
 						onmore={handleMore}
 						ontogglereaction={handleToggleReaction}
 						onretry={handleRetry}
+						onnickclick={handleNickClick}
 					/>
 				{/if}
 			</ErrorBoundary>
@@ -1352,6 +1391,16 @@
 <!-- Voice overlay (expanded view with video grid + participants) -->
 {#if showVoiceOverlay && voiceState.isConnected && voiceRoom}
 	<VoiceOverlay {voiceRoom} onclose={() => { showVoiceOverlay = false; overlayDismissed = true; }} />
+{/if}
+
+<!-- User profile popout (from message nick clicks) -->
+{#if profilePopout}
+	<UserProfilePopout
+		nick={profilePopout.nick}
+		account={profilePopout.account}
+		position={{ x: profilePopout.x, y: profilePopout.y }}
+		onclose={closeProfilePopout}
+	/>
 {/if}
 
 <style>
