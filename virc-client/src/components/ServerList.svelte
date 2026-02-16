@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { serverState, setActiveServer, type ServerInfo } from '$lib/state/servers.svelte';
+	import { serverState, setActiveServer, removeServer, reorderServers, type ServerInfo } from '$lib/state/servers.svelte';
 	import { channelUIState } from '$lib/state/channels.svelte';
-	import { notificationState, getUnreadCount, getMentionCount } from '$lib/state/notifications.svelte';
+	import { notificationState, getUnreadCount, getMentionCount, markAllRead } from '$lib/state/notifications.svelte';
 
 	/**
 	 * Aggregate unread + mention counts across all channels for a server.
@@ -69,15 +69,114 @@
 	function handleServerClick(id: string): void {
 		setActiveServer(id);
 	}
+
+	// --- Context menu ---
+
+	let contextMenu: { serverId: string; x: number; y: number } | null = $state(null);
+
+	function handleContextMenu(e: MouseEvent, serverId: string): void {
+		e.preventDefault();
+		contextMenu = { serverId, x: e.clientX, y: e.clientY };
+	}
+
+	function closeContextMenu(): void {
+		contextMenu = null;
+	}
+
+	function handleMarkAsRead(): void {
+		if (!contextMenu) return;
+		markAllRead();
+		closeContextMenu();
+	}
+
+	function handleCopyInviteLink(): void {
+		if (!contextMenu) return;
+		const server = serverState.servers.find((s) => s.id === contextMenu!.serverId);
+		if (server) {
+			navigator.clipboard.writeText(server.url).catch(() => {
+				// Clipboard write failed — silently ignore
+			});
+		}
+		closeContextMenu();
+	}
+
+	function handleDisconnect(): void {
+		// Placeholder — actual disconnect logic lives in the IRC connection layer.
+		// For now just close the menu; the disconnect action will be wired when
+		// multi-server connection management is implemented.
+		closeContextMenu();
+	}
+
+	function handleRemove(): void {
+		if (!contextMenu) return;
+		removeServer(contextMenu.serverId);
+		closeContextMenu();
+	}
+
+	function handleServerSettings(): void {
+		// Placeholder — opens server settings modal (not yet implemented).
+		closeContextMenu();
+	}
+
+	// --- Drag to reorder ---
+
+	let dragIndex: number | null = $state(null);
+	let dragOverIndex: number | null = $state(null);
+
+	function handleDragStart(e: DragEvent, index: number): void {
+		dragIndex = index;
+		if (e.dataTransfer) {
+			e.dataTransfer.effectAllowed = 'move';
+			e.dataTransfer.setData('text/plain', String(index));
+		}
+	}
+
+	function handleDragOver(e: DragEvent, index: number): void {
+		e.preventDefault();
+		if (e.dataTransfer) {
+			e.dataTransfer.dropEffect = 'move';
+		}
+		dragOverIndex = index;
+	}
+
+	function handleDragLeave(): void {
+		dragOverIndex = null;
+	}
+
+	function handleDrop(e: DragEvent, toIndex: number): void {
+		e.preventDefault();
+		if (dragIndex !== null && dragIndex !== toIndex) {
+			reorderServers(dragIndex, toIndex);
+		}
+		dragIndex = null;
+		dragOverIndex = null;
+	}
+
+	function handleDragEnd(): void {
+		dragIndex = null;
+		dragOverIndex = null;
+	}
 </script>
 
-<nav class="server-list" aria-label="Servers">
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<nav class="server-list" aria-label="Servers" onclick={closeContextMenu}>
 	<div class="server-items">
-		{#each serverState.servers as server (server.id)}
+		{#each serverState.servers as server, index (server.id)}
 			{@const isActive = serverState.activeServerId === server.id}
 			{@const unread = getServerUnread(server.id)}
 			{@const mentions = getServerMentions(server.id)}
-			<div class="server-item" class:active={isActive}>
+			<div
+				class="server-item"
+				class:active={isActive}
+				class:drag-over={dragOverIndex === index && dragIndex !== index}
+				draggable="true"
+				ondragstart={(e) => handleDragStart(e, index)}
+				ondragover={(e) => handleDragOver(e, index)}
+				ondragleave={handleDragLeave}
+				ondrop={(e) => handleDrop(e, index)}
+				ondragend={handleDragEnd}
+			>
 				<!-- Left-edge indicators -->
 				<div class="indicator" class:active={isActive} class:unread={!isActive && unread > 0}></div>
 
@@ -85,6 +184,7 @@
 					class="server-icon"
 					class:active={isActive}
 					onclick={() => handleServerClick(server.id)}
+					oncontextmenu={(e) => handleContextMenu(e, server.id)}
 					title={server.name}
 					aria-label={server.name}
 					aria-current={isActive ? 'true' : undefined}
@@ -120,6 +220,29 @@
 		</button>
 	</div>
 </nav>
+
+<!-- Server context menu -->
+{#if contextMenu}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<div class="context-menu-overlay" onclick={closeContextMenu} oncontextmenu={(e) => { e.preventDefault(); closeContextMenu(); }}>
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+		<div
+			class="context-menu"
+			style="left: {contextMenu.x}px; top: {contextMenu.y}px;"
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => { if (e.key === 'Escape') closeContextMenu(); }}
+			role="menu"
+		>
+			<button class="context-item" role="menuitem" onclick={handleServerSettings}>Server Settings</button>
+			<button class="context-item" role="menuitem" onclick={handleMarkAsRead}>Mark as Read</button>
+			<button class="context-item" role="menuitem" onclick={handleCopyInviteLink}>Copy Invite Link</button>
+			<div class="context-separator"></div>
+			<button class="context-item" role="menuitem" onclick={handleDisconnect}>Disconnect</button>
+			<button class="context-item danger" role="menuitem" onclick={handleRemove}>Remove</button>
+		</div>
+	</div>
+{/if}
 
 <style>
 	.server-list {
@@ -275,5 +398,62 @@
 		font-size: var(--font-lg);
 		font-weight: var(--weight-normal);
 		line-height: 1;
+	}
+
+	/* Drag-and-drop visual feedback */
+	.server-item.drag-over {
+		border-top: 2px solid var(--accent-primary);
+	}
+
+	/* Context menu overlay + menu */
+	.context-menu-overlay {
+		position: fixed;
+		inset: 0;
+		z-index: 1000;
+	}
+
+	.context-menu {
+		position: fixed;
+		min-width: 180px;
+		background: var(--surface-highest);
+		border-radius: 6px;
+		padding: 4px;
+		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+		z-index: 1001;
+	}
+
+	.context-item {
+		display: block;
+		width: 100%;
+		padding: 6px 8px;
+		background: none;
+		border: none;
+		border-radius: 3px;
+		cursor: pointer;
+		color: var(--text-primary);
+		font-size: var(--font-sm);
+		font-family: var(--font-primary);
+		text-align: left;
+		transition: background 80ms;
+	}
+
+	.context-item:hover {
+		background: var(--accent-bg);
+		color: var(--accent-primary);
+	}
+
+	.context-item.danger {
+		color: var(--danger);
+	}
+
+	.context-item.danger:hover {
+		background: var(--danger);
+		color: #ffffff;
+	}
+
+	.context-separator {
+		height: 1px;
+		background: var(--surface-high);
+		margin: 4px 0;
 	}
 </style>

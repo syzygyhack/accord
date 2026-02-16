@@ -3,6 +3,7 @@
  *
  * Tracks connected servers and which one is active. MVP supports a
  * single server; the data model supports multiple for future use.
+ * Server order is persisted to localStorage.
  */
 
 export interface ServerInfo {
@@ -18,6 +19,39 @@ interface ServerStore {
 	activeServerId: string | null;
 }
 
+const SERVER_ORDER_KEY = 'virc:serverOrder';
+
+/** Safe check for localStorage availability (missing in Node/SSR). */
+function hasLocalStorage(): boolean {
+	return typeof localStorage !== 'undefined';
+}
+
+/** Load saved server order from localStorage. Returns empty array if none. */
+function loadServerOrder(): string[] {
+	if (!hasLocalStorage()) return [];
+	try {
+		const stored = localStorage.getItem(SERVER_ORDER_KEY);
+		if (stored) {
+			const parsed = JSON.parse(stored);
+			if (Array.isArray(parsed)) return parsed;
+		}
+	} catch {
+		// Corrupt localStorage — ignore
+	}
+	return [];
+}
+
+/** Persist current server order to localStorage. */
+function saveServerOrder(): void {
+	if (!hasLocalStorage()) return;
+	try {
+		const ids = serverState.servers.map((s) => s.id);
+		localStorage.setItem(SERVER_ORDER_KEY, JSON.stringify(ids));
+	} catch {
+		// Storage full or unavailable
+	}
+}
+
 /** Reactive server store — components read this directly. */
 export const serverState: ServerStore = $state({
 	servers: [],
@@ -28,7 +62,15 @@ export const serverState: ServerStore = $state({
 export function addServer(server: ServerInfo): void {
 	const existing = serverState.servers.find((s) => s.id === server.id);
 	if (!existing) {
-		serverState.servers.push(server);
+		// Insert at position from saved order, or append at end
+		const savedOrder = loadServerOrder();
+		const savedIdx = savedOrder.indexOf(server.id);
+		if (savedIdx >= 0 && savedIdx < serverState.servers.length) {
+			serverState.servers.splice(savedIdx, 0, server);
+		} else {
+			serverState.servers.push(server);
+		}
+		saveServerOrder();
 	}
 	serverState.activeServerId = server.id;
 }
@@ -57,8 +99,40 @@ export function updateServer(id: string, updates: Partial<Omit<ServerInfo, 'id'>
 	}
 }
 
+/** Remove a server from the list. Adjusts active server if needed. */
+export function removeServer(id: string): void {
+	const idx = serverState.servers.findIndex((s) => s.id === id);
+	if (idx < 0) return;
+	serverState.servers.splice(idx, 1);
+	if (serverState.activeServerId === id) {
+		serverState.activeServerId = serverState.servers[0]?.id ?? null;
+	}
+	saveServerOrder();
+}
+
+/**
+ * Reorder servers by moving a server from one index to another.
+ * Persists the new order to localStorage.
+ */
+export function reorderServers(fromIndex: number, toIndex: number): void {
+	const servers = serverState.servers;
+	if (fromIndex < 0 || fromIndex >= servers.length) return;
+	if (toIndex < 0 || toIndex >= servers.length) return;
+	if (fromIndex === toIndex) return;
+	const [moved] = servers.splice(fromIndex, 1);
+	servers.splice(toIndex, 0, moved);
+	saveServerOrder();
+}
+
 /** Reset all server state. */
 export function resetServers(): void {
 	serverState.servers.length = 0;
 	serverState.activeServerId = null;
+}
+
+/** Clear persisted server order from localStorage. */
+export function resetServerOrder(): void {
+	if (hasLocalStorage()) {
+		localStorage.removeItem(SERVER_ORDER_KEY);
+	}
 }

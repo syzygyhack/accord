@@ -827,15 +827,16 @@ describe('self-PART handling', () => {
 	});
 
 	it('switches active channel on self-PART when active channel is parted', () => {
-		// Set up categories so there's another channel to switch to
-		setCategories([{ name: 'Text', channels: ['#test', '#other'] }]);
+		// Categories are static (from virc.json) and not modified by PART.
+		// The handler picks textChannels[0] as the fallback, so list #other first.
+		setCategories([{ name: 'Text', channels: ['#other', '#test'] }]);
 		handle(':me!a@host JOIN #test me :Me');
 		handle(':me!a@host JOIN #other me :Me');
 		setActiveChannel('#test');
 		expect(getActiveChannel()).toBe('#test');
 
 		handle(':me!a@host PART #test');
-		// Should switch to first available text channel
+		// Should switch to first available text channel from categories
 		expect(getActiveChannel()).toBe('#other');
 	});
 

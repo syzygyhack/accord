@@ -180,6 +180,18 @@ export function setLastReadMsgid(channel: string, msgid: string): void {
 	notify();
 }
 
+/**
+ * Mark all channels as read — clears unread and mention counts for every
+ * tracked channel. Used by the "Mark as Read" server context menu action.
+ */
+export function markAllRead(): void {
+	for (const ch of _channels.values()) {
+		ch.unreadCount = 0;
+		ch.mentionCount = 0;
+	}
+	notify();
+}
+
 /** Reset all notification state. */
 export function resetNotifications(): void {
 	_channels.clear();

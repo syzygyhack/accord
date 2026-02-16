@@ -3,6 +3,7 @@ import {
 	notificationState,
 	incrementUnread,
 	markRead,
+	markAllRead,
 	getUnreadCount,
 	getMentionCount,
 	getLastReadMsgid,
@@ -144,6 +145,33 @@ describe('notifications state', () => {
 			setLastReadMsgid('#test', 'msg-1');
 			setLastReadMsgid('#test', 'msg-2');
 			expect(getLastReadMsgid('#test')).toBe('msg-2');
+		});
+	});
+
+	describe('markAllRead', () => {
+		it('clears unread and mention counts for all channels', () => {
+			incrementUnread('#a', false);
+			incrementUnread('#a', true);
+			incrementUnread('#b', false);
+			incrementUnread('#b', false);
+			markAllRead();
+			expect(getUnreadCount('#a')).toBe(0);
+			expect(getMentionCount('#a')).toBe(0);
+			expect(getUnreadCount('#b')).toBe(0);
+		});
+
+		it('preserves lastReadMsgid', () => {
+			markRead('#a', 'msg-5');
+			incrementUnread('#a', false);
+			markAllRead();
+			expect(getUnreadCount('#a')).toBe(0);
+			expect(getLastReadMsgid('#a')).toBe('msg-5');
+		});
+
+		it('is a no-op when no channels are tracked', () => {
+			// Should not throw
+			markAllRead();
+			expect(getUnreadCount('#nonexistent')).toBe(0);
 		});
 	});
 
