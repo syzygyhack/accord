@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { getMember } from '$lib/state/members.svelte';
 	import { channelUIState, openDM } from '$lib/state/channels.svelte';
+	import { getActiveServer } from '$lib/state/servers.svelte';
+	import { getToken } from '$lib/api/auth';
+	import { fetchAccountInfo, formatRegisteredDate } from '$lib/api/accountInfo';
 	import { nickColor } from '$lib/irc/format';
 
 	/**
@@ -22,9 +25,9 @@
 		channel?: string;
 		/** Anchor position (click point). */
 		position: { x: number; y: number };
-		/** Optional avatar URL (from draft/metadata-2, not yet implemented). */
+		/** Optional avatar URL (from draft/metadata-2 if available). */
 		avatarUrl?: string | null;
-		/** Optional bio text (from draft/metadata-2, not yet implemented). */
+		/** Optional bio text (from draft/metadata-2 if available). */
 		bio?: string | null;
 		/** Callback when the popout should close. */
 		onclose: () => void;
@@ -41,6 +44,9 @@
 	}: Props = $props();
 
 	let popoutEl: HTMLDivElement | undefined = $state();
+
+	/** Registered date string (e.g. "Jan 15, 2026"), fetched from Ergo API. */
+	let registeredDate: string | null = $state(null);
 
 	/** Resolve channel for role lookup. */
 	let resolvedChannel = $derived(channel ?? channelUIState.activeChannel ?? '');
@@ -125,6 +131,20 @@
 			document.removeEventListener('mousedown', handleMouseDown);
 		};
 	});
+
+	/** Fetch registered date from Ergo via virc-files on mount. */
+	$effect(() => {
+		if (!account) return;
+		const server = getActiveServer();
+		const token = getToken();
+		if (!server?.filesUrl || !token) return;
+
+		fetchAccountInfo(account, token, server.filesUrl).then((info) => {
+			if (info?.registeredAt) {
+				registeredDate = formatRegisteredDate(info.registeredAt);
+			}
+		});
+	});
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -179,6 +199,15 @@
 					</span>
 				{/each}
 			</div>
+		</div>
+		<div class="profile-divider"></div>
+	{/if}
+
+	<!-- Registered date -->
+	{#if registeredDate}
+		<div class="profile-section">
+			<div class="profile-section-label">Registered</div>
+			<div class="profile-registered">{registeredDate}</div>
 		</div>
 		<div class="profile-divider"></div>
 	{/if}
@@ -300,6 +329,12 @@
 		color: var(--text-primary);
 		line-height: 1.4;
 		word-wrap: break-word;
+	}
+
+	/* Registered date */
+	.profile-registered {
+		font-size: var(--font-sm);
+		color: var(--text-primary);
 	}
 
 	/* Roles */
