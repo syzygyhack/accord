@@ -1538,7 +1538,7 @@
 	<!-- Right column: Member list (overlay below 1200px, hidden for DMs) -->
 	{#if !isActiveDM && (isDesktop || showMembers)}
 		<div class="right-panel" class:overlay={!isDesktop} class:visible={!isDesktop && showMembers}>
-			<MemberList onmention={handleMemberMention} />
+			<MemberList onmention={handleMemberMention} connection={conn} />
 		</div>
 	{/if}
 
