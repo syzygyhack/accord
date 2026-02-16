@@ -970,7 +970,9 @@ history:
     enabled: true
 
     # how many channel-specific events (messages, joins, parts) should be tracked per channel?
-    channel-length: 2048
+    # Increased from default 2048 to match spec (PLAN.md > Ergo Configuration).
+    # More history = fewer CHATHISTORY round-trips on reconnect.
+    channel-length: 4096
 
     # how many direct messages and notices should be tracked per user?
     # Increased from default 256 — DMs are a core feature, not secondary.

@@ -139,7 +139,7 @@ Excludes: S3/R2 storage, mobile layout, PWA/Service Worker, push notifications, 
 - Spec: FRONTEND.md > Loading States
 
 ### Ergo Config — Channel History Length
-- [ ] `channel-length` is 2048, spec says 4096 — verify intent and align
+- [x] `channel-length` updated from 2048 to 4096 to match spec
 - Spec: PLAN.md > Ergo Configuration
 
 ---
