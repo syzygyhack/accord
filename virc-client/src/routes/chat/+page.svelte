@@ -1659,7 +1659,7 @@
 {/if}
 
 {#if showServerSettings}
-	<ServerSettings onclose={() => (showServerSettings = false)} />
+	<ServerSettings onclose={() => (showServerSettings = false)} connection={conn} />
 {/if}
 
 <!-- Voice overlay (expanded view with video grid + participants) -->
