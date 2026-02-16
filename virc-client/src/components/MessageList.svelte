@@ -15,6 +15,10 @@
 		onreact?: (msgid: string) => void;
 		onmore?: (msgid: string, event: MouseEvent) => void;
 		onpin?: (msgid: string) => void;
+		onedit?: (msgid: string) => void;
+		oncopytext?: (text: string) => void;
+		oncopylink?: (msgid: string) => void;
+		onmarkunread?: (msgid: string) => void;
 		ontogglereaction?: (msgid: string, emoji: string) => void;
 		onretry?: (msgid: string) => void;
 		onnickclick?: (nick: string, account: string, event: MouseEvent) => void;
@@ -27,6 +31,10 @@
 		onreact,
 		onmore,
 		onpin,
+		onedit,
+		oncopytext,
+		oncopylink,
+		onmarkunread,
 		ontogglereaction,
 		onretry,
 		onnickclick,
@@ -59,6 +67,20 @@
 
 	/** How close to the top (in px) triggers history loading. */
 	const SCROLL_TOP_THRESHOLD = 200;
+
+	// ── Virtual scrolling constants ──────────────────────────────────────
+
+	/** Maximum render entries in the DOM at once (~50 visible + overscan). */
+	const VIRTUAL_WINDOW_SIZE = 50;
+
+	/** Extra entries rendered above/below the visible area to reduce flicker on scroll. */
+	const OVERSCAN = 10;
+
+	/** Estimated height (px) for a regular message entry. */
+	const EST_MESSAGE_HEIGHT = 60;
+
+	/** Estimated height (px) for a system or collapsed entry. */
+	const EST_SYSTEM_HEIGHT = 24;
 
 	let scrollContainer: HTMLDivElement | undefined = $state(undefined);
 	let isAtBottom = $state(true);
@@ -206,6 +228,130 @@
 		return result;
 	});
 
+	// ── Virtual scrolling state ──────────────────────────────────────────
+
+	/**
+	 * Measured heights for render entries, keyed by entry index.
+	 * Updated after each render via measureRenderedItems().
+	 */
+	let measuredHeights: Map<number, number> = new Map();
+
+	/** Current scroll-top, updated on every scroll event to drive window recalculation. */
+	let currentScrollTop = $state(0);
+
+	/** Estimate the height of a render entry at a given index. */
+	function estimateHeight(index: number): number {
+		const measured = measuredHeights.get(index);
+		if (measured !== undefined) return measured;
+		const entry = renderEntries[index];
+		if (!entry) return EST_MESSAGE_HEIGHT;
+		return entry.kind === 'message' ? EST_MESSAGE_HEIGHT : EST_SYSTEM_HEIGHT;
+	}
+
+	/** Compute the cumulative offset (top of entry at index). */
+	function offsetAtIndex(index: number): number {
+		let h = 0;
+		for (let i = 0; i < index; i++) {
+			h += estimateHeight(i);
+		}
+		return h;
+	}
+
+	/**
+	 * The visible window: which slice of renderEntries to actually render.
+	 *
+	 * Virtual scrolling strategy:
+	 * - If total entries <= VIRTUAL_WINDOW_SIZE, render all (no windowing needed).
+	 * - If isAtBottom, always include the tail so new messages appear immediately.
+	 * - Otherwise, compute from scroll position using estimated/measured heights.
+	 */
+	let visibleWindow = $derived.by(() => {
+		const total = renderEntries.length;
+		if (total <= VIRTUAL_WINDOW_SIZE) {
+			return { start: 0, end: total };
+		}
+
+		if (isAtBottom) {
+			// Anchor to bottom — always render the last VIRTUAL_WINDOW_SIZE entries
+			const start = Math.max(0, total - VIRTUAL_WINDOW_SIZE);
+			return { start, end: total };
+		}
+
+		// Find the first entry whose bottom edge is past scrollTop
+		const scrollTop = currentScrollTop;
+		const containerHeight = scrollContainer?.clientHeight ?? 800;
+
+		let accumulated = 0;
+		let startIdx = 0;
+		for (let i = 0; i < total; i++) {
+			const h = estimateHeight(i);
+			if (accumulated + h > scrollTop) {
+				startIdx = i;
+				break;
+			}
+			accumulated += h;
+			if (i === total - 1) startIdx = total - 1;
+		}
+
+		// Find the last entry visible in the viewport
+		let endIdx = startIdx;
+		let viewAccumulated = 0;
+		for (let i = startIdx; i < total; i++) {
+			viewAccumulated += estimateHeight(i);
+			endIdx = i + 1;
+			if (viewAccumulated >= containerHeight) break;
+		}
+
+		// Apply overscan
+		const windowStart = Math.max(0, startIdx - OVERSCAN);
+		const windowEnd = Math.min(total, endIdx + OVERSCAN);
+
+		return { start: windowStart, end: windowEnd };
+	});
+
+	/** The slice of renderEntries actually rendered in the DOM. */
+	let visibleEntries = $derived(renderEntries.slice(visibleWindow.start, visibleWindow.end));
+
+	/** Top spacer height — sum of estimated heights for entries above the window. */
+	let topSpacerHeight = $derived(offsetAtIndex(visibleWindow.start));
+
+	/** Bottom spacer height — sum of estimated heights for entries below the window. */
+	let bottomSpacerHeight = $derived.by(() => {
+		const total = renderEntries.length;
+		let h = 0;
+		for (let i = visibleWindow.end; i < total; i++) {
+			h += estimateHeight(i);
+		}
+		return h;
+	});
+
+	/** Ref to the wrapper containing rendered items, used for height measurement. */
+	let itemsContainer: HTMLDivElement | undefined = $state(undefined);
+
+	/**
+	 * Measure rendered item heights and store them for more accurate positioning.
+	 * Called after render via tick().
+	 */
+	function measureRenderedItems(): void {
+		if (!itemsContainer) return;
+		const children = itemsContainer.children;
+		const startIdx = visibleWindow.start;
+		for (let i = 0; i < children.length; i++) {
+			const el = children[i] as HTMLElement;
+			const height = el.getBoundingClientRect().height;
+			if (height > 0) {
+				measuredHeights.set(startIdx + i, height);
+			}
+		}
+	}
+
+	/** After each render, measure items for more accurate future estimates. */
+	$effect(() => {
+		// Subscribe to visibleEntries changes to trigger re-measurement
+		void visibleEntries;
+		tick().then(measureRenderedItems);
+	});
+
 	function toggleCollapsedGroup(key: string): void {
 		if (expandedGroups.has(key)) {
 			expandedGroups.delete(key);
@@ -225,6 +371,10 @@
 
 	/** Handle scroll events. */
 	function handleScroll(): void {
+		if (scrollContainer) {
+			currentScrollTop = scrollContainer.scrollTop;
+		}
+
 		checkScrollPosition();
 
 		if (isAtBottom) {
@@ -291,7 +441,9 @@
 			}
 
 			if (isLoadingHistory && scrollContainer) {
-				// Messages were prepended (history load) — preserve scroll position
+				// Messages were prepended (history load) — preserve scroll position.
+				// Clear measured heights since prepended entries shift all indices.
+				measuredHeights.clear();
 				tick().then(() => {
 					if (!scrollContainer) return;
 					const newScrollHeight = scrollContainer.scrollHeight;
@@ -336,6 +488,8 @@
 		isLoadingHistory = false;
 		prevMessageCount = 0;
 		expandedGroups = new Set();
+		measuredHeights = new Map();
+		currentScrollTop = 0;
 
 		// Show skeleton placeholders if channel has no cached messages yet.
 		// Use untrack so this effect only re-runs on channel change, not on
@@ -420,57 +574,70 @@
 			</p>
 		</div>
 	{:else}
-		{#each renderEntries as entry (entry.kind === 'collapsed' ? entry.key : entry.message.msgid)}
-			{#if entry.kind === 'collapsed'}
-				{#if expandedGroups.has(entry.key)}
-					{#each entry.messages as sysMsg (sysMsg.msgid)}
-						<div class="system-message" data-msgid={sysMsg.msgid}>
-							<span class="system-icon">{systemIcon(sysMsg.type)}</span>
-							<span class="system-text">{sysMsg.text}</span>
-						</div>
-					{/each}
-					<button class="collapse-toggle" onclick={() => toggleCollapsedGroup(entry.key)}>
-						Collapse
-					</button>
+		<!-- Virtual scrolling: top spacer maintains scroll position for entries above the window -->
+		<div class="virtual-spacer" style="height:{topSpacerHeight}px"></div>
+
+		<!-- Rendered window: only ~VIRTUAL_WINDOW_SIZE entries in the DOM at a time -->
+		<div bind:this={itemsContainer}>
+			{#each visibleEntries as entry (entry.kind === 'collapsed' ? entry.key : entry.message.msgid)}
+				{#if entry.kind === 'collapsed'}
+					{#if expandedGroups.has(entry.key)}
+						{#each entry.messages as sysMsg (sysMsg.msgid)}
+							<div class="system-message" data-msgid={sysMsg.msgid}>
+								<span class="system-icon">{systemIcon(sysMsg.type)}</span>
+								<span class="system-text">{sysMsg.text}</span>
+							</div>
+						{/each}
+						<button class="collapse-toggle" onclick={() => toggleCollapsedGroup(entry.key)}>
+							Collapse
+						</button>
+					{:else}
+						<button
+							class="collapse-toggle"
+							onclick={() => toggleCollapsedGroup(entry.key)}
+						>
+							{summarizeCollapsedGroup(entry.messages)} &mdash; click to expand
+						</button>
+					{/if}
+				{:else if entry.kind === 'system'}
+					{#if firstUnreadMsgid === entry.message.msgid}
+						<UnreadDivider />
+					{/if}
+					<div class="system-message" data-msgid={entry.message.msgid}>
+						<span class="system-icon">{systemIcon(entry.message.type)}</span>
+						<span class="system-text">{entry.message.text}</span>
+					</div>
 				{:else}
-					<button
-						class="collapse-toggle"
-						onclick={() => toggleCollapsedGroup(entry.key)}
-					>
-						{summarizeCollapsedGroup(entry.messages)} &mdash; click to expand
-					</button>
+					{#if firstUnreadMsgid === entry.message.msgid}
+						<UnreadDivider />
+					{/if}
+					<div data-msgid={entry.message.msgid}>
+						<MessageComponent
+							message={entry.message}
+							isGrouped={entry.isGrouped}
+							isFirstInGroup={entry.isFirstInGroup}
+							compact={isCompact}
+							{isOp}
+							{onreply}
+							{onreact}
+							{onmore}
+							{onpin}
+							{onedit}
+							{oncopytext}
+							{oncopylink}
+							{onmarkunread}
+							{ontogglereaction}
+							{onretry}
+							{onnickclick}
+							onscrolltomessage={handleScrollToMessage}
+						/>
+					</div>
 				{/if}
-			{:else if entry.kind === 'system'}
-				{#if firstUnreadMsgid === entry.message.msgid}
-					<UnreadDivider />
-				{/if}
-				<div class="system-message" data-msgid={entry.message.msgid}>
-					<span class="system-icon">{systemIcon(entry.message.type)}</span>
-					<span class="system-text">{entry.message.text}</span>
-				</div>
-			{:else}
-				{#if firstUnreadMsgid === entry.message.msgid}
-					<UnreadDivider />
-				{/if}
-				<div data-msgid={entry.message.msgid}>
-					<MessageComponent
-						message={entry.message}
-						isGrouped={entry.isGrouped}
-						isFirstInGroup={entry.isFirstInGroup}
-						compact={isCompact}
-						{isOp}
-						{onreply}
-						{onreact}
-						{onmore}
-						{onpin}
-						{ontogglereaction}
-						{onretry}
-						{onnickclick}
-						onscrolltomessage={handleScrollToMessage}
-					/>
-				</div>
-			{/if}
-		{/each}
+			{/each}
+		</div>
+
+		<!-- Virtual scrolling: bottom spacer maintains scroll height for entries below the window -->
+		<div class="virtual-spacer" style="height:{bottomSpacerHeight}px"></div>
 	{/if}
 </div>
 
@@ -498,6 +665,11 @@
 		/* Limit layout recalculation scope — the message list doesn't affect
 		   sibling layout, so the browser can skip reflowing the rest of the page. */
 		contain: strict;
+	}
+
+	/* Virtual scrolling spacers — invisible blocks that maintain correct scroll height. */
+	.virtual-spacer {
+		flex-shrink: 0;
 	}
 
 	/* Skeleton loading for history fetch */
