@@ -8,6 +8,8 @@ import {
 	addReaction,
 	removeReaction,
 	prependMessages,
+	appendMessages,
+	replaceOptimisticMessage,
 	getCursors,
 	clearChannel,
 	resetMessages,
@@ -429,6 +431,108 @@ describe('message state', () => {
 			pinMessage('#test', 'msg-1');
 			resetMessages();
 			expect(isPinned('#test', 'msg-1')).toBe(false);
+		});
+	});
+
+	describe('replaceOptimisticMessage', () => {
+		it('replaces a local optimistic message with the server echo', () => {
+			const optimistic = makeMessage({ msgid: '_local_1', nick: 'alice', text: 'hello' });
+			addMessage('#test', optimistic);
+			expect(getMessages('#test')).toHaveLength(1);
+			expect(getMessages('#test')[0].msgid).toBe('_local_1');
+
+			const echoMsg = makeMessage({ msgid: 'server-123', nick: 'alice', text: 'hello' });
+			const replaced = replaceOptimisticMessage('#test', echoMsg);
+			expect(replaced).toBe(true);
+			expect(getMessages('#test')).toHaveLength(1);
+			expect(getMessages('#test')[0].msgid).toBe('server-123');
+		});
+
+		it('returns false when no matching optimistic message exists', () => {
+			addMessage('#test', makeMessage({ msgid: 'server-1', nick: 'alice', text: 'hello' }));
+			const echoMsg = makeMessage({ msgid: 'server-2', nick: 'alice', text: 'hello' });
+			const replaced = replaceOptimisticMessage('#test', echoMsg);
+			expect(replaced).toBe(false);
+		});
+
+		it('returns false for unknown channel', () => {
+			const echoMsg = makeMessage({ msgid: 'server-1', nick: 'alice', text: 'hello' });
+			const replaced = replaceOptimisticMessage('#nope', echoMsg);
+			expect(replaced).toBe(false);
+		});
+
+		it('only matches messages with same nick and text', () => {
+			addMessage('#test', makeMessage({ msgid: '_local_1', nick: 'alice', text: 'hello' }));
+			// Different text
+			const echoMsg = makeMessage({ msgid: 'server-1', nick: 'alice', text: 'different' });
+			const replaced = replaceOptimisticMessage('#test', echoMsg);
+			expect(replaced).toBe(false);
+			// Original still present
+			expect(getMessages('#test')[0].msgid).toBe('_local_1');
+		});
+
+		it('replaces the oldest matching optimistic message', () => {
+			addMessage('#test', makeMessage({ msgid: '_local_1', nick: 'alice', text: 'hello' }));
+			addMessage('#test', makeMessage({ msgid: '_local_2', nick: 'alice', text: 'hello' }));
+			const echoMsg = makeMessage({ msgid: 'server-1', nick: 'alice', text: 'hello' });
+			replaceOptimisticMessage('#test', echoMsg);
+			const msgs = getMessages('#test');
+			expect(msgs[0].msgid).toBe('server-1');
+			expect(msgs[1].msgid).toBe('_local_2');
+		});
+
+		it('updates cursors after replacement', () => {
+			addMessage('#test', makeMessage({ msgid: '_local_1', nick: 'alice', text: 'hello' }));
+			const echoMsg = makeMessage({ msgid: 'server-1', nick: 'alice', text: 'hello' });
+			replaceOptimisticMessage('#test', echoMsg);
+			const c = getCursors('#test');
+			expect(c.newestMsgid).toBe('server-1');
+		});
+	});
+
+	describe('appendMessages', () => {
+		it('appends messages to the end of the buffer', () => {
+			addMessage('#test', makeMessage({ msgid: 'existing-1' }));
+			appendMessages('#test', [
+				makeMessage({ msgid: 'new-1' }),
+				makeMessage({ msgid: 'new-2' }),
+			]);
+			const ids = getMessages('#test').map((m) => m.msgid);
+			expect(ids).toEqual(['existing-1', 'new-1', 'new-2']);
+		});
+
+		it('evicts oldest messages when exceeding capacity', () => {
+			for (let i = 0; i < 498; i++) {
+				addMessage('#test', makeMessage({ msgid: `existing-${i}` }));
+			}
+			appendMessages('#test', [
+				makeMessage({ msgid: 'append-0' }),
+				makeMessage({ msgid: 'append-1' }),
+				makeMessage({ msgid: 'append-2' }),
+				makeMessage({ msgid: 'append-3' }),
+				makeMessage({ msgid: 'append-4' }),
+			]);
+			const msgs = getMessages('#test');
+			expect(msgs).toHaveLength(500);
+			// Oldest 3 existing should be evicted (498 + 5 = 503 -> trim 3 from start)
+			expect(msgs[0].msgid).toBe('existing-3');
+			// Appended messages at the end
+			expect(msgs[msgs.length - 1].msgid).toBe('append-4');
+			expect(msgs[msgs.length - 5].msgid).toBe('append-0');
+		});
+
+		it('creates the channel buffer if it does not exist', () => {
+			appendMessages('#new', [makeMessage({ msgid: 'a1', target: '#new' })]);
+			expect(getMessages('#new')).toHaveLength(1);
+			expect(getMessages('#new')[0].msgid).toBe('a1');
+		});
+
+		it('updates cursors after append', () => {
+			addMessage('#test', makeMessage({ msgid: 'first' }));
+			appendMessages('#test', [makeMessage({ msgid: 'last' })]);
+			const c = getCursors('#test');
+			expect(c.oldestMsgid).toBe('first');
+			expect(c.newestMsgid).toBe('last');
 		});
 	});
 

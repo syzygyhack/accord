@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
 	searchEmoji,
 	searchCustomEmoji,
@@ -9,6 +9,8 @@ import {
 	getCustomEmojiList,
 	getCustomEmojiUrl,
 	clearCustomEmoji,
+	getFrequentEmoji,
+	recordEmojiUse,
 	type EmojiEntry,
 } from './emoji';
 
@@ -169,5 +171,85 @@ describe('custom emoji', () => {
 		setCustomEmoji({ CatJam: 'https://example.com/catjam.gif' });
 		const results = searchCustomEmoji('catjam');
 		expect(results).toHaveLength(1);
+	});
+});
+
+describe('frequent emoji', () => {
+	let storageMock: Storage;
+
+	beforeEach(() => {
+		const store = new Map<string, string>();
+		storageMock = {
+			getItem: (key: string) => store.get(key) ?? null,
+			setItem: (key: string, value: string) => store.set(key, value),
+			removeItem: (key: string) => store.delete(key),
+			clear: () => store.clear(),
+			get length() { return store.size; },
+			key: (_index: number) => null,
+		} as Storage;
+		vi.stubGlobal('localStorage', storageMock);
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	describe('getFrequentEmoji', () => {
+		it('returns empty array when no emoji have been used', () => {
+			expect(getFrequentEmoji()).toEqual([]);
+		});
+
+		it('returns stored frequent emoji', () => {
+			localStorage.setItem('virc:frequent-emoji', JSON.stringify(['😀', '👍']));
+			expect(getFrequentEmoji()).toEqual(['😀', '👍']);
+		});
+
+		it('returns empty array for corrupted localStorage', () => {
+			localStorage.setItem('virc:frequent-emoji', 'not json');
+			expect(getFrequentEmoji()).toEqual([]);
+		});
+	});
+
+	describe('recordEmojiUse', () => {
+		it('records a new emoji at the front of the list', () => {
+			recordEmojiUse('😀');
+			expect(getFrequentEmoji()).toEqual(['😀']);
+		});
+
+		it('moves a re-used emoji to the front', () => {
+			recordEmojiUse('😀');
+			recordEmojiUse('👍');
+			recordEmojiUse('😀');
+			const frequent = getFrequentEmoji();
+			expect(frequent[0]).toBe('😀');
+			expect(frequent[1]).toBe('👍');
+		});
+
+		it('caps the list at 16 entries', () => {
+			const emoji = ['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟',
+				'😀','😄','😅','🤣','😂','🙂','🙃','😉'];
+			for (const e of emoji) {
+				recordEmojiUse(e);
+			}
+			const frequent = getFrequentEmoji();
+			expect(frequent).toHaveLength(16);
+			// Most recent should be first
+			expect(frequent[0]).toBe('😉');
+		});
+
+		it('does not duplicate entries', () => {
+			recordEmojiUse('👍');
+			recordEmojiUse('👍');
+			recordEmojiUse('👍');
+			expect(getFrequentEmoji()).toEqual(['👍']);
+		});
+
+		it('persists to localStorage', () => {
+			recordEmojiUse('🎉');
+			const stored = localStorage.getItem('virc:frequent-emoji');
+			expect(stored).not.toBeNull();
+			const parsed = JSON.parse(stored!);
+			expect(parsed).toEqual(['🎉']);
+		});
 	});
 });

@@ -3,6 +3,7 @@ import {
 	registerKeybinding,
 	registerKeybindings,
 	processKeydown,
+	installGlobalHandler,
 	getRegisteredBindings,
 	setCustomBinding,
 	resetAllBindings,
@@ -347,5 +348,91 @@ describe('comboFromEvent', () => {
 	it('includes shift modifier', () => {
 		const combo = comboFromEvent(makeKeyEvent({ key: 'ArrowUp', altKey: true, shiftKey: true }));
 		expect(combo).toEqual({ key: 'ArrowUp', ctrl: undefined, alt: true, shift: true });
+	});
+});
+
+describe('installGlobalHandler', () => {
+	beforeEach(() => {
+		vi.stubGlobal('localStorage', createStorageMock());
+		_resetForTesting();
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it('adds a keydown listener to the target', () => {
+		const target = {
+			addEventListener: vi.fn(),
+			removeEventListener: vi.fn(),
+		};
+		installGlobalHandler(target as unknown as EventTarget);
+		expect(target.addEventListener).toHaveBeenCalledWith('keydown', expect.any(Function));
+	});
+
+	it('dispatches keydown events to registered bindings', () => {
+		const handler = vi.fn(() => true);
+		registerKeybinding({ key: 'k', ctrl: true, handler });
+
+		const listeners: ((e: Event) => void)[] = [];
+		const target = {
+			addEventListener: (_event: string, fn: (e: Event) => void) => listeners.push(fn),
+			removeEventListener: vi.fn(),
+		};
+		installGlobalHandler(target as unknown as EventTarget);
+
+		// Simulate a keydown event through the installed handler
+		const e = makeKeyEvent({ key: 'k', ctrlKey: true });
+		listeners[0](e);
+		expect(handler).toHaveBeenCalledTimes(1);
+		expect(e.preventDefault).toHaveBeenCalled();
+	});
+
+	it('returns a cleanup function that removes the listener', () => {
+		const addSpy = vi.fn();
+		const removeSpy = vi.fn();
+		const target = {
+			addEventListener: addSpy,
+			removeEventListener: removeSpy,
+		};
+		const cleanup = installGlobalHandler(target as unknown as EventTarget);
+
+		// Get the handler that was registered
+		const registeredHandler = addSpy.mock.calls[0][1];
+
+		cleanup();
+		expect(removeSpy).toHaveBeenCalledWith('keydown', registeredHandler);
+	});
+
+	it('does not dispatch after cleanup', () => {
+		const handler = vi.fn(() => true);
+		registerKeybinding({ key: 'x', handler });
+
+		const listeners = new Map<string, Set<(e: Event) => void>>();
+		const target = {
+			addEventListener: (event: string, fn: (e: Event) => void) => {
+				if (!listeners.has(event)) listeners.set(event, new Set());
+				listeners.get(event)!.add(fn);
+			},
+			removeEventListener: (event: string, fn: (e: Event) => void) => {
+				listeners.get(event)?.delete(fn);
+			},
+		};
+
+		const cleanup = installGlobalHandler(target as unknown as EventTarget);
+
+		// Fire before cleanup
+		for (const fn of listeners.get('keydown') ?? []) {
+			fn(makeKeyEvent({ key: 'x' }));
+		}
+		expect(handler).toHaveBeenCalledTimes(1);
+
+		cleanup();
+
+		// Fire after cleanup — listener should be removed
+		for (const fn of listeners.get('keydown') ?? []) {
+			fn(makeKeyEvent({ key: 'x' }));
+		}
+		expect(handler).toHaveBeenCalledTimes(1); // no additional call
 	});
 });

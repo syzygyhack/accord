@@ -11,6 +11,11 @@ import {
 	channelState,
 	getChannel,
 	resetChannels,
+	setActiveChannel,
+	setCategories,
+	resetChannelUI,
+	getActiveChannel,
+	channelUIState,
 } from '../state/channels.svelte';
 import {
 	presenceState,
@@ -26,6 +31,11 @@ import {
 	typingState,
 	resetTyping,
 } from '../state/typing.svelte';
+import {
+	getLastReadMsgid,
+	resetNotifications,
+} from '../state/notifications.svelte';
+import { userState } from '../state/user.svelte';
 import type { IRCConnection } from './connection';
 
 /** Parse a raw IRC line and pass it through the handler. */
@@ -37,10 +47,14 @@ function handle(line: string): void {
 beforeEach(() => {
 	resetMessages();
 	resetChannels();
+	resetChannelUI();
 	resetPresence();
 	resetMembers();
 	resetTyping();
+	resetNotifications();
 	resetHandlerState();
+	userState.nick = null;
+	userState.account = null;
 	vi.useFakeTimers();
 });
 
@@ -728,5 +742,109 @@ describe('MONITOR -> member presence', () => {
 		handle(':server 731 me :alice!a@host,bob!b@host');
 		expect(getMember('#test', 'alice')?.presence).toBe('offline');
 		expect(getMember('#test', 'bob')?.presence).toBe('offline');
+	});
+});
+
+// -----------------------------------------------------------------------
+// MARKREAD handling
+// -----------------------------------------------------------------------
+
+describe('MARKREAD handling', () => {
+	it('sets lastReadMsgid from timestamp param', () => {
+		handle(':server MARKREAD #test timestamp=2025-01-01T12:00:00Z');
+		expect(getLastReadMsgid('#test')).toBe('2025-01-01T12:00:00Z');
+	});
+
+	it('ignores MARKREAD without a target', () => {
+		// Should not throw
+		const parsed = parseMessage(':server MARKREAD');
+		handleMessage(parsed);
+	});
+
+	it('ignores MARKREAD without a timestamp param', () => {
+		handle(':server MARKREAD #test');
+		expect(getLastReadMsgid('#test')).toBeNull();
+	});
+});
+
+// -----------------------------------------------------------------------
+// DM routing (PRIVMSG addressed to our nick -> buffer by sender)
+// -----------------------------------------------------------------------
+
+describe('DM routing', () => {
+	beforeEach(() => {
+		userState.nick = 'me';
+	});
+
+	it('routes incoming DM to sender nick buffer', () => {
+		handle('@msgid=dm1;account=alice :alice!a@host PRIVMSG me :hey there');
+		// Message should be in the "alice" buffer, not "me"
+		const msgs = getMessages('alice');
+		expect(msgs).toHaveLength(1);
+		expect(msgs[0].text).toBe('hey there');
+		expect(msgs[0].target).toBe('alice');
+		// No message in "me" buffer
+		expect(getMessages('me')).toHaveLength(0);
+	});
+
+	it('routes channel PRIVMSG normally (not DM)', () => {
+		handle('@msgid=ch1;account=alice :alice!a@host PRIVMSG #test :hello channel');
+		expect(getMessages('#test')).toHaveLength(1);
+		expect(getMessages('alice')).toHaveLength(0);
+	});
+
+	it('DM routing is case-insensitive for our nick', () => {
+		userState.nick = 'Me';
+		handle('@msgid=dm2;account=bob :bob!b@host PRIVMSG me :case test');
+		const msgs = getMessages('bob');
+		expect(msgs).toHaveLength(1);
+		expect(msgs[0].text).toBe('case test');
+	});
+});
+
+// -----------------------------------------------------------------------
+// Self-PART handling
+// -----------------------------------------------------------------------
+
+describe('self-PART handling', () => {
+	beforeEach(() => {
+		userState.nick = 'me';
+	});
+
+	it('removes channel from channel state on self-PART', () => {
+		handle(':me!a@host JOIN #test me :Me Real');
+		expect(getChannel('#test')).not.toBeNull();
+		handle(':me!a@host PART #test :leaving');
+		expect(getChannel('#test')).toBeNull();
+	});
+
+	it('clears messages for channel on self-PART', () => {
+		handle(':me!a@host JOIN #test me :Me Real');
+		handle('@msgid=m1;account=alice :alice!a@host PRIVMSG #test :hello');
+		expect(getMessages('#test').length).toBeGreaterThan(0);
+		handle(':me!a@host PART #test');
+		expect(getMessages('#test')).toHaveLength(0);
+	});
+
+	it('switches active channel on self-PART when active channel is parted', () => {
+		// Set up categories so there's another channel to switch to
+		setCategories([{ name: 'Text', channels: ['#test', '#other'] }]);
+		handle(':me!a@host JOIN #test me :Me');
+		handle(':me!a@host JOIN #other me :Me');
+		setActiveChannel('#test');
+		expect(getActiveChannel()).toBe('#test');
+
+		handle(':me!a@host PART #test');
+		// Should switch to first available text channel
+		expect(getActiveChannel()).toBe('#other');
+	});
+
+	it('does not produce a system message for self-PART', () => {
+		handle(':me!a@host JOIN #test me :Me');
+		// Clear join system message
+		const prePartMsgs = getMessages('#test');
+		handle(':me!a@host PART #test');
+		// Messages are cleared entirely, no PART system message
+		expect(getMessages('#test')).toHaveLength(0);
 	});
 });
