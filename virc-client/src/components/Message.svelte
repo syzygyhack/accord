@@ -17,7 +17,7 @@
 		compact?: boolean;
 		isOp?: boolean;
 		onreply?: (msgid: string) => void;
-		onreact?: (msgid: string) => void;
+		onreact?: (msgid: string, anchor?: { x: number; y: number }) => void;
 		onmore?: (msgid: string, event: MouseEvent) => void;
 		onpin?: (msgid: string) => void;
 		onedit?: (msgid: string) => void;
@@ -208,6 +208,13 @@
 
 	function handleReact() {
 		onreact?.(message.msgid);
+	}
+
+	/** Open emoji picker anchored to the '+' button in the reaction bar. */
+	function handleReactionBarAdd(event: MouseEvent) {
+		const btn = event.currentTarget as HTMLElement;
+		const rect = btn.getBoundingClientRect();
+		onreact?.(message.msgid, { x: rect.left, y: rect.top });
 	}
 
 	function handleMore(event: MouseEvent) {
@@ -444,7 +451,7 @@
 		<div class="compact-reactions-row">
 			<span class="compact-timestamp"></span>
 			<span class="compact-nick"></span>
-			<div class="reactions-bar">
+			<div class="reactions-bar" class:reactions-bar-overflow={reactionEntries.length > 20}>
 				{#each reactionEntries as entry (entry.emoji)}
 					<button
 						class="reaction-pill"
@@ -461,6 +468,14 @@
 						<span class="reaction-count">{entry.count}</span>
 					</button>
 				{/each}
+				<button
+					class="reaction-pill reaction-add"
+					title="Add Reaction"
+					aria-label="Add Reaction"
+					onclick={handleReactionBarAdd}
+				>
+					<span class="reaction-add-icon">+</span>
+				</button>
 			</div>
 		</div>
 	{/if}
@@ -697,7 +712,7 @@
 	{/if}
 
 	{#if reactionEntries.length > 0}
-		<div class="reactions-bar">
+		<div class="reactions-bar" class:reactions-bar-overflow={reactionEntries.length > 20}>
 			{#each reactionEntries as entry (entry.emoji)}
 				<button
 					class="reaction-pill"
@@ -714,6 +729,14 @@
 					<span class="reaction-count">{entry.count}</span>
 				</button>
 			{/each}
+			<button
+				class="reaction-pill reaction-add"
+				title="Add Reaction"
+				aria-label="Add Reaction"
+				onclick={handleReactionBarAdd}
+			>
+				<span class="reaction-add-icon">+</span>
+			</button>
 		</div>
 	{/if}
 
@@ -1234,6 +1257,12 @@
 		padding: 4px 0 2px 0;
 	}
 
+	.reactions-bar-overflow {
+		flex-wrap: nowrap;
+		overflow-x: auto;
+		scrollbar-width: thin;
+	}
+
 	.reaction-pill {
 		display: inline-flex;
 		align-items: center;
@@ -1277,6 +1306,25 @@
 		height: 1.2em;
 		object-fit: contain;
 		vertical-align: middle;
+	}
+
+	.reaction-add {
+		border-style: dashed;
+		background: transparent;
+		color: var(--interactive-normal);
+		flex-shrink: 0;
+	}
+
+	.reaction-add:hover {
+		background: var(--surface-highest);
+		border-color: var(--interactive-muted);
+		color: var(--interactive-hover);
+	}
+
+	.reaction-add-icon {
+		font-size: var(--font-base);
+		font-weight: var(--weight-semibold);
+		line-height: 1;
 	}
 
 	/* Inline custom emoji in message text */
