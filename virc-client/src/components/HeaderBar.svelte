@@ -4,6 +4,7 @@
 	import { getPinnedMessages, getMessage } from '$lib/state/messages.svelte';
 	import type { Message } from '$lib/state/messages.svelte';
 	import { nickColor } from '$lib/irc/format';
+	import { themeState } from '$lib/state/theme.svelte';
 	import { userState } from '$lib/state/user.svelte';
 	import { voiceState } from '$lib/state/voice.svelte';
 
@@ -258,7 +259,7 @@
 					{:else}
 						{#each pinnedMessagesList as msg (msg.msgid)}
 							<button class="pinned-item" onclick={() => handlePinnedMessageClick(msg.msgid)}>
-								<span class="pinned-nick" style="color: {nickColor(msg.account)}">{msg.nick}</span>
+								<span class="pinned-nick" style="color: {nickColor(msg.account, themeState.current)}">{msg.nick}</span>
 								<span class="pinned-text">{msg.text.length > 80 ? msg.text.slice(0, 80) + '...' : msg.text}</span>
 								<span class="pinned-time">{msg.time.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
 							</button>

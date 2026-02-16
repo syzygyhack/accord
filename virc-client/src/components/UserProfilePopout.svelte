@@ -5,6 +5,7 @@
 	import { getToken } from '$lib/api/auth';
 	import { fetchAccountInfo, formatRegisteredDate } from '$lib/api/accountInfo';
 	import { nickColor } from '$lib/irc/format';
+	import { themeState } from '$lib/state/theme.svelte';
 
 	/**
 	 * Default role definitions matching MemberList.svelte.
@@ -55,7 +56,7 @@
 	let member = $derived(getMember(resolvedChannel, nick));
 
 	/** Nick color based on account hash. */
-	let color = $derived(nickColor(account));
+	let color = $derived(nickColor(account, themeState.current));
 
 	/** First letter for the letter avatar. */
 	let initial = $derived(nick.charAt(0).toUpperCase());

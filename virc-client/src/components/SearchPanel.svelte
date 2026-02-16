@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { tick } from 'svelte';
+	import { tick, onDestroy } from 'svelte';
 	import { channelUIState } from '$lib/state/channels.svelte';
 	import { searchMessages, type Message } from '$lib/state/messages.svelte';
 	import { nickColor } from '$lib/irc/format';
+	import { themeState } from '$lib/state/theme.svelte';
 
 	interface Props {
 		onclose: () => void;
@@ -15,9 +16,23 @@
 	let inputEl: HTMLInputElement | undefined = $state(undefined);
 	let selectedIndex = $state(0);
 
-	/** Debounced search results. */
+	/** Debounced copy of query — updated 300ms after the last keystroke. */
+	let debouncedQuery = $state('');
+	let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+
+	$effect(() => {
+		const q = query;
+		clearTimeout(debounceTimer);
+		debounceTimer = setTimeout(() => {
+			debouncedQuery = q;
+		}, 300);
+	});
+
+	onDestroy(() => clearTimeout(debounceTimer));
+
+	/** Search results derived from the debounced query. */
 	let results = $derived.by((): Message[] => {
-		const q = query.trim();
+		const q = debouncedQuery.trim();
 		if (!q) return [];
 		const channel = channelUIState.activeChannel;
 		if (!channel) return [];
@@ -110,7 +125,7 @@
 	</div>
 
 	<div class="search-results" role="listbox">
-		{#if query.trim() && results.length === 0}
+		{#if debouncedQuery.trim() && results.length === 0}
 			<div class="search-empty">No messages matched your search</div>
 		{:else}
 			{#each results as msg, i (msg.msgid)}
@@ -122,7 +137,7 @@
 					onclick={() => selectResult(msg)}
 					onmouseenter={() => (selectedIndex = i)}
 				>
-					<span class="result-nick" style="color: {nickColor(msg.account)}">{msg.nick}</span>
+					<span class="result-nick" style="color: {nickColor(msg.account, themeState.current)}">{msg.nick}</span>
 					<span class="result-text">{truncate(msg.text, 100)}</span>
 					<span class="result-time">{formatTime(msg.time)}</span>
 				</button>

@@ -317,15 +317,17 @@ export function highlightMentions(text: string, myAccount: string): string {
 /**
  * Compute a deterministic nick color from an account name.
  *
- * Uses djb2 hash → hue, with fixed 65% saturation and 65% lightness (dark theme).
+ * Uses djb2 hash → hue, with fixed 65% saturation. Lightness adapts to theme:
+ * 65% for dark/amoled/compact themes, 40% for light theme.
  */
-export function nickColor(account: string): string {
+export function nickColor(account: string, theme: 'dark' | 'light' | 'amoled' | 'compact' = 'dark'): string {
 	let hash = 5381;
 	for (let i = 0; i < account.length; i++) {
 		hash = ((hash << 5) + hash + account.charCodeAt(i)) | 0;
 	}
 	const hue = (hash >>> 0) % 360;
-	return `hsl(${hue}, 65%, 65%)`;
+	const lightness = theme === 'light' ? 40 : 65;
+	return `hsl(${hue}, 65%, ${lightness}%)`;
 }
 
 /**

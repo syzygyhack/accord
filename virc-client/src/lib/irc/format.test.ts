@@ -176,8 +176,28 @@ describe('highlightMentions', () => {
 });
 
 describe('nickColor', () => {
-	it('returns an hsl string', () => {
+	it('returns an hsl string with 65% lightness by default (dark theme)', () => {
 		const color = nickColor('alice');
+		expect(color).toMatch(/^hsl\(\d+, 65%, 65%\)$/);
+	});
+
+	it('returns 65% lightness for dark theme', () => {
+		const color = nickColor('alice', 'dark');
+		expect(color).toMatch(/^hsl\(\d+, 65%, 65%\)$/);
+	});
+
+	it('returns 40% lightness for light theme', () => {
+		const color = nickColor('alice', 'light');
+		expect(color).toMatch(/^hsl\(\d+, 65%, 40%\)$/);
+	});
+
+	it('returns 65% lightness for amoled theme', () => {
+		const color = nickColor('alice', 'amoled');
+		expect(color).toMatch(/^hsl\(\d+, 65%, 65%\)$/);
+	});
+
+	it('returns 65% lightness for compact theme', () => {
+		const color = nickColor('alice', 'compact');
 		expect(color).toMatch(/^hsl\(\d+, 65%, 65%\)$/);
 	});
 
@@ -188,6 +208,16 @@ describe('nickColor', () => {
 	it('returns different colors for different accounts', () => {
 		// While not guaranteed, these common nicks should differ
 		expect(nickColor('alice')).not.toBe(nickColor('bob'));
+	});
+
+	it('returns same hue but different lightness across themes', () => {
+		const dark = nickColor('alice', 'dark');
+		const light = nickColor('alice', 'light');
+		// Same hue, same saturation, different lightness
+		const darkHue = dark.match(/^hsl\((\d+)/)?.[1];
+		const lightHue = light.match(/^hsl\((\d+)/)?.[1];
+		expect(darkHue).toBe(lightHue);
+		expect(dark).not.toBe(light);
 	});
 });
 

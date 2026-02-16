@@ -17,17 +17,33 @@ interface AppSettingsData {
 	systemMessageDisplay: SystemMessageDisplay;
 	showRawIrc: boolean;
 	developerMode: boolean;
+	sidebarWidth: number;
+	memberListWidth: number;
 }
+
+export const SIDEBAR_MIN = 180;
+export const SIDEBAR_MAX = 360;
+export const SIDEBAR_DEFAULT = 240;
+export const MEMBER_MIN = 180;
+export const MEMBER_MAX = 300;
+export const MEMBER_DEFAULT = 240;
 
 const defaults: AppSettingsData = {
 	zoom: 125,
 	systemMessageDisplay: 'smart',
 	showRawIrc: false,
 	developerMode: false,
+	sidebarWidth: SIDEBAR_DEFAULT,
+	memberListWidth: MEMBER_DEFAULT,
 };
 
 const VALID_ZOOM: ReadonlySet<number> = new Set([100, 125, 150]);
 const VALID_SYSTEM_DISPLAY: ReadonlySet<string> = new Set(['all', 'smart', 'none']);
+
+function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
+	if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
+	return Math.max(min, Math.min(max, value));
+}
 
 function load(): AppSettingsData {
 	try {
@@ -41,6 +57,8 @@ function load(): AppSettingsData {
 					: defaults.systemMessageDisplay,
 				showRawIrc: typeof parsed.showRawIrc === 'boolean' ? parsed.showRawIrc : defaults.showRawIrc,
 				developerMode: typeof parsed.developerMode === 'boolean' ? parsed.developerMode : defaults.developerMode,
+				sidebarWidth: clampNumber(parsed.sidebarWidth, SIDEBAR_MIN, SIDEBAR_MAX, SIDEBAR_DEFAULT),
+				memberListWidth: clampNumber(parsed.memberListWidth, MEMBER_MIN, MEMBER_MAX, MEMBER_DEFAULT),
 			};
 		}
 	} catch {
@@ -69,6 +87,10 @@ export const appSettings = {
 	set showRawIrc(v: boolean) { _state.showRawIrc = v; persist(); },
 	get developerMode() { return _state.developerMode; },
 	set developerMode(v: boolean) { _state.developerMode = v; persist(); },
+	get sidebarWidth() { return _state.sidebarWidth; },
+	set sidebarWidth(v: number) { _state.sidebarWidth = clampNumber(v, SIDEBAR_MIN, SIDEBAR_MAX, SIDEBAR_DEFAULT); persist(); },
+	get memberListWidth() { return _state.memberListWidth; },
+	set memberListWidth(v: number) { _state.memberListWidth = clampNumber(v, MEMBER_MIN, MEMBER_MAX, MEMBER_DEFAULT); persist(); },
 };
 
 /** Reset settings to defaults (for testing). */
@@ -77,5 +99,7 @@ export function resetAppSettings(): void {
 	_state.systemMessageDisplay = defaults.systemMessageDisplay;
 	_state.showRawIrc = defaults.showRawIrc;
 	_state.developerMode = defaults.developerMode;
+	_state.sidebarWidth = defaults.sidebarWidth;
+	_state.memberListWidth = defaults.memberListWidth;
 	persist();
 }

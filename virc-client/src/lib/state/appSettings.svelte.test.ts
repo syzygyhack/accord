@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { appSettings, resetAppSettings } from './appSettings.svelte';
+import { appSettings, resetAppSettings, SIDEBAR_MIN, SIDEBAR_MAX, SIDEBAR_DEFAULT, MEMBER_MIN, MEMBER_MAX, MEMBER_DEFAULT } from './appSettings.svelte';
 
 function createStorageMock() {
 	const store = new Map<string, string>();
@@ -106,6 +106,78 @@ describe('appSettings', () => {
 			appSettings.developerMode = true;
 			resetAppSettings();
 			expect(appSettings.developerMode).toBe(false);
+		});
+	});
+
+	describe('sidebarWidth', () => {
+		it('defaults to 240', () => {
+			expect(appSettings.sidebarWidth).toBe(SIDEBAR_DEFAULT);
+		});
+
+		it('accepts valid values', () => {
+			appSettings.sidebarWidth = 300;
+			expect(appSettings.sidebarWidth).toBe(300);
+		});
+
+		it('clamps below minimum', () => {
+			appSettings.sidebarWidth = 100;
+			expect(appSettings.sidebarWidth).toBe(SIDEBAR_MIN);
+		});
+
+		it('clamps above maximum', () => {
+			appSettings.sidebarWidth = 500;
+			expect(appSettings.sidebarWidth).toBe(SIDEBAR_MAX);
+		});
+
+		it('persists to localStorage', () => {
+			appSettings.sidebarWidth = 280;
+			const stored = JSON.parse(localStorage.getItem('virc:appSettings')!);
+			expect(stored.sidebarWidth).toBe(280);
+		});
+
+		it('resets to default', () => {
+			appSettings.sidebarWidth = 300;
+			resetAppSettings();
+			expect(appSettings.sidebarWidth).toBe(SIDEBAR_DEFAULT);
+		});
+
+		it('handles non-number values on load', () => {
+			localStorage.setItem('virc:appSettings', JSON.stringify({ sidebarWidth: 'garbage' }));
+			resetAppSettings();
+			expect(appSettings.sidebarWidth).toBe(SIDEBAR_DEFAULT);
+		});
+	});
+
+	describe('memberListWidth', () => {
+		it('defaults to 240', () => {
+			expect(appSettings.memberListWidth).toBe(MEMBER_DEFAULT);
+		});
+
+		it('accepts valid values', () => {
+			appSettings.memberListWidth = 250;
+			expect(appSettings.memberListWidth).toBe(250);
+		});
+
+		it('clamps below minimum', () => {
+			appSettings.memberListWidth = 100;
+			expect(appSettings.memberListWidth).toBe(MEMBER_MIN);
+		});
+
+		it('clamps above maximum', () => {
+			appSettings.memberListWidth = 400;
+			expect(appSettings.memberListWidth).toBe(MEMBER_MAX);
+		});
+
+		it('persists to localStorage', () => {
+			appSettings.memberListWidth = 220;
+			const stored = JSON.parse(localStorage.getItem('virc:appSettings')!);
+			expect(stored.memberListWidth).toBe(220);
+		});
+
+		it('resets to default', () => {
+			appSettings.memberListWidth = 280;
+			resetAppSettings();
+			expect(appSettings.memberListWidth).toBe(MEMBER_DEFAULT);
 		});
 	});
 });

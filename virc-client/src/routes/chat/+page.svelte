@@ -54,7 +54,8 @@
 	import RawIrcPanel from '../../components/RawIrcPanel.svelte';
 	import SearchPanel from '../../components/SearchPanel.svelte';
 	import UserProfilePopout from '../../components/UserProfilePopout.svelte';
-	import { appSettings } from '$lib/state/appSettings.svelte';
+	import ResizeHandle from '../../components/ResizeHandle.svelte';
+	import { appSettings, SIDEBAR_MIN, SIDEBAR_MAX, MEMBER_MIN, MEMBER_MAX } from '$lib/state/appSettings.svelte';
 	import { applyServerTheme, clearServerTheme, parseServerTheme } from '$lib/state/theme.svelte';
 	import { setServerConfig, resetServerConfig } from '$lib/state/serverConfig.svelte';
 	import { setCustomEmoji, clearCustomEmoji } from '$lib/emoji';
@@ -1492,8 +1493,11 @@
 	<ServerList />
 
 	<!-- Left column: Channel sidebar -->
-	<div class="left-panel" class:overlay={sidebarIsOverlay} class:visible={sidebarIsOverlay && showSidebar}>
+	<div class="left-panel" class:overlay={sidebarIsOverlay} class:visible={sidebarIsOverlay && showSidebar} style="width: {appSettings.sidebarWidth}px;">
 		<ChannelSidebar onVoiceChannelClick={handleVoiceChannelClick} {voiceRoom} onSettingsClick={() => (showSettings = true)} onServerSettingsClick={() => (showServerSettings = true)} onVoiceExpand={() => (showVoiceOverlay = true)} />
+		{#if !sidebarIsOverlay}
+			<ResizeHandle side="left" min={SIDEBAR_MIN} max={SIDEBAR_MAX} width={appSettings.sidebarWidth} onresize={(w) => { appSettings.sidebarWidth = w; }} />
+		{/if}
 	</div>
 
 	<!-- Sidebar overlay backdrop -->
@@ -1600,7 +1604,10 @@
 
 	<!-- Right column: Member list (overlay below 1200px, hidden for DMs) -->
 	{#if !isActiveDM && (isDesktop || showMembers)}
-		<div class="right-panel" class:overlay={!isDesktop} class:visible={!isDesktop && showMembers}>
+		<div class="right-panel" class:overlay={!isDesktop} class:visible={!isDesktop && showMembers} style="width: {appSettings.memberListWidth}px;">
+			{#if isDesktop}
+				<ResizeHandle side="right" min={MEMBER_MIN} max={MEMBER_MAX} width={appSettings.memberListWidth} onresize={(w) => { appSettings.memberListWidth = w; }} />
+			{/if}
 			<MemberList onmention={handleMemberMention} connection={conn} />
 		</div>
 	{/if}
@@ -1685,6 +1692,7 @@
 		flex-shrink: 0;
 		height: 100%;
 		z-index: 1;
+		position: relative;
 	}
 
 	/* Below 900px: sidebar becomes an overlay that slides in from left */
@@ -1724,12 +1732,12 @@
 	}
 
 	.right-panel {
-		width: 240px;
-		min-width: 240px;
+		flex-shrink: 0;
 		height: 100%;
 		background: var(--surface-low);
 		border-left: 1px solid var(--surface-lowest);
 		overflow-y: auto;
+		position: relative;
 	}
 
 	/* Below 1200px: member list becomes an overlay from the right */

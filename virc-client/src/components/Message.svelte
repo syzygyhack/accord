@@ -3,6 +3,7 @@
 	import { getMessage, isPinned } from '$lib/state/messages.svelte';
 	import { userState } from '$lib/state/user.svelte';
 	import { appSettings } from '$lib/state/appSettings.svelte';
+	import { themeState } from '$lib/state/theme.svelte';
 	import { extractMediaUrls } from '$lib/media';
 	import { getCustomEmojiUrl } from '$lib/emoji';
 	import { extractPreviewUrl, fetchPreview, getCachedPreview, type LinkPreview } from '$lib/files/preview';
@@ -66,7 +67,15 @@
 
 	let pinned = $derived(isPinned(message.target, message.msgid));
 
-	let color = $derived(nickColor(message.account));
+	let color = $derived(nickColor(message.account, themeState.current));
+
+	/** Whether this message mentions the current user via @nick. */
+	let isMention = $derived.by(() => {
+		const myAccount = userState.account;
+		if (!myAccount || message.isRedacted) return false;
+		const pattern = new RegExp(`@${myAccount.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+		return pattern.test(message.text);
+	});
 
 	let mediaUrls = $derived.by(() => {
 		if (message.isRedacted) return [];
@@ -281,6 +290,7 @@
 	class:message-redacted={message.isRedacted}
 	class:message-failed={isFailed}
 	class:message-sending={isSending}
+	class:message-mention={isMention}
 	role="article"
 	title={devTooltip}
 	aria-label="{message.nick}: {message.isRedacted ? 'message deleted' : message.text.slice(0, 100)}"
@@ -350,7 +360,7 @@
 				<svg class="reply-icon" width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
 					<path d="M5 2.3L1 5.6a.4.4 0 000 .6L5 9.5a.4.4 0 00.6-.3V7.5c2.2 0 4 .6 5.2 2.7.2.3.5.3.5-.1C11.3 6.8 9 4.1 5.6 3.9V2.6a.4.4 0 00-.6-.3z"/>
 				</svg>
-				<span class="reply-nick" style="color: {nickColor(replyParent.account)}">
+				<span class="reply-nick" style="color: {nickColor(replyParent.account, themeState.current)}">
 					{replyParent.nick}
 				</span>
 				<span class="reply-text">
@@ -472,6 +482,7 @@
 	class:message-redacted={message.isRedacted}
 	class:message-failed={isFailed}
 	class:message-sending={isSending}
+	class:message-mention={isMention}
 	role="article"
 	title={devTooltip}
 	aria-label="{message.nick}: {message.isRedacted ? 'message deleted' : message.text.slice(0, 100)}"
@@ -539,7 +550,7 @@
 				<svg class="reply-icon" width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
 					<path d="M5 2.3L1 5.6a.4.4 0 000 .6L5 9.5a.4.4 0 00.6-.3V7.5c2.2 0 4 .6 5.2 2.7.2.3.5.3.5-.1C11.3 6.8 9 4.1 5.6 3.9V2.6a.4.4 0 00-.6-.3z"/>
 				</svg>
-				<span class="reply-nick" style="color: {nickColor(replyParent.account)}">
+				<span class="reply-nick" style="color: {nickColor(replyParent.account, themeState.current)}">
 					{replyParent.nick}
 				</span>
 				<span class="reply-text">
@@ -759,6 +770,15 @@
 
 	.message-sending {
 		opacity: 0.6;
+	}
+
+	.message-mention {
+		background: var(--msg-mention-bg);
+		border-left: 3px solid var(--msg-mention-border);
+	}
+
+	.message-mention:not(.message-compact) {
+		padding-left: 69px;
 	}
 
 	.message-failed {

@@ -3,6 +3,7 @@
 	import { channelUIState, openDM } from '$lib/state/channels.svelte';
 	import { userState } from '$lib/state/user.svelte';
 	import { nickColor } from '$lib/irc/format';
+	import { themeState } from '$lib/state/theme.svelte';
 	import { formatMessage } from '$lib/irc/parser';
 	import type { IRCConnection } from '$lib/irc/connection';
 	import UserProfilePopout from './UserProfilePopout.svelte';
@@ -146,7 +147,7 @@
 			const role = ROLE_MAP[member.highestMode];
 			if (role?.color) return role.color;
 		}
-		return nickColor(member.account);
+		return nickColor(member.account, themeState.current);
 	}
 
 	// --- Context menu ---

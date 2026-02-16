@@ -391,8 +391,8 @@
 	.channel-sidebar {
 		display: flex;
 		flex-direction: column;
-		width: 240px;
-		min-width: 240px;
+		width: 100%;
+		min-width: 0;
 		height: 100%;
 		background: var(--surface-low);
 		overflow: hidden;
