@@ -304,4 +304,23 @@ describe("DELETE /api/invite/:token", () => {
     const getRes = await getInvite(token);
     expect(getRes.status).toBe(200);
   });
+
+  test("creator can delete after non-creator is denied", async () => {
+    const adminJwt = await createTestJwt("admin");
+    const createRes = await createInvite({ channel: "#secure" }, { token: adminJwt });
+    const { token } = (await createRes.json()) as { token: string };
+
+    // Non-creator denied
+    const otherJwt = await createTestJwt("intruder");
+    const deny = await deleteInvite(token, { jwt: otherJwt });
+    expect(deny.status).toBe(403);
+
+    // Creator succeeds
+    const delRes = await deleteInvite(token, { jwt: adminJwt });
+    expect(delRes.status).toBe(200);
+
+    // Invite gone
+    const getRes = await getInvite(token);
+    expect(getRes.status).toBe(404);
+  });
 });

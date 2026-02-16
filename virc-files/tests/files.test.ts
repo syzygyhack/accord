@@ -217,4 +217,64 @@ describe("GET /api/files/:filename", () => {
     expect(serveRes.status).toBe(200);
     expect(serveRes.headers.get("Content-Disposition")).toBeNull();
   });
+
+  // --- CR-048: Additional dangerous extension tests ---
+
+  test("serves .xml files with Content-Disposition: attachment", async () => {
+    const token = await createTestJwt("alice");
+    const xmlContent = '<?xml version="1.0"?><root><script>alert(1)</script></root>';
+
+    const uploadRes = await files.fetch(
+      uploadReq("data.xml", xmlContent, { token, mimetype: "application/xml" }),
+    );
+    expect(uploadRes.status).toBe(200);
+    const uploadBody = (await uploadRes.json()) as { url: string };
+
+    const serveRes = await files.fetch(req(uploadBody.url));
+    expect(serveRes.status).toBe(200);
+    expect(serveRes.headers.get("Content-Disposition")).toContain("attachment");
+    expect(serveRes.headers.get("X-Content-Type-Options")).toBe("nosniff");
+  });
+
+  test("serves .js files with Content-Disposition: attachment", async () => {
+    const token = await createTestJwt("alice");
+
+    const uploadRes = await files.fetch(
+      uploadReq("payload.js", "alert(document.cookie)", { token, mimetype: "application/javascript" }),
+    );
+    expect(uploadRes.status).toBe(200);
+    const uploadBody = (await uploadRes.json()) as { url: string };
+
+    const serveRes = await files.fetch(req(uploadBody.url));
+    expect(serveRes.status).toBe(200);
+    expect(serveRes.headers.get("Content-Disposition")).toContain("attachment");
+  });
+
+  test("serves .xhtml files with Content-Disposition: attachment", async () => {
+    const token = await createTestJwt("alice");
+
+    const uploadRes = await files.fetch(
+      uploadReq("page.xhtml", "<html><script>alert(1)</script></html>", { token, mimetype: "application/xhtml+xml" }),
+    );
+    expect(uploadRes.status).toBe(200);
+    const uploadBody = (await uploadRes.json()) as { url: string };
+
+    const serveRes = await files.fetch(req(uploadBody.url));
+    expect(serveRes.status).toBe(200);
+    expect(serveRes.headers.get("Content-Disposition")).toContain("attachment");
+  });
+
+  test("serves .css files with Content-Disposition: attachment", async () => {
+    const token = await createTestJwt("alice");
+
+    const uploadRes = await files.fetch(
+      uploadReq("style.css", "body { background: url(javascript:alert(1)) }", { token, mimetype: "text/css" }),
+    );
+    expect(uploadRes.status).toBe(200);
+    const uploadBody = (await uploadRes.json()) as { url: string };
+
+    const serveRes = await files.fetch(req(uploadBody.url));
+    expect(serveRes.status).toBe(200);
+    expect(serveRes.headers.get("Content-Disposition")).toContain("attachment");
+  });
 });

@@ -131,6 +131,52 @@ describe("isPrivateHost", () => {
   test("rejects IPv6 unique-local fd00::", () => {
     expect(isPrivateHost("fd12::1")).toBe(true);
   });
+
+  // --- Bracketed IPv6 variants (CR-046) ---
+
+  test("rejects bracketed IPv6 link-local [fe80::1]", () => {
+    expect(isPrivateHost("[fe80::1]")).toBe(true);
+  });
+
+  test("rejects bracketed IPv6-mapped IPv4 [::ffff:127.0.0.1]", () => {
+    expect(isPrivateHost("[::ffff:127.0.0.1]")).toBe(true);
+  });
+
+  test("rejects bracketed IPv6 unique-local [fd12::1]", () => {
+    expect(isPrivateHost("[fd12::1]")).toBe(true);
+  });
+
+  // --- IPv6-mapped private ranges beyond loopback ---
+
+  test("rejects IPv6-mapped 10.x.x.x ::ffff:10.0.0.1", () => {
+    expect(isPrivateHost("::ffff:10.0.0.1")).toBe(true);
+  });
+
+  test("rejects IPv6-mapped 192.168.x.x ::ffff:192.168.1.1", () => {
+    expect(isPrivateHost("::ffff:192.168.1.1")).toBe(true);
+  });
+
+  test("rejects IPv6-mapped hex for 10.0.0.1 ::ffff:0a00:1", () => {
+    expect(isPrivateHost("::ffff:0a00:1")).toBe(true);
+  });
+
+  // --- Mixed dotted notation edge cases ---
+
+  test("rejects hex-dotted 0x0a.0.0.1 (10.0.0.1)", () => {
+    expect(isPrivateHost("0x0a.0.0.1")).toBe(true);
+  });
+
+  test("rejects mixed hex-octal 0x7f.0.0.01 (127.0.0.1)", () => {
+    expect(isPrivateHost("0x7f.0.0.01")).toBe(true);
+  });
+
+  test("accepts public hex IP 0x08080808 (8.8.8.8)", () => {
+    expect(isPrivateHost("0x08080808")).toBe(false);
+  });
+
+  test("accepts bracketed public IPv6", () => {
+    expect(isPrivateHost("[2001:db8::1]")).toBe(false);
+  });
 });
 
 describe("assertPublicResolution", () => {
