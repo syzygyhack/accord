@@ -20,8 +20,10 @@ export interface VircConfig {
 			name: string;
 			channels: string[];
 			voice?: boolean;
+			readonly?: boolean;
 		}>;
 	};
+	roles?: Record<string, { name: string; color: string | null }>;
 	theme?: {
 		accent?: string;
 		surfaces?: Record<string, string>;

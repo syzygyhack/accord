@@ -146,6 +146,24 @@ export function createInviteRouter(dataDir?: string) {
     await loadPromise;
   }
 
+  // GET /api/invite — list all invites (auth required)
+  router.get("/api/invite", authMiddleware, async (c) => {
+    await ensureLoaded();
+
+    const invites = store.getAll().map((inv) => ({
+      token: inv.token,
+      channel: inv.channel,
+      createdBy: inv.createdBy,
+      expiresAt: inv.expiresAt,
+      maxUses: inv.maxUses,
+      useCount: inv.useCount,
+      expired: isExpired(inv),
+      maxUsesReached: isMaxUsesReached(inv),
+    }));
+
+    return c.json({ invites });
+  });
+
   // POST /api/invite — create invite (auth required)
   router.post("/api/invite", authMiddleware, async (c) => {
     await ensureLoaded();

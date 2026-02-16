@@ -57,4 +57,20 @@ describe('serverConfig state', () => {
 		expect(serverConfig.config?.name).toBe('Second');
 		expect(serverConfig.config?.description).toBe('Updated');
 	});
+
+	it('stores roles field from virc.json', () => {
+		const config: VircConfig = {
+			name: 'Roles Server',
+			roles: {
+				'~': { name: 'Owner', color: '#e0a040' },
+				'@': { name: 'Mod', color: '#50a0e0' },
+				'+': { name: 'Regular', color: null },
+			},
+		};
+		setServerConfig(config);
+		expect(serverConfig.config?.roles).toBeDefined();
+		expect(serverConfig.config?.roles?.['~']?.name).toBe('Owner');
+		expect(serverConfig.config?.roles?.['@']?.color).toBe('#50a0e0');
+		expect(serverConfig.config?.roles?.['+']?.color).toBeNull();
+	});
 });

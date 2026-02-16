@@ -75,8 +75,10 @@
 				name: string;
 				channels: string[];
 				voice?: boolean;
+				readonly?: boolean;
 			}>;
 		};
+		roles?: Record<string, { name: string; color: string | null }>;
 		theme?: {
 			accent?: string;
 			surfaces?: Record<string, string>;
@@ -122,6 +124,7 @@
 	// Settings modal state
 	let showSettings = $state(false);
 	let showServerSettings = $state(false);
+	let serverSettingsInitialTab: 'overview' | 'channels' | 'roles' | 'members' | 'invites' = $state('overview');
 
 	// Voice overlay state
 	let showVoiceOverlay = $state(false);
@@ -1494,7 +1497,7 @@
 
 	<!-- Left column: Channel sidebar -->
 	<div class="left-panel" class:overlay={sidebarIsOverlay} class:visible={sidebarIsOverlay && showSidebar} style="width: {appSettings.sidebarWidth}px;">
-		<ChannelSidebar onVoiceChannelClick={handleVoiceChannelClick} {voiceRoom} onSettingsClick={() => (showSettings = true)} onServerSettingsClick={() => (showServerSettings = true)} onVoiceExpand={() => (showVoiceOverlay = true)} />
+		<ChannelSidebar onVoiceChannelClick={handleVoiceChannelClick} {voiceRoom} onSettingsClick={() => (showSettings = true)} onServerSettingsClick={() => { serverSettingsInitialTab = 'overview'; showServerSettings = true; }} onVoiceExpand={() => (showVoiceOverlay = true)} />
 		{#if !sidebarIsOverlay}
 			<ResizeHandle side="left" min={SIDEBAR_MIN} max={SIDEBAR_MAX} width={appSettings.sidebarWidth} onresize={(w) => { appSettings.sidebarWidth = w; }} />
 		{/if}
@@ -1518,6 +1521,7 @@
 			onScrollToMessage={handleScrollToMessage}
 			onToggleSearch={toggleSearch}
 			searchVisible={showSearch}
+			onOpenServerSettings={() => { serverSettingsInitialTab = 'channels'; showServerSettings = true; }}
 		/>
 
 		<div class="message-area">
@@ -1659,7 +1663,7 @@
 {/if}
 
 {#if showServerSettings}
-	<ServerSettings onclose={() => (showServerSettings = false)} connection={conn} />
+	<ServerSettings onclose={() => (showServerSettings = false)} connection={conn} initialTab={serverSettingsInitialTab} />
 {/if}
 
 <!-- Voice overlay (expanded view with video grid + participants) -->

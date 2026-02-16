@@ -74,6 +74,80 @@ async function deleteInvite(
   );
 }
 
+// --- GET /api/invite (list all) ---
+
+describe("GET /api/invite (list)", () => {
+  test("returns 401 without auth", async () => {
+    const res = await invite.fetch(req("/api/invite"));
+    expect(res.status).toBe(401);
+  });
+
+  test("returns empty list when no invites exist", async () => {
+    const jwt = await createTestJwt("admin");
+    const res = await invite.fetch(
+      req("/api/invite", {
+        headers: { Authorization: `Bearer ${jwt}` },
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { invites: unknown[] };
+    expect(body.invites).toEqual([]);
+  });
+
+  test("returns all invites with status fields", async () => {
+    // Create two invites
+    await createInvite({ channel: "#general" });
+    await createInvite({ channel: "#dev", maxUses: 5 });
+
+    const jwt = await createTestJwt("admin");
+    const res = await invite.fetch(
+      req("/api/invite", {
+        headers: { Authorization: `Bearer ${jwt}` },
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      invites: Array<{
+        token: string;
+        channel: string;
+        createdBy: string;
+        expiresAt: number;
+        maxUses: number;
+        useCount: number;
+        expired: boolean;
+        maxUsesReached: boolean;
+      }>;
+    };
+    expect(body.invites).toHaveLength(2);
+    expect(body.invites[0].channel).toBe("#general");
+    expect(body.invites[0].expired).toBe(false);
+    expect(body.invites[0].maxUsesReached).toBe(false);
+    expect(body.invites[1].channel).toBe("#dev");
+    expect(body.invites[1].maxUses).toBe(5);
+  });
+
+  test("marks expired invites correctly", async () => {
+    const createRes = await createInvite({ channel: "#general" });
+    const { token } = (await createRes.json()) as { token: string };
+
+    // Manually expire the invite
+    const invites = store.getAll();
+    const inv = invites.find((i) => i.token === token);
+    inv!.expiresAt = Date.now() - 1000;
+
+    const jwt = await createTestJwt("admin");
+    const res = await invite.fetch(
+      req("/api/invite", {
+        headers: { Authorization: `Bearer ${jwt}` },
+      }),
+    );
+    const body = (await res.json()) as {
+      invites: Array<{ expired: boolean }>;
+    };
+    expect(body.invites[0].expired).toBe(true);
+  });
+});
+
 // --- POST /api/invite ---
 
 describe("POST /api/invite", () => {

@@ -1,22 +1,55 @@
 <script lang="ts">
 	import { getActiveServer } from '$lib/state/servers.svelte';
 	import { serverConfig } from '$lib/state/serverConfig.svelte';
-	import { channelUIState, type ChannelCategory } from '$lib/state/channels.svelte';
+	import { channelUIState } from '$lib/state/channels.svelte';
+	import { getMembers } from '$lib/state/members.svelte';
+	import { userState } from '$lib/state/user.svelte';
+	import { getToken } from '$lib/api/auth';
+	import { listInvites, createInvite, deleteInvite, type InviteSummary } from '$lib/api/invites';
+	import { formatMessage } from '$lib/irc/parser';
+	import type { IRCConnection } from '$lib/irc/connection';
+
+	/** Default role definitions matching virc-files defaults. */
+	const DEFAULT_ROLES: Record<string, { name: string; color: string | null }> = {
+		'~': { name: 'Owner', color: '#e0a040' },
+		'&': { name: 'Admin', color: '#e05050' },
+		'@': { name: 'Moderator', color: '#50a0e0' },
+		'%': { name: 'Helper', color: '#50e0a0' },
+		'+': { name: 'Member', color: null },
+	};
+
+	/** Mode prefix display order (highest to lowest). */
+	const MODE_ORDER = ['~', '&', '@', '%', '+'] as const;
 
 	interface Props {
 		onclose: () => void;
+		connection: IRCConnection | null;
+		initialTab?: 'overview' | 'channels' | 'roles' | 'members' | 'invites';
 	}
 
-	let { onclose }: Props = $props();
+	let { onclose, connection, initialTab = 'overview' }: Props = $props();
 
-	let activeTab: 'overview' | 'channels' = $state('overview');
+	let activeTab: 'overview' | 'channels' | 'roles' | 'members' | 'invites' = $state(initialTab);
 
-	let tabTitle = $derived(
-		activeTab === 'overview' ? 'Overview' : 'Channels'
-	);
+	const TAB_TITLES: Record<typeof activeTab, string> = {
+		overview: 'Overview',
+		channels: 'Channels',
+		roles: 'Roles',
+		members: 'Members',
+		invites: 'Invites',
+	};
+
+	let tabTitle = $derived(TAB_TITLES[activeTab]);
 
 	const server = $derived(getActiveServer());
 	const config = $derived(serverConfig.config);
+
+	/** Merged role map: virc.json roles override defaults. */
+	const roles = $derived.by(() => {
+		const configRoles = config?.roles;
+		if (configRoles && Object.keys(configRoles).length > 0) return configRoles;
+		return DEFAULT_ROLES;
+	});
 
 	/** Categories from channelUIState (populated from virc.json on connect). */
 	const categories = $derived(channelUIState.categories);
@@ -29,7 +62,6 @@
 				categorized.add(ch);
 			}
 		}
-		// Include any channels from config that aren't in UI categories
 		const all = new Set<string>();
 		if (config?.channels?.categories) {
 			for (const cat of config.channels.categories) {
@@ -46,6 +78,109 @@
 		}
 		return result.sort();
 	});
+
+	// --- Members tab ---
+
+	/** Active channel for member lookup. */
+	const activeChannel = $derived(channelUIState.activeChannel);
+
+	/** Members in the current channel, sorted by role. */
+	const members = $derived(activeChannel ? getMembers(activeChannel) : []);
+
+	/** Whether the current user is an op (@) or higher in the active channel. */
+	const isOp = $derived.by(() => {
+		if (!activeChannel || !userState.nick) return false;
+		const m = members.find((mem) => mem.nick === userState.nick);
+		if (!m || !m.highestMode) return false;
+		const opModes = ['~', '&', '@'];
+		return opModes.includes(m.highestMode);
+	});
+
+	function getRoleName(mode: string | null): string {
+		if (!mode) return 'No role';
+		return roles[mode]?.name ?? mode;
+	}
+
+	function getRoleColor(mode: string | null): string | null {
+		if (!mode) return null;
+		return roles[mode]?.color ?? null;
+	}
+
+	function handleKick(nick: string): void {
+		if (!connection || !activeChannel) return;
+		connection.send(formatMessage('KICK', activeChannel, nick, 'Kicked by server admin'));
+	}
+
+	function handleBan(nick: string): void {
+		if (!connection || !activeChannel) return;
+		connection.send(formatMessage('MODE', activeChannel, '+b', `${nick}!*@*`));
+	}
+
+	// --- Invites tab ---
+
+	let invites: InviteSummary[] = $state([]);
+	let invitesLoading = $state(false);
+	let invitesError: string | null = $state(null);
+	let newInviteChannel = $state('#general');
+	let creatingInvite = $state(false);
+
+	async function loadInvites(): Promise<void> {
+		const filesUrl = server?.filesUrl;
+		const token = getToken();
+		if (!filesUrl || !token) {
+			invitesError = 'Not connected to virc-files.';
+			return;
+		}
+		invitesLoading = true;
+		invitesError = null;
+		try {
+			invites = await listInvites(filesUrl, token);
+		} catch {
+			invitesError = 'Failed to load invites.';
+		} finally {
+			invitesLoading = false;
+		}
+	}
+
+	async function handleCreateInvite(): Promise<void> {
+		const filesUrl = server?.filesUrl;
+		const token = getToken();
+		if (!filesUrl || !token || !newInviteChannel) return;
+		creatingInvite = true;
+		try {
+			await createInvite(filesUrl, token, newInviteChannel);
+			await loadInvites();
+		} catch {
+			invitesError = 'Failed to create invite.';
+		} finally {
+			creatingInvite = false;
+		}
+	}
+
+	async function handleDeleteInvite(inviteToken: string): Promise<void> {
+		const filesUrl = server?.filesUrl;
+		const token = getToken();
+		if (!filesUrl || !token) return;
+		try {
+			await deleteInvite(filesUrl, token, inviteToken);
+			invites = invites.filter((i) => i.token !== inviteToken);
+		} catch {
+			invitesError = 'Failed to delete invite.';
+		}
+	}
+
+	/** Load invites when switching to invites tab. */
+	$effect(() => {
+		if (activeTab === 'invites') {
+			loadInvites();
+		}
+	});
+
+	function formatExpiry(expiresAt: number): string {
+		if (expiresAt === 0) return 'Never';
+		const d = new Date(expiresAt);
+		return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+	}
 
 	function handleKeydown(e: KeyboardEvent): void {
 		if (e.key === 'Escape') {
@@ -72,9 +207,15 @@
 			</div>
 			<div class="nav-divider"></div>
 			<div class="nav-section">
-				<button class="nav-item disabled" disabled>Roles</button>
-				<button class="nav-item disabled" disabled>Members</button>
-				<button class="nav-item disabled" disabled>Invites</button>
+				<button class="nav-item" class:active={activeTab === 'roles'} onclick={() => activeTab = 'roles'}>
+					Roles
+				</button>
+				<button class="nav-item" class:active={activeTab === 'members'} onclick={() => activeTab = 'members'}>
+					Members
+				</button>
+				<button class="nav-item" class:active={activeTab === 'invites'} onclick={() => activeTab = 'invites'}>
+					Invites
+				</button>
 				<button class="nav-item disabled" disabled>Appearance</button>
 				<button class="nav-item disabled" disabled>Moderation</button>
 			</div>
@@ -183,6 +324,126 @@
 						<p class="hint-text">
 							Channel management (create, edit, delete, reorder) requires operator privileges and will be available in a future update.
 						</p>
+					</div>
+
+				{:else if activeTab === 'roles'}
+					<div class="roles-section">
+						<p class="section-description">
+							Role mappings from the server configuration. Each IRC mode prefix is mapped to a display name and color.
+						</p>
+						<div class="roles-list">
+							{#each MODE_ORDER as mode (mode)}
+								{@const role = roles[mode]}
+								{#if role}
+									<div class="role-row">
+										<span class="role-prefix">{mode}</span>
+										<span class="role-badge" style:--role-color={role.color ?? 'var(--text-muted)'}>
+											{role.name}
+										</span>
+										{#if role.color}
+											<span class="role-color-swatch" style:background={role.color}></span>
+											<span class="role-color-value">{role.color}</span>
+										{:else}
+											<span class="role-color-value muted">No color</span>
+										{/if}
+									</div>
+								{/if}
+							{/each}
+						</div>
+						<p class="hint-text">
+							Role configuration is read from the server's virc.json. Editing requires server admin access.
+						</p>
+					</div>
+
+				{:else if activeTab === 'members'}
+					<div class="members-section">
+						{#if !activeChannel}
+							<p class="hint-text">Select a channel to view its members.</p>
+						{:else}
+							<p class="section-description">
+								Members in <strong>{activeChannel}</strong> ({members.length})
+							</p>
+							<div class="members-list">
+								{#each members as member (member.nick)}
+									<div class="member-row">
+										<div class="member-info">
+											<span class="member-nick">{member.nick}</span>
+											{#if member.highestMode}
+												{@const color = getRoleColor(member.highestMode)}
+												<span class="member-role-badge" style:--badge-color={color ?? 'var(--text-muted)'}>
+													{getRoleName(member.highestMode)}
+												</span>
+											{/if}
+										</div>
+										{#if isOp && member.nick !== userState.nick}
+											<div class="member-actions">
+												<button class="action-btn kick-btn" onclick={() => handleKick(member.nick)} title="Kick {member.nick}">
+													Kick
+												</button>
+												<button class="action-btn ban-btn" onclick={() => handleBan(member.nick)} title="Ban {member.nick}">
+													Ban
+												</button>
+											</div>
+										{/if}
+									</div>
+								{/each}
+							</div>
+							{#if members.length === 0}
+								<p class="hint-text">No members found in this channel.</p>
+							{/if}
+						{/if}
+					</div>
+
+				{:else if activeTab === 'invites'}
+					<div class="invites-section">
+						{#if !server?.filesUrl}
+							<p class="hint-text">Invite management requires virc-files. This server does not have a filesUrl configured.</p>
+						{:else}
+							<div class="invite-create-form">
+								<label class="invite-label" for="invite-channel">Channel</label>
+								<div class="invite-create-row">
+									<input
+										id="invite-channel"
+										class="invite-input"
+										type="text"
+										bind:value={newInviteChannel}
+										placeholder="#general"
+									/>
+									<button class="action-btn create-btn" onclick={handleCreateInvite} disabled={creatingInvite || !newInviteChannel}>
+										{creatingInvite ? 'Creating...' : 'Create Invite'}
+									</button>
+								</div>
+							</div>
+
+							{#if invitesError}
+								<p class="error-text">{invitesError}</p>
+							{/if}
+
+							{#if invitesLoading}
+								<p class="hint-text">Loading invites...</p>
+							{:else if invites.length === 0}
+								<p class="hint-text">No active invites.</p>
+							{:else}
+								<div class="invites-list">
+									{#each invites as invite (invite.token)}
+										<div class="invite-row" class:expired={invite.expired || invite.maxUsesReached}>
+											<div class="invite-info">
+												<span class="invite-token">{invite.token}</span>
+												<span class="invite-channel">{invite.channel}</span>
+												<span class="invite-meta">
+													by {invite.createdBy}
+													&middot; {invite.useCount}{invite.maxUses > 0 ? `/${invite.maxUses}` : ''} uses
+													&middot; Expires: {formatExpiry(invite.expiresAt)}
+												</span>
+											</div>
+											<button class="action-btn delete-btn" onclick={() => handleDeleteInvite(invite.token)} title="Delete invite">
+												Delete
+											</button>
+										</div>
+									{/each}
+								</div>
+							{/if}
+						{/if}
 					</div>
 				{/if}
 			</div>
@@ -340,6 +601,12 @@
 		gap: 16px;
 	}
 
+	.section-description {
+		font-size: var(--font-sm);
+		color: var(--text-secondary);
+		margin: 0 0 8px;
+	}
+
 	/* ---- Overview Tab ---- */
 
 	.overview-card {
@@ -409,6 +676,12 @@
 		font-size: var(--font-sm);
 		color: var(--text-muted);
 		font-style: italic;
+		margin: 0;
+	}
+
+	.error-text {
+		font-size: var(--font-sm);
+		color: var(--status-error, #e05050);
 		margin: 0;
 	}
 
@@ -491,6 +764,261 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+
+	/* ---- Roles Tab ---- */
+
+	.roles-section {
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
+	}
+
+	.roles-list {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.role-row {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 8px 12px;
+		background: var(--surface-low);
+		border-radius: 4px;
+	}
+
+	.role-prefix {
+		font-family: var(--font-mono, monospace);
+		font-size: var(--font-md);
+		font-weight: var(--weight-bold);
+		color: var(--text-muted);
+		width: 24px;
+		text-align: center;
+		flex-shrink: 0;
+	}
+
+	.role-badge {
+		font-size: var(--font-base);
+		font-weight: var(--weight-semibold);
+		color: var(--role-color);
+	}
+
+	.role-color-swatch {
+		width: 14px;
+		height: 14px;
+		border-radius: 3px;
+		flex-shrink: 0;
+		margin-left: auto;
+	}
+
+	.role-color-value {
+		font-size: var(--font-xs);
+		font-family: var(--font-mono, monospace);
+		color: var(--text-secondary);
+	}
+
+	.role-color-value.muted {
+		color: var(--text-muted);
+		font-family: var(--font-primary);
+	}
+
+	/* ---- Members Tab ---- */
+
+	.members-section {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+	}
+
+	.members-list {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.member-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 6px 12px;
+		background: var(--surface-low);
+		border-radius: 4px;
+	}
+
+	.member-info {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		min-width: 0;
+	}
+
+	.member-nick {
+		font-size: var(--font-base);
+		color: var(--text-primary);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.member-role-badge {
+		font-size: 10px;
+		font-weight: var(--weight-semibold);
+		color: var(--badge-color);
+		padding: 1px 6px;
+		background: var(--surface-high);
+		border-radius: 3px;
+		white-space: nowrap;
+		flex-shrink: 0;
+	}
+
+	.member-actions {
+		display: flex;
+		gap: 4px;
+		flex-shrink: 0;
+	}
+
+	.action-btn {
+		padding: 3px 10px;
+		font-size: var(--font-xs);
+		font-family: var(--font-primary);
+		font-weight: var(--weight-medium);
+		border: none;
+		border-radius: 3px;
+		cursor: pointer;
+		transition: background var(--duration-channel), opacity var(--duration-channel);
+	}
+
+	.action-btn:disabled {
+		opacity: 0.5;
+		cursor: default;
+	}
+
+	.kick-btn {
+		background: var(--surface-high);
+		color: var(--text-secondary);
+	}
+
+	.kick-btn:hover:not(:disabled) {
+		background: var(--surface-highest);
+		color: var(--text-primary);
+	}
+
+	.ban-btn {
+		background: var(--status-error, #e05050);
+		color: #fff;
+	}
+
+	.ban-btn:hover:not(:disabled) {
+		opacity: 0.85;
+	}
+
+	/* ---- Invites Tab ---- */
+
+	.invites-section {
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
+	}
+
+	.invite-create-form {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.invite-label {
+		font-size: var(--font-xs);
+		font-weight: var(--weight-semibold);
+		color: var(--text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+	}
+
+	.invite-create-row {
+		display: flex;
+		gap: 8px;
+	}
+
+	.invite-input {
+		flex: 1;
+		padding: 6px 10px;
+		font-size: var(--font-base);
+		font-family: var(--font-primary);
+		background: var(--surface-low);
+		border: 1px solid var(--surface-highest);
+		border-radius: 4px;
+		color: var(--text-primary);
+		outline: none;
+	}
+
+	.invite-input:focus {
+		border-color: var(--accent-primary);
+	}
+
+	.create-btn {
+		background: var(--accent-primary);
+		color: #fff;
+		white-space: nowrap;
+	}
+
+	.create-btn:hover:not(:disabled) {
+		opacity: 0.85;
+	}
+
+	.invites-list {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.invite-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 8px 12px;
+		background: var(--surface-low);
+		border-radius: 4px;
+		gap: 12px;
+	}
+
+	.invite-row.expired {
+		opacity: 0.5;
+	}
+
+	.invite-info {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		min-width: 0;
+	}
+
+	.invite-token {
+		font-family: var(--font-mono, monospace);
+		font-size: var(--font-base);
+		color: var(--text-primary);
+	}
+
+	.invite-channel {
+		font-size: var(--font-sm);
+		color: var(--text-secondary);
+	}
+
+	.invite-meta {
+		font-size: var(--font-xs);
+		color: var(--text-muted);
+	}
+
+	.delete-btn {
+		background: var(--surface-high);
+		color: var(--status-error, #e05050);
+		flex-shrink: 0;
+	}
+
+	.delete-btn:hover:not(:disabled) {
+		background: var(--status-error, #e05050);
+		color: #fff;
 	}
 
 	/* ---- Responsive ---- */
