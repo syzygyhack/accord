@@ -14,6 +14,7 @@
 	}
 
 	export const SLASH_COMMANDS: CommandDef[] = [
+		{ name: 'join', usage: '/join #channel', description: 'Join a channel', level: 'user' },
 		{ name: 'me', usage: '/me <action>', description: 'Send an action message', level: 'user' },
 		{ name: 'msg', usage: '/msg <user> <message>', description: 'Send a direct message', level: 'user' },
 		{ name: 'nick', usage: '/nick <name>', description: 'Change your display name', level: 'user' },

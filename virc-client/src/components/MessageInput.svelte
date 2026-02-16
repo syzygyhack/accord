@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { markdownToIRC } from '$lib/irc/format';
 	import type { IRCConnection } from '$lib/irc/connection';
-	import { privmsg, tagmsg, part, topic, escapeTagValue } from '$lib/irc/commands';
+	import { join, privmsg, tagmsg, part, topic, escapeTagValue } from '$lib/irc/commands';
 	import { formatMessage } from '$lib/irc/parser';
 	import SlashCommandMenu from './SlashCommandMenu.svelte';
 	import { filterCommands, type CommandDef } from './SlashCommandMenu.svelte';
@@ -453,6 +453,13 @@
 		const command = cmd.toLowerCase();
 
 		switch (command) {
+			case 'join': {
+				const channel = args.trim();
+				if (channel) {
+					join(connection, [channel]);
+				}
+				return true;
+			}
 			case 'me':
 				// ACTION: send as CTCP ACTION
 				connection.send(formatMessage('PRIVMSG', target, `\x01ACTION ${args}\x01`));
