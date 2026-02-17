@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import type { IRCConnection } from '$lib/irc/connection';
-	import { join, chathistory, markread, topic } from '$lib/irc/commands';
+	import { join, chathistory, topic } from '$lib/irc/commands';
 	import { updateMonitorForChannel, clearMonitoredNicks, addMonitoredNicks } from '$lib/channelMonitor';
 	import { stopTokenRefresh, clearCredentials, clearToken } from '$lib/api/auth';
 	import { disconnectVoice } from '$lib/voice/room';
@@ -17,41 +17,20 @@
 	import { userState } from '$lib/state/user.svelte';
 	import {
 		channelUIState,
-		getChannel,
 		setActiveChannel,
 		isDMTarget,
 		clearChannelMembers as clearSimpleMembers,
 	} from '$lib/state/channels.svelte';
-	import { markRead } from '$lib/state/notifications.svelte';
 	import { getMember, clearChannel as clearRichMembers } from '$lib/state/members.svelte';
-	import { getCursors } from '$lib/state/messages.svelte';
 	import { getActiveServer } from '$lib/state/servers.svelte';
 	import { initConnection } from '$lib/connection/lifecycle';
 	import { setupShortcuts } from '$lib/shortcuts';
+	import { setupChannelEffects } from '$lib/channelEffects.svelte';
 	import {
 		type ReplyContext,
 		type MessageActionState,
-		handleReply as _handleReply,
-		handleCancelReply as _handleCancelReply,
-		handleReact as _handleReact,
-		handleInputEmojiPicker as _handleInputEmojiPicker,
-		handleEmojiSelect as _handleEmojiSelect,
-		handleEmojiPickerClose as _handleEmojiPickerClose,
-		handleToggleReaction as _handleToggleReaction,
-		handleMore as _handleMore,
-		handlePin,
-		handleConfirmDelete as _handleConfirmDelete,
-		handleCancelDelete as _handleCancelDelete,
-		handleRetry as _handleRetry,
-		editLastMessage as _editLastMessage,
-		handleEditComplete as _handleEditComplete,
-		handleEditCancel as _handleEditCancel,
-		handleEditMessage as _handleEditMessage,
-		handleCopyText,
-		handleCopyLink,
-		handleMarkUnread as _handleMarkUnread,
+		createBoundActions,
 		handleScrollToMessage,
-		markActiveChannelRead as _markActiveChannelRead,
 	} from '$lib/messageActions';
 	import ChannelSidebar from '../../components/ChannelSidebar.svelte';
 	import HeaderBar from '../../components/HeaderBar.svelte';
@@ -66,12 +45,14 @@
 	import ServerSettings from '../../components/ServerSettings.svelte';
 	import ErrorBoundary from '../../components/ErrorBoundary.svelte';
 	import ConnectionBanner from '../../components/ConnectionBanner.svelte';
+	import ConnectionStatus from '../../components/ConnectionStatus.svelte';
 	import VoiceOverlay from '../../components/VoiceOverlay.svelte';
 	import ServerList from '../../components/ServerList.svelte';
 	import RawIrcPanel from '../../components/RawIrcPanel.svelte';
 	import SearchPanel from '../../components/SearchPanel.svelte';
 	import UserProfilePopout from '../../components/UserProfilePopout.svelte';
 	import ResizeHandle from '../../components/ResizeHandle.svelte';
+	import DeleteConfirmDialog from '../../components/DeleteConfirmDialog.svelte';
 	import WelcomeModal from '../../components/WelcomeModal.svelte';
 	import { appSettings, SIDEBAR_MIN, SIDEBAR_MAX, MEMBER_MIN, MEMBER_MAX } from '$lib/state/appSettings.svelte';
 	import { clearServerTheme } from '$lib/state/theme.svelte';
@@ -152,94 +133,18 @@
 	// Derived filesUrl for file uploads
 	let activeFilesUrl = $derived(getActiveServer()?.filesUrl ?? null);
 
-	/**
-	* Effect: when active channel changes, mark it read and sync via MARKREAD.
-	* - Resets local unread/mention counts.
-	* - Sends MARKREAD to the server with the newest message timestamp (or queries if none).
-	*/
-	let prevActiveChannel: string | null = null;
-	$effect(() => {
-		const channel = channelUIState.activeChannel;
-		if (!channel || channel === prevActiveChannel) return;
-		prevActiveChannel = channel;
-
-		// Mark channel as read locally
-		const cursors = getCursors(channel);
-		if (cursors.newestMsgid) {
-			markRead(channel, cursors.newestMsgid);
-		}
-
-		// Sync read position via IRC MARKREAD
-		if (conn) {
-			if (cursors.newestMsgid) {
-				// We have messages — set read marker to newest
-				markread(conn, channel, new Date().toISOString());
-			} else {
-				// No messages yet — query current read position from server
-				markread(conn, channel);
-				// Request initial history for channels with no buffered messages
-				chathistory(conn, 'LATEST', channel, '*', '50');
-			}
-		}
-
-		// Update MONITOR list for presence tracking in the new channel
-		updateMonitorForChannel(conn, channel);
-
-		// Clear reply/emoji/edit/popout state on channel switch
-		replyContext = null;
-		editingMsgid = null;
-		editingChannel = null;
-		emojiPickerTarget = null;
-		emojiPickerPosition = null;
-		deleteTarget = null;
-		profilePopout = null;
-	});
-
-	/**
-	 * Effect: re-run MONITOR when NAMES completes for the active channel.
-	 * If the user switches to a channel before NAMES finishes, the member list
-	 * is empty and no nicks get monitored. This catches that case.
-	 *
-	 * Tracks which channel we last ran MONITOR for after NAMES, so we only
-	 * fire once per channel (not on every unrelated channel state change).
-	 */
-	let monitoredAfterNames: string | null = null;
-	$effect(() => {
-		const channel = channelUIState.activeChannel;
-		if (!channel || isDMTarget(channel)) return;
-		const ch = getChannel(channel);
-		if (!ch?.namesLoaded) {
-			// Reset tracker when switching to a channel whose names haven't loaded
-			if (monitoredAfterNames !== channel) monitoredAfterNames = null;
-			return;
-		}
-		if (monitoredAfterNames === channel) return; // Already ran for this channel
-		monitoredAfterNames = channel;
-		updateMonitorForChannel(conn, channel);
-	});
-
-	/**
-	 * Effect: auto-register #general with ChanServ when joining a fresh server.
-	 * If no member has founder (~) mode after NAMES completes, the channel is
-	 * unregistered — register it so the first user becomes channel owner.
-	 */
-	let hasAttemptedRegister = false;
-	$effect(() => {
-		if (hasAttemptedRegister || !conn) return;
-		const ch = getChannel('#general');
-		if (!ch || !ch.namesLoaded) return;
-
-		let hasFounder = false;
-		for (const member of ch.members.values()) {
-			if (member.prefix.includes('~')) {
-				hasFounder = true;
-				break;
-			}
-		}
-		if (hasFounder) return;
-
-		hasAttemptedRegister = true;
-		conn.send('CS REGISTER #general');
+	// Channel lifecycle effects (mark-read, MONITOR, ChanServ register)
+	setupChannelEffects({
+		getConn: () => conn,
+		onChannelSwitch() {
+			replyContext = null;
+			editingMsgid = null;
+			editingChannel = null;
+			emojiPickerTarget = null;
+			emojiPickerPosition = null;
+			deleteTarget = null;
+			profilePopout = null;
+		},
 	});
 
 	function toggleSearch(): void {
@@ -284,24 +189,8 @@
 		setEditingChannel: (ch) => { editingChannel = ch; },
 	};
 
-	// Bound message action handlers (delegate to extracted module)
-	const handleReply = (msgid: string) => _handleReply(actionState, msgid);
-	const handleCancelReply = () => _handleCancelReply(actionState);
-	const handleReact = (msgid: string, anchor?: { x: number; y: number }) => _handleReact(actionState, msgid, anchor);
-	const handleInputEmojiPicker = () => _handleInputEmojiPicker(actionState);
-	const handleEmojiSelect = (emoji: string) => _handleEmojiSelect(actionState, emoji);
-	const handleEmojiPickerClose = () => _handleEmojiPickerClose(actionState);
-	const handleToggleReaction = (msgid: string, emoji: string) => _handleToggleReaction(actionState, msgid, emoji);
-	const handleMore = (msgid: string, event: MouseEvent) => _handleMore(actionState, msgid, event);
-	const handleConfirmDelete = () => _handleConfirmDelete(actionState);
-	const handleCancelDelete = () => _handleCancelDelete(actionState);
-	const handleRetry = (msgid: string) => _handleRetry(actionState, msgid);
-	const editLastMessage = () => _editLastMessage(actionState);
-	const handleEditComplete = () => _handleEditComplete(actionState);
-	const handleEditCancel = () => _handleEditCancel(actionState);
-	const handleEditMessage = (msgid: string) => _handleEditMessage(actionState, msgid);
-	const handleMarkUnread = (msgid: string) => _handleMarkUnread(actionState, msgid);
-	const markActiveChannelRead = () => _markActiveChannelRead(conn);
+	// All message action handlers, pre-bound to component state
+	const actions = createBoundActions(actionState);
 
 	/** Clear both simple and rich member lists for a channel (for reconnect). */
 	function clearChannelMembers(channel: string): void {
@@ -325,21 +214,8 @@
 		}, 1000);
 	}
 
-	/** Wrapper: voice channel click delegates to extracted manager, manages local state. */
-	async function handleVoiceChannelClick(channel: string): Promise<void> {
-		const result = await voiceChannelClick(channel, conn, voiceRoom);
-		if (result.ok) {
-			// Toggle off returns a null-like room; toggle on returns the new room
-			voiceRoom = voiceState.isConnected ? result.room : null;
-		} else {
-			voiceError = result.error;
-			setTimeout(() => { voiceError = null; }, 5_000);
-		}
-	}
-
-	/** Wrapper: DM voice call delegates to extracted manager. */
-	async function handleDMVoiceCall(target: string): Promise<void> {
-		const result = await dmVoiceCall(target, conn, voiceRoom);
+	/** Apply result from a voice manager call — update room or show error. */
+	function applyVoiceResult(result: { ok: true; room: Room } | { ok: false; error: string }): void {
 		if (result.ok) {
 			voiceRoom = voiceState.isConnected ? result.room : null;
 		} else {
@@ -348,16 +224,9 @@
 		}
 	}
 
-	/** Wrapper: DM video call delegates to extracted manager. */
-	async function handleDMVideoCall(target: string): Promise<void> {
-		const result = await dmVideoCall(target, conn, voiceRoom);
-		if (result.ok) {
-			voiceRoom = voiceState.isConnected ? result.room : null;
-		} else {
-			voiceError = result.error;
-			setTimeout(() => { voiceError = null; }, 5_000);
-		}
-	}
+	async function handleVoiceChannelClick(ch: string): Promise<void> { applyVoiceResult(await voiceChannelClick(ch, conn, voiceRoom)); }
+	async function handleDMVoiceCall(target: string): Promise<void> { applyVoiceResult(await dmVoiceCall(target, conn, voiceRoom)); }
+	async function handleDMVideoCall(target: string): Promise<void> { applyVoiceResult(await dmVideoCall(target, conn, voiceRoom)); }
 
 	/**
 	* Start the connection lifecycle using the extracted module.
@@ -526,9 +395,9 @@
 				showMembers = false;
 				return true;
 			},
-			markActiveChannelRead,
+			markActiveChannelRead: actions.markActiveChannelRead,
 			scrollMessageList,
-			openInputEmojiPicker: handleInputEmojiPicker,
+			openInputEmojiPicker: actions.handleInputEmojiPicker,
 			getVoiceRoom: () => voiceRoom,
 		});
 	}
@@ -539,52 +408,19 @@
 		if (!voiceRoom) return;
 		for (const p of voiceRoom.remoteParticipants.values()) {
 			for (const pub of p.trackPublications.values()) {
-				if (pub.track && pub.track.kind === 'audio') {
-					(pub.track as any).setVolume?.(vol);
-				}
+				if (pub.track && pub.track.kind === 'audio') (pub.track as any).setVolume?.(vol);
 			}
 		}
 	});
 
-	// Switch input device when changed in settings while connected.
-	$effect(() => {
-		const deviceId = audioSettings.inputDeviceId;
-		if (!voiceRoom) return;
-		voiceRoom.switchActiveDevice('audioinput', deviceId)
-			.catch((err) => console.error('[accord] Failed to switch input device:', err));
-	});
+	// Switch audio/video devices when changed in settings while connected.
+	$effect(() => { const d = audioSettings.inputDeviceId; if (voiceRoom) voiceRoom.switchActiveDevice('audioinput', d).catch(() => {}); });
+	$effect(() => { const d = audioSettings.outputDeviceId; if (voiceRoom) voiceRoom.switchActiveDevice('audiooutput', d).catch(() => {}); });
+	$effect(() => { const d = audioSettings.videoDeviceId; if (voiceRoom && voiceState.localVideoEnabled) voiceRoom.switchActiveDevice('videoinput', d).catch(() => {}); });
 
-	// Switch output device when changed in settings while connected.
-	$effect(() => {
-		const deviceId = audioSettings.outputDeviceId;
-		if (!voiceRoom) return;
-		voiceRoom.switchActiveDevice('audiooutput', deviceId)
-			.catch((err) => console.error('[accord] Failed to switch output device:', err));
-	});
-
-	// Switch video device when changed in settings while connected with camera on.
-	$effect(() => {
-		const deviceId = audioSettings.videoDeviceId;
-		if (!voiceRoom || !voiceState.localVideoEnabled) return;
-		voiceRoom.switchActiveDevice('videoinput', deviceId)
-			.catch((err) => console.error('[accord] Failed to switch video device:', err));
-	});
-
-	// Auto-open voice overlay when video tracks first appear (camera/screen share).
-	// Respects user dismissal — won't re-open until next voice session.
-	$effect(() => {
-		if (voiceState.videoTracks.length > 0 && voiceState.isConnected && !overlayDismissed) {
-			showVoiceOverlay = true;
-		}
-	});
-
-	// Auto-close voice overlay when voice disconnects and reset dismissal flag.
-	$effect(() => {
-		if (!voiceState.isConnected) {
-			showVoiceOverlay = false;
-			overlayDismissed = false;
-		}
-	});
+	// Auto-open voice overlay when video tracks appear; auto-close on disconnect.
+	$effect(() => { if (voiceState.videoTracks.length > 0 && voiceState.isConnected && !overlayDismissed) showVoiceOverlay = true; });
+	$effect(() => { if (!voiceState.isConnected) { showVoiceOverlay = false; overlayDismissed = false; } });
 
 	/** Emergency logout — works even during connecting/error state. */
 	function forceLogout(): void {
@@ -678,17 +514,8 @@
 				</div>
 			{/if}
 			<ErrorBoundary>
-				{#if error}
-					<div class="error-banner">
-						<span>Connection error: {error}</span>
-						<button class="error-logout-btn" onclick={forceLogout}>Log Out</button>
-					</div>
-				{:else if connectionState.status === 'connecting' || initializing}
-					<div class="splash-screen">
-						<div class="splash-spinner"></div>
-						<span class="splash-text">Connecting to server...</span>
-						<button class="splash-logout-btn" onclick={forceLogout}>Log Out</button>
-					</div>
+				{#if error || connectionState.status === 'connecting' || initializing}
+					<ConnectionStatus {error} connecting={connectionState.status === 'connecting' || initializing} onlogout={forceLogout} />
 				{:else if !channelUIState.activeChannel}
 					<div class="empty-state">
 						<p>Select a channel to start chatting</p>
@@ -696,16 +523,16 @@
 				{:else}
 					<MessageList
 						onloadhistory={handleLoadHistory}
-						onreply={handleReply}
-						onreact={handleReact}
-						onmore={handleMore}
-						onpin={handlePin}
-						onedit={handleEditMessage}
-						oncopytext={handleCopyText}
-						oncopylink={handleCopyLink}
-						onmarkunread={handleMarkUnread}
-						ontogglereaction={handleToggleReaction}
-						onretry={handleRetry}
+						onreply={actions.handleReply}
+						onreact={actions.handleReact}
+						onmore={actions.handleMore}
+						onpin={actions.handlePin}
+						onedit={actions.handleEditMessage}
+						oncopytext={actions.handleCopyText}
+						oncopylink={actions.handleCopyLink}
+						onmarkunread={actions.handleMarkUnread}
+						ontogglereaction={actions.handleToggleReaction}
+						onretry={actions.handleRetry}
 						onnickclick={handleNickClick}
 						{isOp}
 					/>
@@ -731,16 +558,16 @@
 				target={channelUIState.activeChannel}
 				connection={conn}
 				reply={replyContext}
-				oncancelreply={handleCancelReply}
-				oneditlast={editLastMessage}
+				oncancelreply={actions.handleCancelReply}
+				oneditlast={actions.editLastMessage}
 				editing={editingMsgid !== null}
 				editMsgid={editingMsgid}
-				oneditcomplete={handleEditComplete}
-				oneditcancel={handleEditCancel}
+				oneditcomplete={actions.handleEditComplete}
+				oneditcancel={actions.handleEditCancel}
 				disconnected={isDisconnected}
 				{rateLimitSeconds}
 				filesUrl={activeFilesUrl}
-				onemojipicker={handleInputEmojiPicker}
+				onemojipicker={actions.handleInputEmojiPicker}
 			/>
 		{:else}
 			<div class="message-input-area">
@@ -779,24 +606,14 @@
 		style="left: {emojiPickerPosition.x}px; top: {emojiPickerPosition.y}px;"
 	>
 		<EmojiPicker
-			onselect={handleEmojiSelect}
-			onclose={handleEmojiPickerClose}
+			onselect={actions.handleEmojiSelect}
+			onclose={actions.handleEmojiPickerClose}
 		/>
 	</div>
 {/if}
 
-<!-- Delete confirmation dialog -->
 {#if deleteTarget}
-	<div class="delete-overlay" role="dialog" aria-modal="true" aria-labelledby="delete-dialog-title" tabindex="-1" onclick={handleCancelDelete} onkeydown={(e) => { if (e.key === 'Escape') handleCancelDelete(); }}>
-		<div class="delete-dialog" role="presentation" onclick={(e) => e.stopPropagation()}>
-			<h3 id="delete-dialog-title" class="delete-title">Delete Message</h3>
-			<p class="delete-text">Are you sure you want to delete this message? This cannot be undone.</p>
-			<div class="delete-actions">
-				<button class="btn-cancel" onclick={handleCancelDelete}>Cancel</button>
-				<button class="btn-delete" onclick={handleConfirmDelete}>Delete</button>
-			</div>
-		</div>
-	</div>
+	<DeleteConfirmDialog onconfirm={actions.handleConfirmDelete} oncancel={actions.handleCancelDelete} />
 {/if}
 
 <!-- Auth expiry modal -->
@@ -918,33 +735,6 @@
 		background: rgba(0, 0, 0, 0.5);
 	}
 
-	/* Status banners */
-	.error-banner {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 12px;
-		padding: 8px 16px;
-		background: var(--danger);
-		color: var(--text-inverse);
-		font-size: var(--font-sm);
-		font-weight: var(--weight-medium);
-	}
-
-	.error-logout-btn {
-		padding: 4px 12px;
-		background: rgba(255, 255, 255, 0.2);
-		border: 1px solid rgba(255, 255, 255, 0.4);
-		border-radius: 4px;
-		color: var(--text-inverse);
-		font-size: var(--font-sm);
-		cursor: pointer;
-	}
-
-	.error-logout-btn:hover {
-		background: rgba(255, 255, 255, 0.3);
-	}
-
 	.voice-error-banner {
 		display: flex;
 		align-items: center;
@@ -966,51 +756,6 @@
 		cursor: pointer;
 		padding: 0 4px;
 		line-height: 1;
-	}
-
-	/* Branded splash screen for initial connection */
-	.splash-screen {
-		flex: 1;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 16px;
-	}
-
-	.splash-spinner {
-		width: 32px;
-		height: 32px;
-		border: 3px solid var(--surface-high);
-		border-top-color: var(--accent-primary);
-		border-radius: 50%;
-		animation: splash-spin 0.8s linear infinite;
-	}
-
-	.splash-text {
-		color: var(--text-secondary);
-		font-size: var(--font-base);
-	}
-
-	.splash-logout-btn {
-		margin-top: 8px;
-		padding: 6px 16px;
-		background: none;
-		border: 1px solid var(--surface-highest);
-		border-radius: 4px;
-		color: var(--text-secondary);
-		font-size: var(--font-sm);
-		cursor: pointer;
-		transition: color var(--duration-channel), border-color var(--duration-channel);
-	}
-
-	.splash-logout-btn:hover {
-		color: var(--text-primary);
-		border-color: var(--text-muted);
-	}
-
-	@keyframes splash-spin {
-		to { transform: rotate(360deg); }
 	}
 
 	.empty-state {
@@ -1043,75 +788,4 @@
 		z-index: 1000;
 	}
 
-	/* Delete confirmation overlay */
-	.delete-overlay {
-		position: fixed;
-		inset: 0;
-		z-index: 1100;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: rgba(0, 0, 0, 0.6);
-	}
-
-	.delete-dialog {
-		background: var(--surface-low);
-		border-radius: 8px;
-		padding: 24px;
-		max-width: 400px;
-		width: 90%;
-		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-	}
-
-	.delete-title {
-		margin: 0 0 8px;
-		font-size: var(--font-md);
-		font-weight: var(--weight-semibold);
-		color: var(--text-primary);
-	}
-
-	.delete-text {
-		margin: 0 0 20px;
-		font-size: var(--font-base);
-		color: var(--text-secondary);
-		line-height: 1.5;
-	}
-
-	.delete-actions {
-		display: flex;
-		justify-content: flex-end;
-		gap: 8px;
-	}
-
-	.btn-cancel {
-		padding: 8px 16px;
-		border: none;
-		border-radius: 4px;
-		background: var(--surface-high);
-		color: var(--text-primary);
-		font-family: var(--font-primary);
-		font-size: var(--font-sm);
-		font-weight: var(--weight-medium);
-		cursor: pointer;
-	}
-
-	.btn-cancel:hover {
-		background: var(--surface-highest);
-	}
-
-	.btn-delete {
-		padding: 8px 16px;
-		border: none;
-		border-radius: 4px;
-		background: var(--danger);
-		color: var(--text-inverse);
-		font-family: var(--font-primary);
-		font-size: var(--font-sm);
-		font-weight: var(--weight-medium);
-		cursor: pointer;
-	}
-
-	.btn-delete:hover {
-		filter: brightness(1.1);
-	}
 </style>

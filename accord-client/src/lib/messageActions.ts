@@ -277,3 +277,60 @@ export function markActiveChannelRead(conn: IRCConnection | null): void {
 		markread(conn, channel, new Date().toISOString());
 	}
 }
+
+// ---- Bound action factory --------------------------------------------------
+
+/** All message action handlers, pre-bound to component state. */
+export interface BoundMessageActions {
+	handleReply: (msgid: string) => void;
+	handleCancelReply: () => void;
+	handleReact: (msgid: string, anchor?: { x: number; y: number }) => void;
+	handleInputEmojiPicker: () => void;
+	handleEmojiSelect: (emoji: string) => void;
+	handleEmojiPickerClose: () => void;
+	handleToggleReaction: (msgid: string, emoji: string) => void;
+	handleMore: (msgid: string, event: MouseEvent) => void;
+	handlePin: (msgid: string) => void;
+	handleConfirmDelete: () => void;
+	handleCancelDelete: () => void;
+	handleRetry: (msgid: string) => void;
+	editLastMessage: () => void;
+	handleEditComplete: () => void;
+	handleEditCancel: () => void;
+	handleEditMessage: (msgid: string) => void;
+	handleCopyText: (text: string) => void;
+	handleCopyLink: (msgid: string) => void;
+	handleMarkUnread: (msgid: string) => void;
+	handleScrollToMessage: (msgid: string) => void;
+	markActiveChannelRead: () => void;
+}
+
+/**
+ * Create all message action handlers pre-bound to the given component state.
+ * Eliminates per-handler wrapper boilerplate in +page.svelte.
+ */
+export function createBoundActions(state: MessageActionState): BoundMessageActions {
+	return {
+		handleReply: (msgid) => handleReply(state, msgid),
+		handleCancelReply: () => handleCancelReply(state),
+		handleReact: (msgid, anchor?) => handleReact(state, msgid, anchor),
+		handleInputEmojiPicker: () => handleInputEmojiPicker(state),
+		handleEmojiSelect: (emoji) => handleEmojiSelect(state, emoji),
+		handleEmojiPickerClose: () => handleEmojiPickerClose(state),
+		handleToggleReaction: (msgid, emoji) => handleToggleReaction(state, msgid, emoji),
+		handleMore: (msgid, event) => handleMore(state, msgid, event),
+		handlePin,
+		handleConfirmDelete: () => handleConfirmDelete(state),
+		handleCancelDelete: () => handleCancelDelete(state),
+		handleRetry: (msgid) => handleRetry(state, msgid),
+		editLastMessage: () => editLastMessage(state),
+		handleEditComplete: () => handleEditComplete(state),
+		handleEditCancel: () => handleEditCancel(state),
+		handleEditMessage: (msgid) => handleEditMessage(state, msgid),
+		handleCopyText,
+		handleCopyLink,
+		handleMarkUnread: (msgid) => handleMarkUnread(state, msgid),
+		handleScrollToMessage,
+		markActiveChannelRead: () => markActiveChannelRead(state.getConn()),
+	};
+}
