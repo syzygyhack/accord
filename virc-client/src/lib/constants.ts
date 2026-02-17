@@ -12,7 +12,7 @@ export interface RoleDef {
 }
 
 /**
- * Default role definitions matching virc-files/src/routes/config.ts.
+ * Default role definitions matching accord-files/src/routes/config.ts.
  *
  * Used for display names and fallback colors. When virc.json is loaded,
  * server-specific overrides take precedence via serverConfig.

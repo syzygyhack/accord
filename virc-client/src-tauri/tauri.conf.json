@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "virc",
+  "productName": "accord",
   "version": "0.1.0",
-  "identifier": "com.virc.app",
+  "identifier": "com.accord.app",
   "build": {
     "frontendDist": "../build",
     "devUrl": "http://localhost:5173",
@@ -13,7 +13,7 @@
   "app": {
     "windows": [
       {
-        "title": "virc",
+        "title": "accord",
         "label": "main",
         "width": 1280,
         "height": 800,

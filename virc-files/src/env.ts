@@ -90,10 +90,10 @@ function deriveServerId(): string {
 
   if (!_serverIdWarned) {
     _serverIdWarned = true;
-    console.warn("WARNING: SERVER_ID is not set — using default \"virc.local\" for JWTs/invites. Set SERVER_ID or BASE_URL for a stable server identifier.");
+    console.warn("WARNING: SERVER_ID is not set — using default \"accord.local\" for JWTs/invites. Set SERVER_ID or BASE_URL for a stable server identifier.");
   }
 
-  return "virc.local";
+  return "accord.local";
 }
 
 // Run validation at import time so warnings appear on startup
@@ -123,7 +123,7 @@ export const env = {
     return optionalInt("PORT", 8080);
   },
   get CONFIG_PATH() {
-    return optional("CONFIG_PATH", "config/virc.json");
+    return optional("CONFIG_PATH", "config/accord.json");
   },
   get SERVER_NAME() {
     return optional("SERVER_NAME", "");

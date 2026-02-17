@@ -58,7 +58,7 @@ app.route("/", account);
 app.get("/health", (c) => c.json({ status: "ok" }));
 
 const port = env.PORT;
-console.log(`virc-files listening on :${port}`);
+console.log(`accord-files listening on :${port}`);
 
 export default {
   port,

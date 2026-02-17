@@ -61,15 +61,15 @@ async function fetchServerName(): Promise<string> {
     // Ergo unavailable or endpoint doesn't exist — not fatal
   }
 
-  return "virc Server";
+  return "accord Server";
 }
 
 function buildDefaultConfig(serverName: string): object {
   return {
-    $schema: "https://virc.app/schema/server-config-v1.json",
+    $schema: "https://accord.chat/schema/server-config-v1.json",
     version: 1,
     name: serverName,
-    description: "A virc community server",
+    description: "An accord community server",
 
     roles: DEFAULT_ROLES,
 
@@ -96,7 +96,7 @@ async function loadConfig(): Promise<ConfigCache> {
 
   const configPath = resolve(env.CONFIG_PATH);
 
-  // Try loading custom virc.json
+  // Try loading custom accord.json
   try {
     await stat(configPath); // check existence before reading
     const raw = await readFile(configPath, "utf-8");
@@ -118,7 +118,7 @@ async function loadConfig(): Promise<ConfigCache> {
 
 // --- Route ---
 
-config.get("/.well-known/virc.json", async (c) => {
+config.get("/.well-known/accord.json", async (c) => {
   const { config: cfg, etag } = await loadConfig();
 
   // Conditional request support

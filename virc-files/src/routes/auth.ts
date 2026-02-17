@@ -3,8 +3,8 @@ import { SignJWT } from "jose";
 import { env } from "../env.js";
 
 const ERGO_TIMEOUT_MS = 10_000;
-const JWT_ISSUER = "virc-files";
-const JWT_AUDIENCE = "virc-files";
+const JWT_ISSUER = "accord-files";
+const JWT_AUDIENCE = "accord-files";
 
 const auth = new Hono();
 
