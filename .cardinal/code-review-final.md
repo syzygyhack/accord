@@ -1,7 +1,7 @@
 # Final Code Review
 
 **Date:** 2026-02-17
-**Scope:** Full codebase review of virc-client and virc-files
+**Scope:** Full codebase review of accord-client and accord-files
 **Focus:** Code smells, accessibility, security, performance, styling consistency, error handling
 
 ---
@@ -24,7 +24,7 @@
 ## 1. Critical Issues
 
 ### CR-F001: TOCTOU DNS Rebinding in SSRF Protection [HIGH]
-**File:** `virc-files/src/routes/preview.ts:246-252`
+**File:** `accord-files/src/routes/preview.ts:246-252`
 
 `fetchUrl()` resolves hostname via `assertPublicResolution()` then makes a separate `fetch()`. Between these calls, a malicious DNS server can rebind the domain to a private IP, bypassing SSRF protection.
 
@@ -37,7 +37,7 @@ const res = await fetch(currentUrl, { ... });
 **Fix:** Use resolved IP directly in fetch, or implement DNS pinning.
 
 ### CR-F002: Rate Limit Bypass via X-Forwarded-For Spoofing [HIGH]
-**File:** `virc-files/src/middleware/rateLimit.ts:45-50`
+**File:** `accord-files/src/middleware/rateLimit.ts:45-50`
 
 When no reverse proxy is present, the entire `X-Forwarded-For` header is attacker-controlled. An attacker can set any IP to bypass rate limiting entirely.
 
@@ -50,7 +50,7 @@ const ip = parts?.[parts.length - 1]?.trim() || ...
 **Fix:** Add configuration flag for trusted proxy mode. When disabled, use only socket address.
 
 ### CR-F003: Unbounded Rate Limit Store Growth [HIGH]
-**File:** `virc-files/src/middleware/rateLimit.ts:59-63`
+**File:** `accord-files/src/middleware/rateLimit.ts:59-63`
 
 Each unique IP creates an entry in the `Map` with no upper bound. An attacker rotating IPs can exhaust server memory. Cleanup only runs on incoming requests.
 
@@ -61,14 +61,14 @@ Each unique IP creates an entry in the `Map` with no upper bound. An attacker ro
 ## 2. Security
 
 ### CR-F004: `linkify()` Exported with XSS-Fragile Contract [MEDIUM]
-**File:** `virc-client/src/lib/irc/format.ts:277`
+**File:** `accord-client/src/lib/irc/format.ts:277`
 
 `linkify()` is exported and documented as requiring pre-escaped input, but callers could easily misuse it on raw text. The display text path at line 303 inserts the URL without escaping because it assumes pre-escaped context.
 
 **Recommendation:** Make `linkify()` private or add an internal safety escape.
 
 ### CR-F005: Invite Token Not URL-Encoded in Path [MEDIUM]
-**File:** `virc-client/src/lib/api/invites.ts:77`
+**File:** `accord-client/src/lib/api/invites.ts:77`
 
 ```typescript
 const res = await fetch(`${baseUrl}/api/invite/${inviteToken}`, { ... });
@@ -77,12 +77,12 @@ const res = await fetch(`${baseUrl}/api/invite/${inviteToken}`, { ... });
 If `inviteToken` contains path characters, this causes path traversal. Use `encodeURIComponent(inviteToken)`.
 
 ### CR-F006: OG Tag Values Returned Unsanitized [MEDIUM]
-**File:** `virc-files/src/routes/preview.ts:230-236`
+**File:** `accord-files/src/routes/preview.ts:230-236`
 
 Parsed OG meta tags from external pages are returned as-is. If client renders `og:title` as HTML, this is a stored XSS vector.
 
 ### CR-F007: Missing IPv6 All-Zeros Check in SSRF Filter [MEDIUM]
-**File:** `virc-files/src/routes/preview.ts:116-143`
+**File:** `accord-files/src/routes/preview.ts:116-143`
 
 `isPrivateHost()` checks for `::1`, `fe80:`, `fc00:`, `fd`, but not `::` (all-zeros, equivalent to `0.0.0.0`), `100::/64`, or `2001:db8::/32`.
 
@@ -92,7 +92,7 @@ Parsed OG meta tags from external pages are returned as-is. If client renders `o
 Nick colors from `getRoleColor()` are injected directly into `style` attributes. If a compromised server config returns a string like `red; background-image: url(evil)`, this is CSS injection. Colors should be validated against a safe pattern.
 
 ### CR-F009: Minimum Password Length of 1 Character [LOW]
-**File:** `virc-files/src/routes/account.ts:39-41`
+**File:** `accord-files/src/routes/account.ts:39-41`
 
 ```typescript
 if (newPassword.length < 1) { ... }
@@ -101,17 +101,17 @@ if (newPassword.length < 1) { ... }
 Should enforce minimum 8 characters per standard security practices.
 
 ### CR-F010: All Invites Visible to Any Authenticated User [LOW]
-**File:** `virc-files/src/routes/invite.ts:149-165`
+**File:** `accord-files/src/routes/invite.ts:149-165`
 
 `GET /api/invite` returns all invites including `createdBy` for any authenticated user. Consider scoping to own invites or requiring admin privileges.
 
 ### CR-F011: No Upload Quota Per User [LOW]
-**File:** `virc-files/src/routes/files.ts`
+**File:** `accord-files/src/routes/files.ts`
 
 No per-user upload limit. An authenticated user could upload thousands of files. Rate limiting (20/min) allows ~30GB/hour of uploads.
 
 ### CR-F012: No Global Request Body Size Limit [LOW]
-**File:** `virc-files/src/index.ts`
+**File:** `accord-files/src/index.ts`
 
 No middleware limiting request body size. Malicious clients can send enormous JSON bodies to any endpoint.
 
@@ -209,14 +209,14 @@ No automatic theme switching based on OS preference. Users must manually select 
 ## 4. Architecture & Code Smells
 
 ### CR-F028: God Component — chat/+page.svelte (2135 lines) [HIGH]
-**File:** `virc-client/src/routes/chat/+page.svelte`
+**File:** `accord-client/src/routes/chat/+page.svelte`
 
 Handles: IRC connection, voice/video, push-to-talk, emoji, editing, channel navigation, keybindings, reconnection, MONITOR, rate limiting, ChanServ registration, welcome modals, profile popouts, search, settings, server settings, and all layout.
 
 **Recommendation:** Extract into modules: `useConnection()`, `useVoice()`, `useKeybindings()`, etc. Break template into named components.
 
 ### CR-F029: God Component — UserSettings.svelte (2282 lines) [HIGH]
-**File:** `virc-client/src/components/UserSettings.svelte`
+**File:** `accord-client/src/components/UserSettings.svelte`
 
 Contains all settings tabs inline. Each tab should be its own component.
 
@@ -324,7 +324,7 @@ All manually construct `fetch()` with same Authorization header pattern. Extract
 
 Labeled "Legacy export" but never imported anywhere.
 
-### CR-F049: `VircConfig` Interface Defined Inline [LOW]
+### CR-F049: `AccordConfig` Interface Defined Inline [LOW]
 **File:** `chat/+page.svelte:65-88`
 
 Should be in a shared types file.
@@ -403,12 +403,12 @@ Only PRIVMSG is processed in chathistory batches. REDACT and TAGMSG (reactions) 
 If `parsed.params[0]` is undefined, `.toLowerCase()` throws. Add guard: `if (!rawTarget) return;`
 
 ### CR-F063: InviteStore Write Failures Silently Swallowed [MEDIUM]
-**File:** `virc-files/src/routes/invite.ts:44-49`
+**File:** `accord-files/src/routes/invite.ts:44-49`
 
 `.catch()` logs but swallows. Caller (route handler) told save succeeded when it didn't. In-memory and on-disk state diverge.
 
 ### CR-F064: Ergo API 5xx Misreported as "Incorrect Password" [MEDIUM]
-**File:** `virc-files/src/routes/account.ts:62-64`
+**File:** `accord-files/src/routes/account.ts:62-64`
 
 ```typescript
 if (!verifyRes.ok) {
@@ -421,7 +421,7 @@ Should distinguish Ergo server errors from auth failures. Return 502 for upstrea
 ### CR-F065: No Request Timeouts on Any Client API Calls [MEDIUM]
 **Files:** `account.ts`, `accountInfo.ts`, `invites.ts`, `upload.ts`, `preview.ts`
 
-No `AbortController` or timeout mechanism. Slow/unresponsive `virc-files` hangs UI indefinitely.
+No `AbortController` or timeout mechanism. Slow/unresponsive `accord-files` hangs UI indefinitely.
 
 ### CR-F066: `connection.ts` `emit()` Doesn't Protect Handler Exceptions [MEDIUM]
 **File:** `connection.ts:155`
@@ -433,15 +433,15 @@ If any event handler throws, remaining handlers for same event are skipped. Wrap
 
 Direct `localStorage` access without `typeof` check. Will throw in SSR context.
 
-### CR-F068: `fetchVircConfig` Silently Swallows All Errors [LOW]
+### CR-F068: `fetchAccordConfig` Silently Swallows All Errors [LOW]
 **File:** `chat/+page.svelte:700-713`
 
-Returns `null` on any error with no logging or user feedback. Malformed `virc.json` breaks config silently.
+Returns `null` on any error with no logging or user feedback. Malformed `accord.json` breaks config silently.
 
-### CR-F069: No Validation on `virc.json` Data Shape [LOW]
+### CR-F069: No Validation on `accord.json` Data Shape [LOW]
 **File:** `chat/+page.svelte:776-819`
 
-Config is cast with `as VircConfig` and used without schema validation.
+Config is cast with `as AccordConfig` and used without schema validation.
 
 ### CR-F070: `initConnection` Has No Overall Timeout [LOW]
 **File:** `chat/+page.svelte:719-884`

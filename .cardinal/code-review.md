@@ -1,8 +1,8 @@
-# Code Review: virc (Tasks 002-019)
+# Code Review: accord (Tasks 002-019)
 
 **Date:** 2026-02-15
 **Scope:** All files modified or created in plan tasks 002-019, plus impacted existing code.
-**Reviewed:** ~50 source files across virc-client and virc-files, ~20 test files.
+**Reviewed:** ~50 source files across accord-client and accord-files, ~20 test files.
 **Resolution Date:** 2026-02-15
 
 Issues categorized by severity: **Critical**, **High**, **Medium**, **Low**.
@@ -12,13 +12,13 @@ Issues categorized by severity: **Critical**, **High**, **Medium**, **Low**.
 ## Critical
 
 ### CR-001: Stored XSS via SVG file serving — RESOLVED
-- **File:** `virc-files/src/routes/files.ts`
+- **File:** `accord-files/src/routes/files.ts`
 - **Category:** Security
 - **Description:** SVG files are served with `Content-Type: image/svg+xml`. Browsers execute JavaScript embedded in SVGs.
 - **Resolution:** Added `UNSAFE_EXTENSIONS` set (`.svg`, `.html`, `.htm`, `.xhtml`, `.xml`, `.js`, `.mjs`, `.css`). All unsafe extensions served with `Content-Disposition: attachment` to prevent browser execution. Also added `X-Content-Type-Options: nosniff` header to all file downloads.
 
 ### CR-002: Test "loads persisted levels" is a false positive — RESOLVED
-- **File:** `virc-client/src/lib/state/notifications.svelte.test.ts`
+- **File:** `accord-client/src/lib/state/notifications.svelte.test.ts`
 - **Category:** Test quality
 - **Description:** The test claims to verify localStorage loading but actually tests `resetNotificationLevels()`.
 - **Resolution:** Replaced with proper "localStorage persistence roundtrip" tests that verify `setNotificationLevel` persists to localStorage and can be retrieved. Removed the false positive test.
@@ -28,62 +28,62 @@ Issues categorized by severity: **Critical**, **High**, **Medium**, **Low**.
 ## High
 
 ### CR-003: No file type allowlisting on upload — RESOLVED
-- **File:** `virc-files/src/routes/files.ts`
+- **File:** `accord-files/src/routes/files.ts`
 - **Category:** Security
 - **Resolution:** Addressed via CR-001 fix. All unsafe extensions (`.svg`, `.html`, `.htm`, `.xhtml`, `.xml`, `.js`, `.mjs`, `.css`) are served with `Content-Disposition: attachment`, preventing browser execution.
 
 ### CR-004: Missing `X-Content-Type-Options` header on served files — RESOLVED
-- **File:** `virc-files/src/routes/files.ts`
+- **File:** `accord-files/src/routes/files.ts`
 - **Category:** Security
 - **Resolution:** Added `X-Content-Type-Options: nosniff` header to all file download responses.
 
 ### CR-005: SSRF bypass via DNS rebinding in preview endpoint — RESOLVED
-- **File:** `virc-files/src/routes/preview.ts`
+- **File:** `accord-files/src/routes/preview.ts`
 - **Category:** Security
 - **Resolution:** Rewrote `isPrivateHost()` with proper IP parsing. Now handles IPv6-mapped IPv4 (`::ffff:127.0.0.1`), octal IPs (`0177.0.0.1`), hex IPs (`0x7f000001`), decimal integer IPs (`2130706433`), and bracketed IPv6 notation. Added `parseIPv4()` and `isPrivateIPv4()` helpers.
 
 ### CR-006: No authorization check on invite DELETE — RESOLVED
-- **File:** `virc-files/src/routes/invite.ts`
+- **File:** `accord-files/src/routes/invite.ts`
 - **Category:** Security
 - **Resolution:** Added `createdBy` check: `if (invite.createdBy !== user.sub) return 403`. Only the invite creator can delete.
 
 ### CR-007: IRC tag value injection in `privmsg` and `tagmsg` — RESOLVED
-- **File:** `virc-client/src/lib/irc/commands.ts`
+- **File:** `accord-client/src/lib/irc/commands.ts`
 - **Category:** Security
 - **Resolution:** Added `escapeTagValue()` function implementing IRCv3 message-tags escaping (`\`, `;`, space, CR, LF). Applied to both `privmsg` (edit tag) and `tagmsg` (all tag values).
 
 ### CR-008: `linkify` display URL not HTML-escaped — RESOLVED
-- **File:** `virc-client/src/lib/irc/format.ts`
+- **File:** `accord-client/src/lib/irc/format.ts`
 - **Category:** Security
 - **Resolution:** Applied `escapeHTML()` to both the `href` and display text in `linkify()`.
 
 ### CR-009: No CORS middleware despite `ALLOWED_ORIGIN` env var — RESOLVED
-- **File:** `virc-files/src/index.ts`
+- **File:** `accord-files/src/index.ts`
 - **Category:** Security
 - **Resolution:** Added Hono's `cors()` middleware using `ALLOWED_ORIGIN` when configured. Also added global `app.onError()` handler (CR-027).
 
 ### CR-010: Unhandled promise in Message.svelte fetchPreview — RESOLVED
-- **File:** `virc-client/src/components/Message.svelte`
+- **File:** `accord-client/src/components/Message.svelte`
 - **Category:** Error handling
 - **Resolution:** Added `.catch(() => { linkPreview = null; previewLoading = false; })` to the `fetchPreview` promise chain.
 
 ### CR-011: No test for `renderMessage` XSS safety — RESOLVED
-- **File:** `virc-client/src/lib/irc/format.test.ts`
+- **File:** `accord-client/src/lib/irc/format.test.ts`
 - **Category:** Test coverage
 - **Resolution:** Added 6 XSS safety tests: script tags, img onerror, javascript: URLs, nested HTML in bold, event handler attributes, URL display text escaping.
 
 ### CR-012: No tests for MARKREAD handler, DM routing, or self-PART — DEFERRED
-- **File:** `virc-client/src/lib/irc/handler.test.ts`
+- **File:** `accord-client/src/lib/irc/handler.test.ts`
 - **Category:** Test coverage
 - **Status:** Deferred to next sprint — requires significant test infrastructure setup for handler integration tests.
 
 ### CR-013: `replaceOptimisticMessage` and `appendMessages` untested — DEFERRED
-- **File:** `virc-client/src/lib/state/messages.svelte.test.ts`
+- **File:** `accord-client/src/lib/state/messages.svelte.test.ts`
 - **Category:** Test coverage
 - **Status:** Deferred to next sprint — test additions for coverage gaps.
 
 ### CR-014: `getFrequentEmoji` and `recordEmojiUse` untested — DEFERRED
-- **File:** `virc-client/src/lib/emoji.test.ts`
+- **File:** `accord-client/src/lib/emoji.test.ts`
 - **Category:** Test coverage
 - **Status:** Deferred to next sprint — test additions for coverage gaps.
 
@@ -167,7 +167,7 @@ Issues categorized by severity: **Critical**, **High**, **Medium**, **Low**.
 ### CR-026: `c.req.json()` not wrapped in try/catch — RESOLVED
 - **Resolution:** Wrapped in try/catch, returns 400 on invalid JSON.
 
-### CR-027: No global error handler in virc-files — RESOLVED
+### CR-027: No global error handler in accord-files — RESOLVED
 - **Resolution:** Added `app.onError()` handler in CR-009 fix.
 
 ### CR-028: Incomplete path traversal check — RESOLVED

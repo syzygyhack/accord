@@ -18,7 +18,7 @@ window.__TAURI_ISOLATION_HOOK__ = (payload) => {
     }
   }
 
-  // Block shell/process execution — virc should never spawn processes from the frontend.
+  // Block shell/process execution — accord should never spawn processes from the frontend.
   if (payload.cmd && payload.cmd.startsWith('plugin:shell|')) {
     return null;
   }
