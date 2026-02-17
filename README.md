@@ -25,6 +25,7 @@ virc wraps the battle-tested IRC protocol in a modern UI — real-time messaging
 │  - Always-on │   - LK token gen     │                   │
 │  - WebSocket │   - File uploads     │                   │
 │              │   - URL previews     │                   │
+│              │   - Invite links     │                   │
 ├──────────────┴──────────────────────┴───────────────────┤
 │                   MariaDB                               │
 │              (message history)                          │
@@ -40,7 +41,7 @@ The client connects to Ergo over a single WebSocket for all chat functionality. 
 
 **Why IRC?** Ergo is a single Go binary that provides accounts, channels, message history, always-on clients, and a full IRCv3 extension set out of the box. It replaces what would otherwise be a custom chat server, a message queue, a presence system, and a history database.
 
-**Why Svelte 5?** Rune-based reactivity (`$state`, `$derived`, `$effect`) maps naturally to chat state — 14 reactive stores with zero external state management libraries.
+**Why Svelte 5?** Rune-based reactivity (`$state`, `$derived`, `$effect`) maps naturally to chat state — 15 reactive stores with zero external state management libraries.
 
 **Why LiveKit?** Single binary SFU with a client SDK. Voice channels are just LiveKit rooms keyed by channel name.
 
@@ -55,26 +56,42 @@ The client connects to Ergo over a single WebSocket for all chat functionality. 
 - Message history pagination (CHATHISTORY BEFORE/LATEST/AFTER)
 - Replies with quoted parent preview
 - Emoji reactions (unicode, via TAGMSG)
-- Message editing and deletion (REDACT)
+- Message editing with `+virc/edit` tag (edit-in-place with original msgid tracking)
+- Message deletion (REDACT)
 - Typing indicators (throttled, auto-expiring)
 - Read markers synced via MARKREAD
 - Unread badges and mention counts
+- Pinned messages per channel (ops, stored in localStorage)
+- Spoiler formatting (`||text||` with blur-until-click reveal)
+- Syntax-highlighted code blocks (keyword/string/comment/number detection)
 - Slash command popup with 12 IRC commands, descriptions, and keyboard navigation
 - Commands gated by channel privilege level (mod commands require halfop+)
 - `//` escape to send literal `/`-prefixed messages
+
+### Media & Files
+- File uploads with drag-and-drop, paste-to-upload, and file picker
+- Inline image thumbnails with blur-up loading and click-to-expand lightbox
+- Inline video and audio players
+- Open Graph link preview cards (title, description, thumbnail)
+- URL unfurling via server-side SSRF-protected fetch with DNS pinning
 
 ### Channels & DMs
 - Channel list with configurable categories
 - Channel topic display and inline editing
 - Direct messages as separate buffer panes
+- DM voice and video calls
 - Quick channel switcher (Ctrl+K)
+- Per-channel notification settings (all, mentions, nothing, mute)
+- Channel drag-and-drop reorder (ops)
 
 ### Members & Presence
-- Role-grouped member list (Owner, Admin, Moderator, Helper, Member)
+- Role-grouped member list with virtual scrolling
 - Online/idle/DND/offline presence dots
 - MONITOR-based live presence tracking
 - Away status via away-notify
-- Nick coloring by account hash
+- Nick coloring by account hash (40% lightness on light, 65% on dark)
+- User profile popout with roles, registration date, and "Send Message"
+- Hover cards on member list entries
 
 ### Voice
 - Join/leave voice channels via LiveKit
@@ -86,10 +103,22 @@ The client connects to Ergo over a single WebSocket for all chat functionality. 
 - Input/output device selection with live switching while connected
 - Mic tester with loopback audio, mono-to-stereo upmix, and level meter
 - Output volume control applied to all remote tracks
+- Camera and screen share controls
+- DM voice/video calls with deterministic room names
+
+### Server Management
+- Server Settings modal with 7 tabs: Overview, Channels, Roles, Members, Invites, Appearance, Moderation
+- Invite link system (create, validate, expire, max-use, revoke)
+- Server config via `virc.json` (channels, roles, themes, emoji, welcome message)
+- Server theme overrides with WCAG contrast warnings and per-server disable toggles
+- Custom server emoji in picker, messages, and reactions
+- Welcome modal with suggested channels
+- Role colors in messages and member list
 
 ### Account
 - Display name editing in settings UI
 - Nick change via `/nick` command
+- Email and password change in Account settings
 - Persistent login across app restarts (OS keychain via Tauri, localStorage fallback for web)
 
 ### Desktop (Tauri 2)
@@ -101,12 +130,21 @@ The client connects to Ergo over a single WebSocket for all chat functionality. 
 
 ### UI
 - Three-column responsive layout (server list + sidebar + messages + members)
-- Dark theme with CSS custom properties
+- Four themes: dark, light, AMOLED, compact (IRC-inspired high-density mode)
+- Resizable sidebar columns with drag handles
 - Keyboard shortcuts (Ctrl+K, Alt+Up/Down, Escape, Shift+Escape, Ctrl+Shift+M/D)
+- Customizable keybindings with recording UI
 - Tab completion (@user, #channel, :emoji:)
 - Hover toolbar (React, Reply, More)
 - Connection status banner with auto-reconnect
 - Rate limit countdown display
+- Server list with context menus, drag reorder, and unread/mention badges
+- Collapsible system messages (3+ consecutive events collapse with expand toggle)
+- Message search panel with `from:user` filter
+- Raw IRC debug panel (Advanced settings)
+- Keyboard alternative for drag-and-drop reorder (Alt+Arrow)
+- Focus trapping in modals and ARIA tab patterns in settings
+- Context menu keyboard navigation (Arrow keys, Home/End, Escape)
 
 ---
 
@@ -210,10 +248,10 @@ cd virc-client && npm install && npm run dev
 ### Run Tests
 
 ```bash
-# Client tests (535 tests, Vitest)
+# Client tests (744 tests, Vitest)
 cd virc-client && npm test
 
-# Server tests (116 tests, Bun)
+# Server tests (155 tests, Bun)
 cd virc-files && bun test
 ```
 
@@ -225,9 +263,9 @@ cd virc-files && bun test
 virc/
 ├── virc-client/                 # Svelte 5 + SvelteKit frontend
 │   ├── src/
-│   │   ├── components/          # 23 Svelte components
+│   │   ├── components/          # 26 Svelte components
 │   │   ├── lib/
-│   │   │   ├── api/             # Auth tokens + server discovery
+│   │   │   ├── api/             # Auth tokens, server discovery, invites, accounts
 │   │   │   ├── irc/             # IRC protocol layer
 │   │   │   │   ├── parser.ts    # IRCv3 message parser
 │   │   │   │   ├── connection.ts # WebSocket + reconnect
@@ -236,8 +274,11 @@ virc/
 │   │   │   │   ├── cap.ts       # CAP negotiation
 │   │   │   │   ├── sasl.ts      # SASL PLAIN auth
 │   │   │   │   └── format.ts    # mIRC ↔ HTML rendering
-│   │   │   ├── state/           # 14 reactive stores ($state runes)
-│   │   │   ├── voice/           # LiveKit room management
+│   │   │   ├── state/           # 15 reactive stores ($state runes)
+│   │   │   ├── voice/           # LiveKit room + voice call management
+│   │   │   ├── files/           # File upload + URL preview client
+│   │   │   ├── navigation/      # Channel/server navigation helpers
+│   │   │   ├── utils/           # A11y, storage, URL utilities
 │   │   │   └── keybindings.ts   # Keyboard shortcut system
 │   │   └── routes/
 │   │       ├── login/           # Login/register page
@@ -252,12 +293,15 @@ virc/
 │   └── src/
 │       ├── routes/
 │       │   ├── auth.ts          # POST /api/auth (JWT minting)
+│       │   ├── account.ts       # POST /api/account (email/password change)
 │       │   ├── livekit.ts       # POST /api/livekit/token
 │       │   ├── config.ts        # GET /.well-known/virc.json
 │       │   ├── files.ts         # File upload/download
-│       │   ├── invite.ts        # Invite link generation
+│       │   ├── invite.ts        # Invite link CRUD
 │       │   └── preview.ts       # URL unfurling (OpenGraph)
-│       ├── middleware/auth.ts   # JWT verification
+│       ├── middleware/
+│       │   ├── auth.ts          # JWT verification
+│       │   └── rateLimit.ts     # Per-IP rate limiting
 │       └── env.ts               # Environment config
 ├── config/
 │   ├── ergo/ircd.yaml           # Ergo IRC server config
@@ -295,6 +339,14 @@ Server identity, channel layout, roles, and theming are driven by `virc.json`, s
   "roles": {
     "~": { "name": "Owner", "color": "#e0a040" },
     "@": { "name": "Moderator", "color": "#50a0e0" }
+  },
+  "theme": {
+    "--surface-base": "#1a1a2e",
+    "--accent": "#e94560"
+  },
+  "welcome": {
+    "message": "Welcome! Check out #general to get started.",
+    "suggestedChannels": ["#general", "#introductions"]
   }
 }
 ```
@@ -363,42 +415,50 @@ No client forking required for customization.
 
 | Suite | Tests |
 |-------|-------|
-| IRC handler | 60 |
-| Message store | 58 |
-| IRC format/rendering | 48 |
-| Notification store | 38 |
-| Member store | 27 |
-| Keybindings | 27 |
-| Theme store | 23 |
+| IRC format/rendering | 77 |
+| IRC handler | 70 |
+| Message store | 68 |
+| Theme store | 57 |
+| Notification store | 41 |
+| Keybindings | 38 |
 | IRC commands | 29 |
-| Emoji library | 21 |
+| Emoji library | 29 |
+| App settings | 28 |
+| Member store | 27 |
+| Server store | 23 |
+| Server config store | 21 |
 | Media | 20 |
+| Channel store | 18 |
 | IRC parser | 18 |
 | Voice store | 18 |
 | System messages | 17 |
 | File preview (client) | 17 |
-| App settings | 15 |
 | IRC connection | 14 |
 | Auth API (client) | 13 |
 | Typing store | 13 |
+| Account info API | 12 |
 | CAP negotiation | 12 |
 | SASL auth | 11 |
 | Discovery | 10 |
+| Account API (client) | 9 |
 | Connection store | 9 |
+| Invite API (client) | 8 |
 | User store | 7 |
 | File upload (client) | 5 |
 | Raw IRC log | 5 |
-| **Client total** | **535** |
-| URL preview (server) | 43 |
-| Invite endpoint | 17 |
+| **Client total** | **744** |
+| URL preview (server) | 54 |
+| Invite endpoint | 22 |
+| File upload endpoint | 16 |
 | Auth endpoint | 15 |
-| File upload endpoint | 12 |
 | Config endpoint | 11 |
-| LiveKit endpoint | 6 |
+| Account endpoint | 10 |
+| Account info endpoint | 9 |
 | Auth middleware | 7 |
+| LiveKit endpoint | 6 |
 | Rate limiter | 5 |
-| **Server total** | **116** |
-| **Total** | **651** |
+| **Server total** | **155** |
+| **Total** | **899** |
 
 ---
 
@@ -407,12 +467,13 @@ No client forking required for customization.
 | Item | Current State | Notes |
 |------|--------------|-------|
 | Push notifications | Not implemented | Web Push API planned |
-| Custom server emoji | Config structure ready | Rendered in emoji picker, tab completion, and messages |
-| Search | Not implemented | Ergo SEARCH extension available |
-| User profiles / avatars | Partial | Generated initials only |
-| Screen sharing / video | Audio only | LiveKit supports it |
+| Search | Client-side only | Ergo SEARCH extension available for future server-side search |
+| User avatars / bios | Generated initials only | Blocked on IRCv3 `draft/metadata-2` |
+| Screen sharing / video | Audio only for channels | LiveKit supports it; DM video calls work |
 | Multi-server | Single server | UI accommodates server list |
-| Theme customization UI | Dark only | CSS vars support theming |
+| Theme customization UI | Dark/light/AMOLED/compact | CSS vars ready for full theme editor |
+| Custom server emoji | Config structure ready | Rendered in emoji picker, tab completion, and messages |
+| Voice channel access control | Any authenticated user can get a token | Ergo lacks a channel membership query API |
 
 ---
 
@@ -427,29 +488,42 @@ No client forking required for customization.
 
 ## How This Was Built
 
-The initial codebase was authored by **Claude Opus 4.6** (Anthropic) running inside the **Avril** harness — a session-based agent framework for quality-assured code generation. The work was orchestrated by **Cardinal**, a task planning and execution system that decomposed the design specs into 36 implementable work units, managed dependencies, and tracked progress across the build.
+The codebase was authored by **Claude Opus 4** (Anthropic) running inside the **Avril** harness — a session-based agent framework for quality-assured code generation. Work was orchestrated by **Cardinal**, a task planning and execution system that decomposed design specs into implementable work units, managed dependencies, and tracked progress.
 
-Post-initial build, development continued as **human-agent collaboration** — the human directed priorities and reviewed results while Claude (Opus 4.6 via Avril) implemented features, diagnosed bugs, and integrated fixes. Cross-model review (**Claude + OpenAI Codex**) identified issues including MODE parsing drift, MONITOR timing races, and slash command edge cases, all of which were resolved.
+Three Cardinal sessions built the project end-to-end:
 
-The process:
+### Session 1: Core MVP (Feb 12)
+Cardinal decomposed the specs into **36 tasks** ordered by dependency graph: Docker infrastructure first, then IRC protocol layer, then UI shell, then features.
 
-1. **Specification** — PLAN.md and FRONTEND.md were written via human-agent collaboration, defining architecture, UI/UX, and build order.
-2. **Task decomposition** — Cardinal broke the specs into 36 tasks across two packages, ordered by dependency graph: Docker infrastructure first, then IRC protocol layer, then UI shell, then features.
-3. **Implementation** — Opus 4.6, operating in Avril sessions, implemented each task: source code, tests, configuration, and deployment manifests.
-4. **Iteration** — Human-agent collaboration added persistence, display name editing, slash commands with auth gating, voice UI improvements, push-to-talk, noise suppression, audio device management, mic testing, splash screen, and Tauri desktop packaging.
-5. **Review** — Cross-model review (Claude + OpenAI Codex) identified issues across multiple rounds. All critical and major findings were resolved.
+Delivered: Docker Compose stack (Ergo, MariaDB, LiveKit, Caddy), SvelteKit project scaffolding, IRC parser/connection/CAP/SASL, all core UI components (Login, Message, MessageList, MessageInput, MemberList, ChannelSidebar, HeaderBar), voice state and LiveKit room management, read markers, unread badges, DM conversations, reconnection with gap fill, responsive layout, and the Tauri desktop shell.
+
+### Session 2: Feature Completion (Feb 15)
+Cardinal planned **22 tasks** to close all remaining spec gaps.
+
+Delivered: message editing with `+virc/edit` tag, file upload backend and client UI (drag-and-drop, paste-to-upload), inline media previews (image/video/audio), Open Graph link preview cards with SSRF-protected server-side fetch, four themes (dark/light/AMOLED/compact), compact message display mode, per-channel notification settings, invite link system (create/validate/expire/revoke), server list sidebar with drag reorder, user profile popout, collapsible system messages, custom server emoji, pinned messages, message search panel, keybinding customization UI, raw IRC debug panel, and a full code review pass.
+
+### Session 3: Polish & Review (Feb 16-17)
+Cardinal planned **31 tasks** targeting the remaining TODO items and a comprehensive code review.
+
+Delivered: `/join` slash command, member list virtual scrolling and hover cards, server list context menu, message hover menu (edit/copy/mark unread), Server Settings modal (7 tabs), User Settings Notifications and Account tabs, user profile popout with registered date, resizable sidebar columns, channel sidebar ops affordances (create button, drag reorder, read-only icons), header bar channel settings gear, reaction bar improvements, keyboard shortcuts, server config integration (welcome modal, role colors), spoiler formatting, syntax-highlighted code blocks, empty states and image blur-up transitions, shared constant deduplication, and two rounds of code review fixes (security, performance, accessibility, CSS).
+
+### Post-Cardinal
+Development continued as **human-agent collaboration** — the human directed priorities and reviewed results while Claude (Opus 4 via Avril) implemented features and fixes. Cross-model review (**Claude + OpenAI Codex**) identified issues including MODE parsing drift, MONITOR timing races, and slash command edge cases, all resolved. Post-Cardinal work added: voice manager extraction, accessibility utilities (focus trapping, menu keyboard navigation, ARIA tab patterns), channel navigation module, server theme disable toggles, WCAG contrast warnings, and a comprehensive TODO rewrite for the rename/publish roadmap.
 
 ### By the Numbers
 
 | Metric | Value |
 |--------|-------|
-| TypeScript + Svelte source | ~19,000 lines |
-| Test code | ~7,100 lines |
+| TypeScript + Svelte source | ~25,200 lines |
+| Test code | ~9,900 lines |
 | Design specs | ~1,860 lines |
-| Infrastructure config | ~1,270 lines |
-| Commits | 65 |
+| Infrastructure config | ~1,380 lines |
+| Components | 26 |
+| Reactive stores | 15 |
+| Commits | 103 |
 | Packages | 2 |
-| Tests | 651 |
+| Tests | 899 |
+| Cardinal tasks | 89 |
 
 ---
 
