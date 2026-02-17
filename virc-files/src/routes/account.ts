@@ -131,8 +131,8 @@ account.post("/api/account/email", authMiddleware, async (c) => {
     return c.json({ error: "Email too long" }, 400);
   }
 
-  // Basic email format check
-  if (!email.includes("@") || !email.includes(".")) {
+  // Basic email format check (local@domain.tld)
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return c.json({ error: "Invalid email format" }, 400);
   }
 

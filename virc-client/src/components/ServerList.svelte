@@ -3,6 +3,12 @@
 	import { channelUIState } from '$lib/state/channels.svelte';
 	import { notificationState, getUnreadCount, getMentionCount, markAllRead } from '$lib/state/notifications.svelte';
 
+	interface Props {
+		onserversettings?: () => void;
+	}
+
+	let { onserversettings }: Props = $props();
+
 	/**
 	 * Aggregate a per-channel count across all channels for a server.
 	 * Currently all channels belong to the single connected server, so
@@ -106,8 +112,8 @@
 	}
 
 	function handleServerSettings(): void {
-		// Placeholder — opens server settings modal (not yet implemented).
 		closeContextMenu();
+		onserversettings?.();
 	}
 
 	// --- Drag to reorder ---

@@ -629,12 +629,14 @@ export function renderCodeBlocks(text: string): string {
  * text — doing so creates an XSS vulnerability.
  */
 export function renderMessage(text: string, myAccount: string): string {
-	// Extract code blocks first — they must not go through IRC/linkify processing
+	// Extract code blocks first — they must not go through IRC/linkify processing.
+	// Use a random nonce in placeholders to prevent collision with user input.
 	const FENCE = /```(\w*)\n([\s\S]*?)```/g;
 	const blocks: { placeholder: string; html: string }[] = [];
 	let blockIndex = 0;
+	const nonce = Math.random().toString(36).slice(2, 10);
 	const processed = text.replace(FENCE, (_match, lang: string, code: string) => {
-		const placeholder = `\x00CODEBLOCK_${blockIndex++}\x00`;
+		const placeholder = `\x00CB_${nonce}_${blockIndex++}\x00`;
 		let html: string;
 		if (lang) {
 			const highlighted = highlightCode(code, lang);

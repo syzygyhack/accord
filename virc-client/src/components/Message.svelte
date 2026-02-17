@@ -12,6 +12,18 @@
 	import { getRoleColor } from '$lib/state/serverConfig.svelte';
 	import type { Message } from '$lib/state/messages.svelte';
 
+	/** Module-level cached mention regex — shared across all Message instances. */
+	let _cachedMentionRegex: RegExp | null = null;
+	let _cachedMentionAccount = '';
+	function _getMentionRegex(account: string): RegExp {
+		if (account !== _cachedMentionAccount) {
+			_cachedMentionAccount = account;
+			const escaped = account.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+			_cachedMentionRegex = new RegExp(`@${escaped}\\b`, 'i');
+		}
+		return _cachedMentionRegex!;
+	}
+
 	interface Props {
 		message: Message;
 		isGrouped: boolean;
@@ -83,8 +95,8 @@
 	let isMention = $derived.by(() => {
 		const myAccount = userState.account;
 		if (!myAccount || message.isRedacted) return false;
-		const pattern = new RegExp(`@${myAccount.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-		return pattern.test(message.text);
+		const re = _getMentionRegex(myAccount);
+		return re.test(message.text);
 	});
 
 	let mediaUrls = $derived.by(() => {

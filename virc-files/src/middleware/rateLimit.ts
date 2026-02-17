@@ -87,6 +87,11 @@ export function rateLimit(opts: RateLimitOptions) {
     if (!entry) {
       entry = { timestamps: [] };
       store.set(ip, entry);
+      // Clean up stale entries before evicting valid ones
+      if (store.size > maxStoreSize) {
+        cleanup(now);
+        lastCleanup = now;
+      }
       evictOldest();
     }
 

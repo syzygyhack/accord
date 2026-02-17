@@ -248,13 +248,31 @@
 		return entry.kind === 'message' ? EST_MESSAGE_HEIGHT : EST_SYSTEM_HEIGHT;
 	}
 
-	/** Compute the cumulative offset (top of entry at index). */
-	function offsetAtIndex(index: number): number {
-		let h = 0;
-		for (let i = 0; i < index; i++) {
-			h += estimateHeight(i);
+	/**
+	 * Prefix-sum cache for cumulative heights.
+	 * prefixSums[i] = sum of estimateHeight(0..i-1), so prefixSums[0] = 0.
+	 * Invalidated when measuredHeights or renderEntries change.
+	 */
+	let prefixSums: number[] = [];
+	let prefixSumsVersion = 0;
+	let lastPrefixVersion = -1;
+
+	function rebuildPrefixSums(): void {
+		const total = renderEntries.length;
+		prefixSums = new Array(total + 1);
+		prefixSums[0] = 0;
+		for (let i = 0; i < total; i++) {
+			prefixSums[i + 1] = prefixSums[i] + estimateHeight(i);
 		}
-		return h;
+		lastPrefixVersion = prefixSumsVersion;
+	}
+
+	/** Compute the cumulative offset (top of entry at index). Uses prefix-sum cache. */
+	function offsetAtIndex(index: number): number {
+		if (lastPrefixVersion !== prefixSumsVersion || prefixSums.length !== renderEntries.length + 1) {
+			rebuildPrefixSums();
+		}
+		return prefixSums[index] ?? 0;
 	}
 
 	/**
@@ -336,13 +354,19 @@
 		if (!itemsContainer) return;
 		const children = itemsContainer.children;
 		const startIdx = visibleWindow.start;
+		let changed = false;
 		for (let i = 0; i < children.length; i++) {
 			const el = children[i] as HTMLElement;
 			const height = el.getBoundingClientRect().height;
 			if (height > 0) {
-				measuredHeights.set(startIdx + i, height);
+				const prev = measuredHeights.get(startIdx + i);
+				if (prev !== height) {
+					measuredHeights.set(startIdx + i, height);
+					changed = true;
+				}
 			}
 		}
+		if (changed) prefixSumsVersion++;
 	}
 
 	/** After each render, measure items for more accurate future estimates. */
@@ -452,6 +476,7 @@
 				// Messages were prepended (history load) — preserve scroll position.
 				// Clear measured heights since prepended entries shift all indices.
 				measuredHeights.clear();
+				prefixSumsVersion++;
 				tick().then(() => {
 					if (!scrollContainer) return;
 					const newScrollHeight = scrollContainer.scrollHeight;
@@ -497,6 +522,7 @@
 		prevMessageCount = 0;
 		expandedGroups = new Set();
 		measuredHeights = new Map();
+		prefixSumsVersion++;
 		currentScrollTop = 0;
 
 		// Show skeleton placeholders if channel has no cached messages yet.

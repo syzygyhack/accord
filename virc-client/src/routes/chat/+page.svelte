@@ -1303,6 +1303,10 @@
 			{
 				key: 'Escape',
 				handler: () => {
+					if (welcomeConfig) {
+						dismissWelcome();
+						return true;
+					}
 					if (profilePopout) {
 						profilePopout = null;
 						return true;
@@ -1656,7 +1660,7 @@
 
 <div class="chat-layout">
 	<!-- Far left: Server list strip -->
-	<ServerList />
+	<ServerList onserversettings={() => { serverSettingsInitialTab = 'overview'; showServerSettings = true; }} />
 
 	<!-- Left column: Channel sidebar -->
 	<div class="left-panel" class:overlay={sidebarIsOverlay} class:visible={sidebarIsOverlay && showSidebar} style="width: {appSettings.sidebarWidth}px;">

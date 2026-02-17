@@ -208,13 +208,20 @@ async function assertPublicResolution(hostname: string): Promise<void> {
   }
 }
 
-/** Strip HTML tags and decode common entities from OG content values.
- * Prevents stored XSS if the client renders these values as HTML. */
+/**
+ * Strip HTML tags from OG content values and decode entities to plain text.
+ *
+ * The output is **plain text**, NOT safe for direct injection into HTML.
+ * The client receives this as a JSON string and must render it as text
+ * content (textContent / Svelte `{value}`) — never via `{@html}`.
+ */
 function sanitizeOgValue(raw: string | null): string | null {
   if (raw === null) return null;
   // Strip HTML tags
   let clean = raw.replace(/<[^>]*>/g, "");
-  // Decode common HTML entities
+  // Decode common HTML entities to plain-text equivalents.
+  // Safe because the result is returned as JSON and the client
+  // renders it as text content, not raw HTML.
   clean = clean
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
@@ -276,21 +283,32 @@ async function resolvePinnedUrl(parsed: URL): Promise<{ fetchUrl: string; hostHe
   // Resolve and validate all IPs
   await assertPublicResolution(hostname);
 
-  // Now resolve again and pick the first public IPv4 for the fetch.
-  // This is the IP we'll actually connect to, preventing rebinding.
-  const [v4Result] = await Promise.allSettled([dnsResolve4(hostname)]);
+  // Resolve and pin the IP we'll actually connect to, preventing rebinding.
+  // Try IPv4 first (simpler URL construction), fall back to IPv6.
+  const [v4Result, v6Result] = await Promise.allSettled([
+    dnsResolve4(hostname),
+    dnsResolve6(hostname),
+  ]);
   const v4Addrs = v4Result.status === "fulfilled" ? v4Result.value : [];
+  const v6Addrs = v6Result.status === "fulfilled" ? v6Result.value : [];
 
-  if (v4Addrs.length === 0) {
-    // No IPv4, fall back to original URL (IPv6-only hosts).
-    // assertPublicResolution already validated all addresses are public.
-    return { fetchUrl: parsed.href, hostHeader: hostname };
+  if (v4Addrs.length > 0) {
+    // Pin to the first resolved IPv4 address
+    const pinnedUrl = new URL(parsed.href);
+    pinnedUrl.hostname = v4Addrs[0];
+    return { fetchUrl: pinnedUrl.href, hostHeader: hostname };
   }
 
-  // Pin to the first resolved IPv4 address
-  const pinnedUrl = new URL(parsed.href);
-  pinnedUrl.hostname = v4Addrs[0];
-  return { fetchUrl: pinnedUrl.href, hostHeader: hostname };
+  if (v6Addrs.length > 0) {
+    // Pin to the first resolved IPv6 address (bracket notation for URL)
+    const pinnedUrl = new URL(parsed.href);
+    pinnedUrl.hostname = `[${v6Addrs[0]}]`;
+    return { fetchUrl: pinnedUrl.href, hostHeader: hostname };
+  }
+
+  // No addresses resolved — assertPublicResolution would have thrown,
+  // but guard defensively.
+  throw new Error(`No addresses resolved for ${hostname}`);
 }
 
 /** Fetch URL with timeout, redirect limit, size cap, and DNS rebinding protection. */
