@@ -16,6 +16,11 @@
 		type BindingInfo,
 		type KeyCombo,
 	} from '$lib/keybindings';
+	import { channelState } from '$lib/state/channels.svelte';
+	import { getNotificationLevel, setNotificationLevel, type NotificationLevel } from '$lib/state/notifications.svelte';
+	import { getToken } from '$lib/api/auth';
+	import { getActiveServer } from '$lib/state/servers.svelte';
+	import { changePassword, changeEmail, type AccountApiResult } from '$lib/api/account';
 	import type { IRCConnection } from '$lib/irc/connection';
 
 	interface Props {
@@ -25,7 +30,7 @@
 
 	let { onclose, connection = null }: Props = $props();
 
-	let activeTab: 'account' | 'voice' | 'appearance' | 'keybindings' | 'advanced' | 'about' = $state('account');
+	let activeTab: 'account' | 'voice' | 'appearance' | 'notifications' | 'keybindings' | 'advanced' | 'about' = $state('account');
 
 	// Display name editing
 	let editingNick = $state(false);
@@ -81,10 +86,108 @@
 
 	let initial = $derived((userState.nick ?? '?')[0].toUpperCase());
 
+	// --- Notifications state ---
+	const notificationLevelOptions: { value: NotificationLevel; label: string; desc: string }[] = [
+		{ value: 'all', label: 'All Messages', desc: 'Get notified for every message' },
+		{ value: 'mentions', label: 'Only @Mentions', desc: 'Only notify when you are mentioned' },
+		{ value: 'nothing', label: 'Nothing', desc: 'No notifications, but still track unreads' },
+		{ value: 'mute', label: 'Mute', desc: 'Suppress all unreads except @mentions' },
+	];
+
+	/** Derive the list of joined channels for per-channel notification overrides. */
+	let joinedChannels = $derived(
+		Array.from(channelState.channels.keys()).sort()
+	);
+
+	// --- Account: email change state ---
+	let emailInput = $state('');
+	let emailError: string | null = $state(null);
+	let emailSuccess: string | null = $state(null);
+	let emailSubmitting = $state(false);
+
+	// --- Account: password change state ---
+	let currentPasswordInput = $state('');
+	let newPasswordInput = $state('');
+	let confirmPasswordInput = $state('');
+	let passwordError: string | null = $state(null);
+	let passwordSuccess: string | null = $state(null);
+	let passwordSubmitting = $state(false);
+
+	async function submitEmail(): Promise<void> {
+		const trimmed = emailInput.trim();
+		emailError = null;
+		emailSuccess = null;
+		if (!trimmed) {
+			emailError = 'Email cannot be empty';
+			return;
+		}
+		if (!trimmed.includes('@') || !trimmed.includes('.')) {
+			emailError = 'Invalid email address';
+			return;
+		}
+		const server = getActiveServer();
+		const token = getToken();
+		if (!server?.filesUrl || !token) {
+			emailError = 'Not connected to server';
+			return;
+		}
+		emailSubmitting = true;
+		const result: AccountApiResult = await changeEmail(server.filesUrl, token, { email: trimmed });
+		emailSubmitting = false;
+		if (result.success) {
+			emailSuccess = 'Email updated successfully';
+			emailInput = '';
+		} else {
+			emailError = result.error ?? 'Failed to update email';
+		}
+	}
+
+	async function submitPasswordChange(): Promise<void> {
+		passwordError = null;
+		passwordSuccess = null;
+		if (!currentPasswordInput) {
+			passwordError = 'Current password is required';
+			return;
+		}
+		if (!newPasswordInput) {
+			passwordError = 'New password is required';
+			return;
+		}
+		if (newPasswordInput !== confirmPasswordInput) {
+			passwordError = 'New passwords do not match';
+			return;
+		}
+		if (newPasswordInput === currentPasswordInput) {
+			passwordError = 'New password must be different from current';
+			return;
+		}
+		const server = getActiveServer();
+		const token = getToken();
+		if (!server?.filesUrl || !token) {
+			passwordError = 'Not connected to server';
+			return;
+		}
+		passwordSubmitting = true;
+		const result: AccountApiResult = await changePassword(server.filesUrl, token, {
+			currentPassword: currentPasswordInput,
+			newPassword: newPasswordInput,
+		});
+		passwordSubmitting = false;
+		if (result.success) {
+			passwordSuccess = 'Password changed successfully';
+			currentPasswordInput = '';
+			newPasswordInput = '';
+			confirmPasswordInput = '';
+		} else {
+			passwordError = result.error ?? 'Failed to change password';
+		}
+	}
+
 	let tabTitle = $derived(
 		activeTab === 'account' ? 'My Account' :
 		activeTab === 'voice' ? 'Voice & Video' :
 		activeTab === 'appearance' ? 'Appearance' :
+		activeTab === 'notifications' ? 'Notifications' :
 		activeTab === 'keybindings' ? 'Keybindings' :
 		activeTab === 'advanced' ? 'Advanced' :
 		'About'
@@ -431,7 +534,7 @@
 				<button class="nav-item" class:active={activeTab === 'voice'} onclick={() => activeTab = 'voice'}>
 					Voice & Video
 				</button>
-				<button class="nav-item disabled" disabled>
+				<button class="nav-item" class:active={activeTab === 'notifications'} onclick={() => activeTab = 'notifications'}>
 					Notifications
 				</button>
 				<button class="nav-item" class:active={activeTab === 'keybindings'} onclick={() => activeTab = 'keybindings'}>
@@ -509,6 +612,76 @@
 							</div>
 						</div>
 					</div>
+					<div class="section-divider"></div>
+
+					<div class="settings-section">
+						<h3 class="section-title">Email</h3>
+						<p class="setting-hint">Set or change the email associated with your account.</p>
+						<div class="account-form-row">
+							<input
+								type="email"
+								class="settings-input"
+								placeholder="you@example.com"
+								bind:value={emailInput}
+								onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); submitEmail(); } }}
+							/>
+							<button class="settings-save-btn" onclick={submitEmail} disabled={emailSubmitting}>
+								{emailSubmitting ? 'Saving...' : 'Save'}
+							</button>
+						</div>
+						{#if emailError}
+							<span class="form-error">{emailError}</span>
+						{/if}
+						{#if emailSuccess}
+							<span class="form-success">{emailSuccess}</span>
+						{/if}
+					</div>
+
+					<div class="section-divider"></div>
+
+					<div class="settings-section">
+						<h3 class="section-title">Change Password</h3>
+						<div class="password-form">
+							<label class="form-field">
+								<span class="field-label">Current Password</span>
+								<input
+									type="password"
+									class="settings-input"
+									bind:value={currentPasswordInput}
+									autocomplete="current-password"
+								/>
+							</label>
+							<label class="form-field">
+								<span class="field-label">New Password</span>
+								<input
+									type="password"
+									class="settings-input"
+									bind:value={newPasswordInput}
+									autocomplete="new-password"
+								/>
+							</label>
+							<label class="form-field">
+								<span class="field-label">Confirm New Password</span>
+								<input
+									type="password"
+									class="settings-input"
+									bind:value={confirmPasswordInput}
+									autocomplete="new-password"
+									onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); submitPasswordChange(); } }}
+								/>
+							</label>
+							<button class="settings-save-btn" onclick={submitPasswordChange} disabled={passwordSubmitting}>
+								{passwordSubmitting ? 'Changing...' : 'Change Password'}
+							</button>
+						</div>
+						{#if passwordError}
+							<span class="form-error">{passwordError}</span>
+						{/if}
+						{#if passwordSuccess}
+							<span class="form-success">{passwordSuccess}</span>
+						{/if}
+					</div>
+
 					<div class="section-divider"></div>
 					<div class="account-actions">
 						<button class="logout-btn" onclick={handleLogout}>Log Out</button>
@@ -639,6 +812,53 @@
 					{#if audioInputDevices.length === 0 && audioOutputDevices.length === 0 && videoInputDevices.length === 0}
 						<p class="device-hint">No media devices detected. Join a voice channel first to grant microphone permission, then reopen settings.</p>
 					{/if}
+				{:else if activeTab === 'notifications'}
+					<div class="settings-section">
+						<h3 class="section-title">Default Notification Level</h3>
+						<p class="setting-hint">Controls notifications for all channels unless overridden below.</p>
+						<div class="notif-level-options">
+							{#each notificationLevelOptions as opt (opt.value)}
+								<button
+									class="notif-level-option"
+									class:active={getNotificationLevel('*') === opt.value}
+									onclick={() => setNotificationLevel('*', opt.value)}
+								>
+									<span class="notif-level-label">{opt.label}</span>
+									<span class="notif-level-desc">{opt.desc}</span>
+								</button>
+							{/each}
+						</div>
+					</div>
+
+					<div class="section-divider"></div>
+
+					<div class="settings-section">
+						<h3 class="section-title">Per-Channel Overrides</h3>
+						<p class="setting-hint">Override the default notification level for specific channels.</p>
+						{#if joinedChannels.length === 0}
+							<p class="setting-hint" style="font-style: italic;">No channels joined yet.</p>
+						{:else}
+							<div class="notif-channel-list">
+								{#each joinedChannels as channel (channel)}
+									<div class="notif-channel-row">
+										<span class="notif-channel-name">{channel}</span>
+										<select
+											class="notif-channel-select"
+											value={getNotificationLevel(channel)}
+											onchange={(e: Event) => {
+												const target = e.target as HTMLSelectElement;
+												setNotificationLevel(channel, target.value as NotificationLevel);
+											}}
+										>
+											{#each notificationLevelOptions as opt (opt.value)}
+												<option value={opt.value}>{opt.label}</option>
+											{/each}
+										</select>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</div>
 				{:else if activeTab === 'appearance'}
 					<div class="settings-section">
 						<h3 class="section-title">Theme</h3>
@@ -1559,6 +1779,162 @@
 	.nav-item.disabled:hover {
 		background: none;
 		color: var(--text-muted);
+	}
+
+	/* ---- Account Tab: Email & Password Forms ---- */
+
+	.account-form-row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.settings-input {
+		flex: 1;
+		padding: 8px 12px;
+		background: var(--surface-lowest);
+		color: var(--text-primary);
+		border: 1px solid var(--surface-highest);
+		border-radius: 4px;
+		font-size: var(--font-base);
+		font-family: var(--font-primary);
+		outline: none;
+	}
+
+	.settings-input:focus {
+		border-color: var(--accent-primary);
+	}
+
+	.settings-save-btn {
+		padding: 8px 20px;
+		background: var(--accent-primary);
+		color: #fff;
+		border: none;
+		border-radius: 4px;
+		font-size: var(--font-sm);
+		font-family: var(--font-primary);
+		font-weight: var(--weight-medium);
+		cursor: pointer;
+		flex-shrink: 0;
+	}
+
+	.settings-save-btn:hover:not(:disabled) {
+		opacity: 0.9;
+	}
+
+	.settings-save-btn:disabled {
+		opacity: 0.5;
+		cursor: default;
+	}
+
+	.password-form {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+	}
+
+	.form-field {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.form-error {
+		font-size: var(--font-xs);
+		color: var(--danger);
+	}
+
+	.form-success {
+		font-size: var(--font-xs);
+		color: var(--success);
+	}
+
+	/* ---- Notifications Tab ---- */
+
+	.notif-level-options {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.notif-level-option {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: 12px 16px;
+		background: var(--surface-low);
+		border: 1px solid var(--surface-highest);
+		border-radius: 6px;
+		cursor: pointer;
+		text-align: left;
+		font-family: var(--font-primary);
+		transition: background var(--duration-channel), border-color var(--duration-channel);
+	}
+
+	.notif-level-option:hover {
+		background: var(--surface-high);
+	}
+
+	.notif-level-option.active {
+		border-color: var(--accent-primary);
+		background: var(--accent-bg);
+	}
+
+	.notif-level-label {
+		font-size: var(--font-base);
+		font-weight: var(--weight-medium);
+		color: var(--text-primary);
+	}
+
+	.notif-level-desc {
+		font-size: var(--font-xs);
+		color: var(--text-muted);
+	}
+
+	.notif-channel-list {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.notif-channel-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 8px 12px;
+		background: var(--surface-low);
+		border-radius: 4px;
+	}
+
+	.notif-channel-name {
+		font-size: var(--font-sm);
+		color: var(--text-primary);
+		font-family: var(--font-mono);
+	}
+
+	.notif-channel-select {
+		padding: 4px 8px;
+		background: var(--surface-lowest);
+		color: var(--text-primary);
+		border: 1px solid var(--surface-highest);
+		border-radius: 4px;
+		font-size: var(--font-xs);
+		font-family: var(--font-primary);
+		cursor: pointer;
+		appearance: none;
+		background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3e%3cpath d='M3 4.5l3 3 3-3' stroke='%239a9da3' fill='none' stroke-width='1.5' stroke-linecap='round'/%3e%3c/svg%3e");
+		background-repeat: no-repeat;
+		background-position: right 6px center;
+		padding-right: 24px;
+	}
+
+	.notif-channel-select:hover {
+		border-color: var(--text-muted);
+	}
+
+	.notif-channel-select:focus {
+		outline: none;
+		border-color: var(--accent-primary);
 	}
 
 	/* ---- Appearance Tab ---- */
