@@ -9,8 +9,8 @@
  * Contrast ratio checking warns when server themes produce unreadable text.
  */
 
-const STORAGE_KEY = 'virc:theme';
-const SERVER_THEME_PREFS_KEY = 'virc:serverThemePrefs';
+const STORAGE_KEY = 'accord:theme';
+const SERVER_THEME_PREFS_KEY = 'accord:serverThemePrefs';
 
 export type Theme = 'dark' | 'light' | 'amoled' | 'compact';
 

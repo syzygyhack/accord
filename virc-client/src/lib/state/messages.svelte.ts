@@ -48,7 +48,7 @@ const channelCursors = new Map<string, ChannelCursors>();
 const editMap = new Map<string, string>();
 
 // --- Pinned messages (per-channel, client-side with localStorage) ---
-const PINNED_STORAGE_KEY = 'virc:pinnedMessages';
+const PINNED_STORAGE_KEY = 'accord:pinnedMessages';
 
 /** Per-channel pinned message IDs. */
 const pinnedMessages = new Map<string, Set<string>>();

@@ -10,7 +10,7 @@ import { hasLocalStorage } from '$lib/utils/storage';
 
 export type NotificationLevel = 'all' | 'mentions' | 'nothing' | 'mute';
 
-const NOTIFICATION_LEVELS_KEY = 'virc:notificationLevels';
+const NOTIFICATION_LEVELS_KEY = 'accord:notificationLevels';
 
 interface ChannelNotification {
 	unreadCount: number;

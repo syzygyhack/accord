@@ -145,7 +145,7 @@ export function resetChannels(): void {
 // Channel order persistence (localStorage)
 // ---------------------------------------------------------------------------
 
-const CHANNEL_ORDER_KEY = 'virc:channelOrder';
+const CHANNEL_ORDER_KEY = 'accord:channelOrder';
 
 /**
  * Load saved channel order from localStorage.

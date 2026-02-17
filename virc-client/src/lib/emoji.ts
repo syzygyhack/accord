@@ -289,7 +289,7 @@ export function searchCustomEmoji(query: string): CustomEmoji[] {
 	return list.filter((e) => e.name.toLowerCase().includes(q));
 }
 
-const FREQUENT_KEY = 'virc:frequent-emoji';
+const FREQUENT_KEY = 'accord:frequent-emoji';
 const MAX_FREQUENT = 16;
 
 export function getFrequentEmoji(): string[] {

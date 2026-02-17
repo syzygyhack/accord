@@ -15,15 +15,15 @@
  *   4. JWT auto-refreshes based on token expiry (default fallback: 50 minutes)
  */
 
-const ACCOUNT_KEY = 'virc:account';
+const ACCOUNT_KEY = 'accord:account';
 
 // Legacy key — used for migration and web fallback
-const LEGACY_CREDENTIALS_KEY = 'virc:credentials';
+const LEGACY_CREDENTIALS_KEY = 'accord:credentials';
 
 // Keyring cleanup marker for logout in Tauri (best-effort deletion after reload)
-const KEYRING_PENDING_DELETE_KEY = 'virc:keyring-pending-delete';
+const KEYRING_PENDING_DELETE_KEY = 'accord:keyring-pending-delete';
 
-const KEYRING_SERVICE = 'virc';
+const KEYRING_SERVICE = 'accord';
 
 export interface StoredCredentials {
 	account: string;

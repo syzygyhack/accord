@@ -5,7 +5,7 @@
  * configuration. Persisted to localStorage so settings survive app restarts.
  */
 
-const STORAGE_KEY = 'virc:audioSettings';
+const STORAGE_KEY = 'accord:audioSettings';
 
 export type VideoQuality = '360' | '720' | '1080' | '1440';
 const VALID_QUALITIES: readonly string[] = ['360', '720', '1080', '1440'];

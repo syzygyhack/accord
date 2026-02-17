@@ -5,7 +5,7 @@
  * localStorage so settings survive app restarts.
  */
 
-const STORAGE_KEY = 'virc:appSettings';
+const STORAGE_KEY = 'accord:appSettings';
 
 export type ZoomLevel = 100 | 125 | 150;
 

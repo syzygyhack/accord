@@ -21,7 +21,7 @@ interface ServerStore {
 	activeServerId: string | null;
 }
 
-const SERVER_ORDER_KEY = 'virc:serverOrder';
+const SERVER_ORDER_KEY = 'accord:serverOrder';
 
 /** Load saved server order from localStorage. Returns empty array if none. */
 function loadServerOrder(): string[] {

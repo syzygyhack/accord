@@ -28,7 +28,7 @@ export interface BindingInfo {
 	currentCombo: KeyCombo;
 }
 
-const STORAGE_KEY = 'virc:keybindingOverrides';
+const STORAGE_KEY = 'accord:keybindingOverrides';
 
 /** Active bindings, checked in order. First matching handler that returns true wins. */
 let bindings: Keybinding[] = [];
