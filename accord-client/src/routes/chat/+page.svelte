@@ -1,16 +1,15 @@
 <script lang="ts">
-	import { onMount, onDestroy, tick } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import type { IRCConnection } from '$lib/irc/connection';
 	import { join, chathistory, markread, tagmsg, redact, privmsg, topic, monitor, who, escapeTagValue } from '$lib/irc/commands';
 	import { stopTokenRefresh, clearCredentials, clearToken } from '$lib/api/auth';
-	import { connectToVoice, disconnectVoice, toggleMute as toggleMuteRoom, toggleDeafen as toggleDeafenRoom, toggleVideo as toggleVideoRoom, toggleScreenShare as toggleScreenShareRoom } from '$lib/voice/room';
+	import { disconnectVoice } from '$lib/voice/room';
 	import {
 		handleVoiceChannelClick as voiceChannelClick,
 		handleDMVoiceCall as dmVoiceCall,
 		handleDMVideoCall as dmVideoCall,
 	} from '$lib/voice/manager';
-	import { navigateChannel, navigateUnreadChannel, navigateServer } from '$lib/navigation/channelNav';
-	import { voiceState, updateParticipant } from '$lib/state/voice.svelte';
+	import { voiceState } from '$lib/state/voice.svelte';
 	import { audioSettings } from '$lib/state/audioSettings.svelte';
 	import type { Room } from 'livekit-client';
 	import { connectionState } from '$lib/state/connection.svelte';
@@ -29,8 +28,8 @@
 	import { getCursors, getMessage, getMessages, redactMessage, addReaction, removeReaction, updateSendState, addMessage, pinMessage, unpinMessage, isPinned } from '$lib/state/messages.svelte';
 	import type { Message } from '$lib/state/messages.svelte';
 	import { getActiveServer } from '$lib/state/servers.svelte';
-	import { installGlobalHandler, registerKeybindings } from '$lib/keybindings';
 	import { initConnection } from '$lib/connection/lifecycle';
+	import { setupShortcuts } from '$lib/shortcuts';
 	import ChannelSidebar from '../../components/ChannelSidebar.svelte';
 	import HeaderBar from '../../components/HeaderBar.svelte';
 	import MessageList from '../../components/MessageList.svelte';
@@ -691,339 +690,85 @@
 	}
 
 	// ---------------------------------------------------------------------------
-	// Keyboard shortcuts
+	// Keyboard shortcuts & push-to-talk (extracted to $lib/shortcuts.ts)
 	// ---------------------------------------------------------------------------
 
-	let cleanupKeybindings: (() => void) | null = null;
-	let cleanupGlobalHandler: (() => void) | null = null;
+	let shortcutHandle: ReturnType<typeof setupShortcuts> | null = null;
 
-	function setupKeybindings(): void {
-		cleanupGlobalHandler = installGlobalHandler();
-
-		cleanupKeybindings = registerKeybindings([
-			// Ctrl+K — Quick switcher
-			{
-				key: 'k',
-				ctrl: true,
-				handler: () => {
-					showQuickSwitcher = !showQuickSwitcher;
-					return true;
-				},
-				description: 'Open quick channel switcher',
+	function initShortcuts(): void {
+		shortcutHandle = setupShortcuts({
+			toggleQuickSwitcher: () => { showQuickSwitcher = !showQuickSwitcher; },
+			toggleSettings: () => { showSettings = !showSettings; },
+			toggleSearch,
+			openSearch: () => { showSearch = true; },
+			focusSearchInput: () => { searchPanelRef?.focusInput(); },
+			dismissWelcome: () => {
+				if (!welcomeConfig) return false;
+				dismissWelcome();
+				return true;
 			},
-			// Ctrl+, — User settings
-			{
-				key: ',',
-				ctrl: true,
-				handler: () => {
-					showSettings = !showSettings;
-					return true;
-				},
-				description: 'Open user settings',
+			closeProfilePopout: () => {
+				if (!profilePopout) return false;
+				profilePopout = null;
+				return true;
 			},
-			// Alt+ArrowUp — Previous channel
-			{
-				key: 'ArrowUp',
-				alt: true,
-				handler: () => {
-					navigateChannel(-1);
-					return true;
-				},
-				description: 'Navigate to previous channel',
+			closeVoiceOverlay: () => {
+				if (!showVoiceOverlay) return false;
+				showVoiceOverlay = false;
+				overlayDismissed = true;
+				return true;
 			},
-			// Alt+ArrowDown — Next channel
-			{
-				key: 'ArrowDown',
-				alt: true,
-				handler: () => {
-					navigateChannel(1);
-					return true;
-				},
-				description: 'Navigate to next channel',
+			closeSettings: () => {
+				if (!showSettings) return false;
+				showSettings = false;
+				return true;
 			},
-			// Alt+Shift+ArrowUp — Previous unread channel
-			{
-				key: 'ArrowUp',
-				alt: true,
-				shift: true,
-				handler: () => {
-					navigateUnreadChannel(-1);
-					return true;
-				},
-				description: 'Navigate to previous unread channel',
+			closeServerSettings: () => {
+				if (!showServerSettings) return false;
+				showServerSettings = false;
+				return true;
 			},
-			// Alt+Shift+ArrowDown — Next unread channel
-			{
-				key: 'ArrowDown',
-				alt: true,
-				shift: true,
-				handler: () => {
-					navigateUnreadChannel(1);
-					return true;
-				},
-				description: 'Navigate to next unread channel',
+			closeQuickSwitcher: () => {
+				if (!showQuickSwitcher) return false;
+				showQuickSwitcher = false;
+				return true;
 			},
-			// Ctrl+Shift+F — Search messages
-			{
-				key: 'F',
-				ctrl: true,
-				shift: true,
-				handler: () => {
-					showSearch = true;
-					// Focus the search input after panel renders
-					tick().then(() => searchPanelRef?.focusInput());
-					return true;
-				},
-				description: 'Search messages',
+			closeSearch: () => {
+				if (!showSearch) return false;
+				showSearch = false;
+				return true;
 			},
-			// Escape — Close modals, cancel reply, close emoji picker
-			{
-				key: 'Escape',
-				handler: () => {
-					if (welcomeConfig) {
-						dismissWelcome();
-						return true;
-					}
-					if (profilePopout) {
-						profilePopout = null;
-						return true;
-					}
-					if (showVoiceOverlay) {
-						showVoiceOverlay = false;
-						overlayDismissed = true;
-						return true;
-					}
-					if (showSettings) {
-						showSettings = false;
-						return true;
-					}
-					if (showServerSettings) {
-						showServerSettings = false;
-						return true;
-					}
-					if (showQuickSwitcher) {
-						showQuickSwitcher = false;
-						return true;
-					}
-					if (showSearch) {
-						showSearch = false;
-						return true;
-					}
-					if (deleteTarget) {
-						deleteTarget = null;
-						return true;
-					}
-					if (emojiPickerTarget) {
-						emojiPickerTarget = null;
-						emojiPickerPosition = null;
-						return true;
-					}
-					if (replyContext) {
-						replyContext = null;
-						return true;
-					}
-					// Close responsive overlays
-					if (showSidebar && sidebarIsOverlay) {
-						showSidebar = false;
-						return true;
-					}
-					if (showMembers && !isDesktop) {
-						showMembers = false;
-						return true;
-					}
-					// Don't prevent default if nothing to close
-					return false;
-				},
-				description: 'Close modal / cancel reply / close emoji picker',
+			closeDeleteTarget: () => {
+				if (!deleteTarget) return false;
+				deleteTarget = null;
+				return true;
 			},
-			// Ctrl+Shift+M — Toggle voice mute
-			{
-				key: 'M',
-				ctrl: true,
-				shift: true,
-				handler: () => {
-					if (voiceState.isConnected && voiceRoom) {
-						toggleMuteRoom(voiceRoom);
-						return true;
-					}
-					return false;
-				},
-				description: 'Toggle voice mute',
+			closeEmojiPicker: () => {
+				if (!emojiPickerTarget) return false;
+				emojiPickerTarget = null;
+				emojiPickerPosition = null;
+				return true;
 			},
-			// Ctrl+Shift+D — Toggle voice deafen
-			{
-				key: 'D',
-				ctrl: true,
-				shift: true,
-				handler: () => {
-					if (voiceState.isConnected && voiceRoom) {
-						toggleDeafenRoom(voiceRoom);
-						return true;
-					}
-					return false;
-				},
-				description: 'Toggle voice deafen',
+			cancelReply: () => {
+				if (!replyContext) return false;
+				replyContext = null;
+				return true;
 			},
-			// Ctrl+Shift+V — Toggle camera
-			{
-				key: 'V',
-				ctrl: true,
-				shift: true,
-				handler: () => {
-					if (voiceState.isConnected && voiceRoom) {
-						toggleVideoRoom(voiceRoom);
-						return true;
-					}
-					return false;
-				},
-				description: 'Toggle camera',
+			closeSidebarOverlay: () => {
+				if (!(showSidebar && sidebarIsOverlay)) return false;
+				showSidebar = false;
+				return true;
 			},
-			// Ctrl+Shift+S — Toggle screen share
-			{
-				key: 'S',
-				ctrl: true,
-				shift: true,
-				handler: () => {
-					if (voiceState.isConnected && voiceRoom) {
-						toggleScreenShareRoom(voiceRoom);
-						return true;
-					}
-					return false;
-				},
-				description: 'Toggle screen share',
+			closeMembersOverlay: () => {
+				if (!(showMembers && !isDesktop)) return false;
+				showMembers = false;
+				return true;
 			},
-			// Ctrl+[ — Previous server
-			{
-				key: '[',
-				ctrl: true,
-				handler: () => {
-					navigateServer(-1);
-					return true;
-				},
-				description: 'Navigate to previous server',
-			},
-			// Ctrl+] — Next server
-			{
-				key: ']',
-				ctrl: true,
-				handler: () => {
-					navigateServer(1);
-					return true;
-				},
-				description: 'Navigate to next server',
-			},
-			// Ctrl+E — Toggle emoji picker
-			{
-				key: 'e',
-				ctrl: true,
-				handler: () => {
-					handleInputEmojiPicker();
-					return true;
-				},
-				description: 'Toggle emoji picker',
-			},
-			// Shift+Escape — Mark channel as read
-			{
-				key: 'Escape',
-				shift: true,
-				handler: () => {
-					markActiveChannelRead();
-					return true;
-				},
-				description: 'Mark channel as read',
-			},
-			// PageUp — Scroll messages up
-			{
-				key: 'PageUp',
-				handler: (e) => {
-					// Don't capture when in an input/textarea
-					const tag = (e.target as HTMLElement)?.tagName;
-					if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return false;
-					scrollMessageList('pageup');
-					return true;
-				},
-				description: 'Scroll messages up',
-			},
-			// PageDown — Scroll messages down
-			{
-				key: 'PageDown',
-				handler: (e) => {
-					const tag = (e.target as HTMLElement)?.tagName;
-					if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return false;
-					scrollMessageList('pagedown');
-					return true;
-				},
-				description: 'Scroll messages down',
-			},
-			// Home — Jump to oldest loaded message
-			{
-				key: 'Home',
-				handler: (e) => {
-					const tag = (e.target as HTMLElement)?.tagName;
-					if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return false;
-					scrollMessageList('home');
-					return true;
-				},
-				description: 'Jump to oldest message',
-			},
-			// End — Jump to newest message
-			{
-				key: 'End',
-				handler: (e) => {
-					const tag = (e.target as HTMLElement)?.tagName;
-					if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return false;
-					scrollMessageList('end');
-					return true;
-				},
-				description: 'Jump to newest message',
-			},
-		]);
-	}
-
-	function teardownKeybindings(): void {
-		cleanupKeybindings?.();
-		cleanupGlobalHandler?.();
-		cleanupKeybindings = null;
-		cleanupGlobalHandler = null;
-	}
-
-	// --- Push-to-talk ---
-
-	let pttActive = false;
-
-	function handlePTTKeyDown(e: KeyboardEvent): void {
-		if (!audioSettings.pushToTalk || !voiceState.isConnected || !voiceRoom) return;
-		if (e.code !== audioSettings.pttKey) return;
-		if (pttActive) return; // Key repeat
-		// Don't capture when typing in inputs
-		const tag = (e.target as HTMLElement)?.tagName;
-		if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-		e.preventDefault();
-		pttActive = true;
-		voiceRoom.localParticipant.setMicrophoneEnabled(true);
-		voiceState.localMuted = false;
-		updateParticipant(voiceRoom.localParticipant.identity, { isMuted: false });
-	}
-
-	function handlePTTKeyUp(e: KeyboardEvent): void {
-		if (!audioSettings.pushToTalk || !voiceRoom) return;
-		if (e.code !== audioSettings.pttKey) return;
-		if (!pttActive) return;
-		releasePTT();
-	}
-
-	/** Release PTT — shared by keyup and window blur. */
-	function releasePTT(): void {
-		if (!pttActive || !voiceRoom) return;
-		pttActive = false;
-		voiceRoom.localParticipant.setMicrophoneEnabled(false);
-		voiceState.localMuted = true;
-		updateParticipant(voiceRoom.localParticipant.identity, { isMuted: true });
-	}
-
-	/** Release PTT when window loses focus (keyup won't fire). */
-	function handleWindowBlur(): void {
-		if (pttActive) releasePTT();
+			markActiveChannelRead,
+			scrollMessageList,
+			openInputEmojiPicker: handleInputEmojiPicker,
+			getVoiceRoom: () => voiceRoom,
+		});
 	}
 
 	// Sync output volume to all remote audio tracks when slider changes.
@@ -1092,18 +837,12 @@
 	}
 
 	onMount(() => {
-		setupKeybindings();
-		document.addEventListener('keydown', handlePTTKeyDown);
-		document.addEventListener('keyup', handlePTTKeyUp);
-		window.addEventListener('blur', handleWindowBlur);
+		initShortcuts();
 		startConnection();
 	});
 
 	onDestroy(() => {
-		teardownKeybindings();
-		document.removeEventListener('keydown', handlePTTKeyDown);
-		document.removeEventListener('keyup', handlePTTKeyUp);
-		window.removeEventListener('blur', handleWindowBlur);
+		shortcutHandle?.cleanup();
 		stopTokenRefresh();
 
 		if (rateLimitTimer) {
