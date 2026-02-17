@@ -1,11 +1,8 @@
 <script lang="ts">
 	import { onMount, onDestroy, tick } from 'svelte';
-	import { IRCConnection } from '$lib/irc/connection';
-	import { negotiateCaps } from '$lib/irc/cap';
-	import { authenticateSASL } from '$lib/irc/sasl';
-	import { registerHandler, resetHandlerState, setSuppressSelfJoins } from '$lib/irc/handler';
+	import type { IRCConnection } from '$lib/irc/connection';
 	import { join, chathistory, markread, tagmsg, redact, privmsg, topic, monitor, who, escapeTagValue } from '$lib/irc/commands';
-	import { getCredentials, getToken, fetchToken, startTokenRefresh, stopTokenRefresh, clearCredentials, clearToken } from '$lib/api/auth';
+	import { stopTokenRefresh, clearCredentials, clearToken } from '$lib/api/auth';
 	import { connectToVoice, disconnectVoice, toggleMute as toggleMuteRoom, toggleDeafen as toggleDeafenRoom, toggleVideo as toggleVideoRoom, toggleScreenShare as toggleScreenShareRoom } from '$lib/voice/room';
 	import {
 		handleVoiceChannelClick as voiceChannelClick,
@@ -16,20 +13,13 @@
 	import { voiceState, updateParticipant } from '$lib/state/voice.svelte';
 	import { audioSettings } from '$lib/state/audioSettings.svelte';
 	import type { Room } from 'livekit-client';
-	import {
-		setConnecting,
-		setConnected,
-		setDisconnected,
-		setReconnecting,
-		connectionState,
-	} from '$lib/state/connection.svelte';
-	import { rehydrate, userState } from '$lib/state/user.svelte';
+	import { connectionState } from '$lib/state/connection.svelte';
+	import { userState } from '$lib/state/user.svelte';
 	import {
 		channelUIState,
 		channelState,
 		getChannel,
 		setActiveChannel,
-		setCategories,
 		isDMTarget,
 		openDM,
 		clearChannelMembers as clearSimpleMembers,
@@ -38,8 +28,9 @@
 	import { getMember, clearChannel as clearRichMembers } from '$lib/state/members.svelte';
 	import { getCursors, getMessage, getMessages, redactMessage, addReaction, removeReaction, updateSendState, addMessage, pinMessage, unpinMessage, isPinned } from '$lib/state/messages.svelte';
 	import type { Message } from '$lib/state/messages.svelte';
-	import { addServer, getActiveServer } from '$lib/state/servers.svelte';
+	import { getActiveServer } from '$lib/state/servers.svelte';
 	import { installGlobalHandler, registerKeybindings } from '$lib/keybindings';
+	import { initConnection } from '$lib/connection/lifecycle';
 	import ChannelSidebar from '../../components/ChannelSidebar.svelte';
 	import HeaderBar from '../../components/HeaderBar.svelte';
 	import MessageList from '../../components/MessageList.svelte';
@@ -61,35 +52,9 @@
 	import ResizeHandle from '../../components/ResizeHandle.svelte';
 	import WelcomeModal from '../../components/WelcomeModal.svelte';
 	import { appSettings, SIDEBAR_MIN, SIDEBAR_MAX, MEMBER_MIN, MEMBER_MAX } from '$lib/state/appSettings.svelte';
-	import { applyServerTheme, clearServerTheme, parseServerTheme } from '$lib/state/theme.svelte';
-	import { setServerConfig, resetServerConfig } from '$lib/state/serverConfig.svelte';
-	import { setCustomEmoji, clearCustomEmoji } from '$lib/emoji';
-
-	/** accord.json config shape (subset we consume). */
-	interface AccordConfig {
-		name?: string;
-		icon?: string;
-		filesUrl?: string;
-		description?: string;
-		welcome?: {
-			message?: string;
-			suggested_channels?: string[];
-		};
-		channels?: {
-			categories?: Array<{
-				name: string;
-				channels: string[];
-				voice?: boolean;
-				readonly?: boolean;
-			}>;
-		};
-		roles?: Record<string, { name: string; color: string | null }>;
-		theme?: {
-			accent?: string;
-			surfaces?: Record<string, string>;
-		};
-		emoji?: Record<string, string>;
-	}
+	import { clearServerTheme } from '$lib/state/theme.svelte';
+	import { resetServerConfig } from '$lib/state/serverConfig.svelte';
+	import { clearCustomEmoji } from '$lib/emoji';
 
 	let conn: IRCConnection | null = $state(null);
 	let voiceRoom: Room | null = $state(null);
@@ -151,9 +116,6 @@
 
 	// MONITOR tracking: nicks currently being monitored for presence
 	let monitoredNicks = new Set<string>();
-
-	// Guard against overlapping reconnect attempts
-	let _reconnecting = false;
 
 	/**
 	* Update MONITOR list for the given channel.
@@ -527,300 +489,52 @@
 	}
 
 	/**
-	* Fetch accord.json from the files server.
-	* Returns parsed config or null on failure.
+	* Start the connection lifecycle using the extracted module.
+	* Wires up callbacks so the lifecycle module can communicate state
+	* changes back to the component without touching reactive state directly.
 	*/
-	async function fetchAccordConfig(filesUrl: string): Promise<AccordConfig | null> {
-		try {
-			const token = getToken();
-			const headers: Record<string, string> = {};
-			if (token) {
-				headers['Authorization'] = `Bearer ${token}`;
-			}
-			const res = await fetch(`${filesUrl}/.well-known/accord.json`, { headers });
-			if (!res.ok) return null;
-			return (await res.json()) as AccordConfig;
-		} catch {
-			return null;
-		}
-	}
-
-	/**
-	* Connect to IRC, authenticate, fetch accord.json, populate state,
-	* and auto-join channels.
-	*/
-	async function initConnection(): Promise<void> {
-		const creds = await getCredentials();
-		if (!creds) {
-			error = 'No saved credentials. Please log in.';
-			initializing = false;
-			return;
-		}
-
-		// Rehydrate user state from localStorage
-		rehydrate();
-
-		// Determine server URLs from localStorage (set during login)
-		const serverUrl = localStorage.getItem('accord:serverUrl')
-			?? (import.meta.env.DEV ? `ws://${window.location.hostname}:8097` : null);
-		if (!serverUrl) {
-			error = 'No server URL configured. Please log in again.';
-			initializing = false;
-			return;
-		}
-		const filesUrl = localStorage.getItem('accord:filesUrl') ?? null;
-
-		error = null;
-
-		try {
-			// 1. Create and connect
-			conn = new IRCConnection({ url: serverUrl });
-			setConnecting();
-			await conn.connect();
-			setConnected();
-
-			// 2. Register message handler (before sending any commands)
-			registerHandler(conn);
-
-			// 3. CAP negotiation + NICK/USER
-			// CAP LS must be sent before NICK/USER to prevent premature registration
-			const capPromise = negotiateCaps(conn);
-			conn.send(`NICK ${creds.account}`);
-			conn.send(`USER ${creds.account} 0 * :${creds.account}`);
-			await capPromise;
-
-			// 4. SASL authentication
-			await authenticateSASL(conn, creds.account, creds.password);
-
-			// 4b. Fetch initial JWT and start refresh loop with auth expiry detection
-			if (filesUrl) {
-				try {
-					await fetchToken(filesUrl, creds.account, creds.password);
-					startTokenRefresh(filesUrl, () => {
-						authExpired = true;
-					});
-				} catch {
-					// JWT fetch failure at startup is not fatal — file uploads won't work
-					// but chat still functions. Auth expiry modal fires on refresh failure.
+	async function startConnection(): Promise<void> {
+		await initConnection({
+			onConnection(c) {
+				conn = c;
+			},
+			onError(message) {
+				error = message;
+				// Clean up the partially-connected socket to prevent background reconnect attempts
+				if (conn) {
+					try { conn.disconnect(); } catch { /* ignore */ }
 				}
-			}
-
-			// 5. Fetch accord.json
-			const config = filesUrl ? await fetchAccordConfig(filesUrl) : null;
-
-			// 5b. Store config for ServerSettings modal
-			if (config) {
-				setServerConfig(config);
-			}
-
-			// 6. Register server in state
-			const serverName = config?.name ?? 'IRC Server';
-			const serverIcon = config?.icon ?? null;
-			addServer({
-				id: 'default',
-				name: serverName,
-				url: serverUrl,
-				filesUrl,
-				icon: serverIcon && filesUrl ? `${filesUrl}${serverIcon}` : null,
-			});
-
-			// Update window title with server name (sets Tauri window title too)
-			document.title = serverName;
-
-			// Apply server theme overrides if configured
-			if (config?.theme) {
-				const overrides = parseServerTheme(config.theme);
-				if (Object.keys(overrides).length > 0) {
-					applyServerTheme(overrides);
-				}
-			}
-
-			// 6b. Load custom emoji from accord.json
-			if (config?.emoji && typeof config.emoji === 'object') {
-				// Resolve relative emoji URLs against the files server
-				const resolved: Record<string, string> = {};
-				for (const [name, url] of Object.entries(config.emoji)) {
-					if (url.startsWith('http://') || url.startsWith('https://')) {
-						resolved[name] = url;
-					} else if (filesUrl) {
-						resolved[name] = `${filesUrl}${url}`;
-					} else {
-						resolved[name] = url;
+			},
+			onInitDone() {
+				initializing = false;
+			},
+			onAuthExpired() {
+				authExpired = true;
+			},
+			onWelcome(config) {
+				welcomeConfig = config;
+			},
+			clearChannelMembers,
+			clearMonitoredNicks() {
+				monitoredNicks.clear();
+			},
+			addMonitoredNicks(nicks) {
+				for (const n of nicks) monitoredNicks.add(n);
+			},
+			async handleVoiceReconnect() {
+				if (voiceState.currentRoom && voiceRoom) {
+					const voiceChannel = voiceState.currentRoom;
+					try {
+						await disconnectVoice(voiceRoom);
+						voiceRoom = null;
+						await handleVoiceChannelClick(voiceChannel);
+					} catch {
+						voiceRoom = null;
 					}
 				}
-				setCustomEmoji(resolved);
-			}
-
-			// 7. Populate categories from accord.json
-			const categories = config?.channels?.categories ?? [
-				{ name: 'Channels', channels: ['#general'] },
-			];
-			setCategories(categories);
-
-			// 8. Auto-join all channels from categories
-			const allChannels = categories.flatMap((cat) => cat.channels);
-			if (allChannels.length > 0) {
-				join(conn, allChannels);
-			}
-
-			// 9. Fetch initial message history for all text channels.
-			// CHATHISTORY LATEST loads the most recent messages from the server.
-			// This runs immediately after JOIN so message buffers are populated
-			// before the UI renders (no empty channel flash on app restart).
-			const textChannels = categories
-				.filter((cat) => !cat.voice)
-				.flatMap((cat) => cat.channels);
-			for (const channel of textChannels) {
-				chathistory(conn, 'LATEST', channel, '*', '50');
-			}
-
-			// 10. Set first text channel as active
-			const firstTextCategory = categories.find((cat) => !cat.voice);
-			const firstChannel = firstTextCategory?.channels[0] ?? allChannels[0];
-			if (firstChannel) {
-				setActiveChannel(firstChannel);
-			}
-
-			// 10b. Show welcome modal on first join (once per server)
-			if (config?.welcome?.message) {
-				const serverId = serverUrl;
-				const dismissKey = `accord:welcome-dismissed:${serverId}`;
-				if (!localStorage.getItem(dismissKey)) {
-					welcomeConfig = {
-						serverName: config.name ?? 'IRC Server',
-						message: config.welcome.message,
-						suggestedChannels: config.welcome.suggested_channels ?? [],
-					};
-				}
-			}
-
-			// 11. Register reconnect event handlers
-			conn.on('reconnecting', (attempt: number) => {
-				setReconnecting(attempt);
-			});
-
-			conn.on('reconnected', () => {
-				handleReconnect(filesUrl);
-			});
-
-			initializing = false;
-		} catch (e) {
-			const msg = e instanceof Error ? e.message : String(e);
-			error = msg;
-			setDisconnected(msg);
-			// Clean up the partially-connected socket to prevent background reconnect attempts
-			if (conn) {
-				try { conn.disconnect(); } catch { /* ignore */ }
-			}
-			initializing = false;
-		}
-	}
-
-	/**
-	* Handle a successful WebSocket reconnect.
-	* Re-authenticates, rejoins channels, fills message gaps, and refreshes JWT.
-	*/
-	async function handleReconnect(filesUrl: string | null): Promise<void> {
-		if (!conn) return;
-		if (_reconnecting) return; // Prevent overlapping reconnect attempts
-		_reconnecting = true;
-
-		const creds = await getCredentials();
-		if (!creds) { _reconnecting = false; return; }
-
-		try {
-			// Clear stale handler state (batch buffers, typing timers)
-			resetHandlerState();
-
-			// 1. Re-register message handler on the new WebSocket
-			registerHandler(conn);
-
-			// 2. CAP negotiation + NICK/USER
-			const capPromise = negotiateCaps(conn);
-			conn.send(`NICK ${creds.account}`);
-			conn.send(`USER ${creds.account} 0 * :${creds.account}`);
-			await capPromise;
-
-			// 3. SASL re-authentication
-			await authenticateSASL(conn, creds.account, creds.password);
-
-			// 4. Refresh accord-files JWT
-			if (filesUrl) {
-				try {
-					await fetchToken(filesUrl, creds.account, creds.password);
-					startTokenRefresh(filesUrl, () => {
-						authExpired = true;
-					});
-				} catch {
-					// Non-fatal — chat still works without JWT
-				}
-			}
-
-			// 5. Re-join all previously joined channels (suppress self-JOIN system messages)
-			const joinedChannels = Array.from(channelState.channels.keys()).filter(
-				(ch) => ch.startsWith('#') || ch.startsWith('&')
-			);
-
-			// Clear stale member lists before re-joining. The server sends fresh
-			// NAMES after each JOIN which will repopulate them. Without this,
-			// users who left while we were disconnected would remain as ghosts.
-			for (const ch of joinedChannels) {
-				clearChannelMembers(ch);
-			}
-
-			setSuppressSelfJoins(joinedChannels.length);
-			if (joinedChannels.length > 0) {
-				join(conn, joinedChannels);
-			}
-
-			// 6. Fill message gaps or load initial history for each channel
-			for (const channel of joinedChannels) {
-				const cursors = getCursors(channel);
-				if (cursors.newestMsgid) {
-					// Have existing messages — fill the gap since last known message
-					chathistory(conn, 'AFTER', channel, `msgid=${cursors.newestMsgid}`, '50');
-				} else {
-					// No messages in buffer — fetch latest history
-					chathistory(conn, 'LATEST', channel, '*', '50');
-				}
-			}
-
-			// 7. Re-establish MONITOR for presence tracking
-			monitoredNicks.clear();
-			const dmNicks = channelUIState.dmConversations.map((dm) => dm.nick);
-			if (dmNicks.length > 0) {
-				monitor(conn, '+', dmNicks);
-				for (const n of dmNicks) monitoredNicks.add(n);
-			}
-			// Also monitor active channel members
-			const activeChannel = channelUIState.activeChannel;
-			if (activeChannel && !isDMTarget(activeChannel)) {
-				updateMonitorForChannel(activeChannel);
-			}
-
-			// 8. Refresh voice connection if was in a voice channel
-			if (voiceState.currentRoom && voiceRoom) {
-				const voiceChannel = voiceState.currentRoom;
-				try {
-					await disconnectVoice(voiceRoom);
-					voiceRoom = null;
-					// Re-join the voice channel
-					await handleVoiceChannelClick(voiceChannel);
-				} catch {
-					// Voice reconnect failure is non-fatal
-					voiceRoom = null;
-				}
-			}
-
-			// 9. Mark connected
-			setConnected();
-			error = null;
-		} catch (e) {
-			console.error('Reconnect recovery failed:', e);
-			// Connection will retry via the existing backoff mechanism
-		} finally {
-			_reconnecting = false;
-		}
+			},
+			updateMonitorForChannel,
+		});
 	}
 
 	/** Mark the active channel as read and sync via MARKREAD. */
@@ -1382,7 +1096,7 @@
 		document.addEventListener('keydown', handlePTTKeyDown);
 		document.addEventListener('keyup', handlePTTKeyUp);
 		window.addEventListener('blur', handleWindowBlur);
-		initConnection();
+		startConnection();
 	});
 
 	onDestroy(() => {
