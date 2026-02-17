@@ -8,6 +8,8 @@
 	import { getCustomEmojiUrl } from '$lib/emoji';
 	import { extractPreviewUrl, fetchPreview, getCachedPreview, type LinkPreview } from '$lib/files/preview';
 	import { getToken } from '$lib/api/auth';
+	import { getMember } from '$lib/state/members.svelte';
+	import { getRoleColor } from '$lib/state/serverConfig.svelte';
 	import type { Message } from '$lib/state/messages.svelte';
 
 	interface Props {
@@ -67,7 +69,15 @@
 
 	let pinned = $derived(isPinned(message.target, message.msgid));
 
-	let color = $derived(nickColor(message.account, themeState.current));
+	let color = $derived.by(() => {
+		// Role color takes priority over hash-based nick coloring (highest-ranked role wins)
+		const member = getMember(message.target, message.nick);
+		if (member?.highestMode) {
+			const roleColor = getRoleColor(member.highestMode);
+			if (roleColor) return roleColor;
+		}
+		return nickColor(message.account, themeState.current);
+	});
 
 	/** Whether this message mentions the current user via @nick. */
 	let isMention = $derived.by(() => {

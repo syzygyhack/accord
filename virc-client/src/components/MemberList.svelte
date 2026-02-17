@@ -4,20 +4,22 @@
 	import { userState } from '$lib/state/user.svelte';
 	import { nickColor } from '$lib/irc/format';
 	import { themeState } from '$lib/state/theme.svelte';
+	import { getRoleColor } from '$lib/state/serverConfig.svelte';
 	import { formatMessage } from '$lib/irc/parser';
 	import type { IRCConnection } from '$lib/irc/connection';
 	import UserProfilePopout from './UserProfilePopout.svelte';
 
 	/**
 	* Default role definitions matching virc-files/src/routes/config.ts.
-	* When a virc.json config is loaded, roles could be overridden from there.
+	* Used for display names; colors now come from getRoleColor() which
+	* respects virc.json overrides.
 	*/
-	const ROLE_MAP: Record<string, { name: string; color: string | null }> = {
-		'~': { name: 'Owner', color: '#e0a040' },
-		'&': { name: 'Admin', color: '#e05050' },
-		'@': { name: 'Moderator', color: '#50a0e0' },
-		'%': { name: 'Helper', color: '#50e0a0' },
-		'+': { name: 'Member', color: null },
+	const ROLE_MAP: Record<string, { name: string }> = {
+		'~': { name: 'Owner' },
+		'&': { name: 'Admin' },
+		'@': { name: 'Moderator' },
+		'%': { name: 'Helper' },
+		'+': { name: 'Member' },
 	};
 
 	/** Ordered list of mode prefixes from highest to lowest. */
@@ -144,8 +146,8 @@
 	/** Get nick color: role color if available, otherwise hash-based. */
 	function getMemberColor(member: Member): string {
 		if (member.highestMode) {
-			const role = ROLE_MAP[member.highestMode];
-			if (role?.color) return role.color;
+			const color = getRoleColor(member.highestMode);
+			if (color) return color;
 		}
 		return nickColor(member.account, themeState.current);
 	}

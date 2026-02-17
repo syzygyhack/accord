@@ -55,6 +55,7 @@
 	import SearchPanel from '../../components/SearchPanel.svelte';
 	import UserProfilePopout from '../../components/UserProfilePopout.svelte';
 	import ResizeHandle from '../../components/ResizeHandle.svelte';
+	import WelcomeModal from '../../components/WelcomeModal.svelte';
 	import { appSettings, SIDEBAR_MIN, SIDEBAR_MAX, MEMBER_MIN, MEMBER_MAX } from '$lib/state/appSettings.svelte';
 	import { applyServerTheme, clearServerTheme, parseServerTheme } from '$lib/state/theme.svelte';
 	import { setServerConfig, resetServerConfig } from '$lib/state/serverConfig.svelte';
@@ -136,6 +137,9 @@
 
 	// Auth expiry state
 	let authExpired = $state(false);
+
+	// Welcome modal state
+	let welcomeConfig: { serverName: string; message: string; suggestedChannels: string[] } | null = $state(null);
 
 	// Rate limit state
 	let rateLimitSeconds = $state(0);
@@ -844,7 +848,20 @@
 				setActiveChannel(firstChannel);
 			}
 
-			// 10. Register reconnect event handlers
+			// 10b. Show welcome modal on first join (once per server)
+			if (config?.welcome?.message) {
+				const serverId = serverUrl;
+				const dismissKey = `virc:welcome-dismissed:${serverId}`;
+				if (!localStorage.getItem(dismissKey)) {
+					welcomeConfig = {
+						serverName: config.name ?? 'IRC Server',
+						message: config.welcome.message,
+						suggestedChannels: config.welcome.suggested_channels ?? [],
+					};
+				}
+			}
+
+			// 11. Register reconnect event handlers
 			conn.on('reconnecting', (attempt: number) => {
 				setReconnecting(attempt);
 			});
@@ -1179,6 +1196,21 @@
 	/** Close user profile popout. */
 	function closeProfilePopout(): void {
 		profilePopout = null;
+	}
+
+	/** Dismiss the welcome modal and persist in localStorage. */
+	function dismissWelcome(): void {
+		const serverUrl = localStorage.getItem('virc:serverUrl');
+		if (serverUrl) {
+			localStorage.setItem(`virc:welcome-dismissed:${serverUrl}`, '1');
+		}
+		welcomeConfig = null;
+	}
+
+	/** Handle channel click from welcome modal: switch to the channel. */
+	function handleWelcomeJoinChannel(channel: string): void {
+		const normalized = channel.startsWith('#') ? channel : `#${channel}`;
+		setActiveChannel(normalized);
 	}
 
 	// ---------------------------------------------------------------------------
@@ -1787,6 +1819,17 @@
 
 <!-- Auth expiry modal -->
 <AuthExpiredModal visible={authExpired} />
+
+<!-- Welcome modal (first join) -->
+{#if welcomeConfig}
+	<WelcomeModal
+		serverName={welcomeConfig.serverName}
+		message={welcomeConfig.message}
+		suggestedChannels={welcomeConfig.suggestedChannels}
+		ondismiss={dismissWelcome}
+		onjoin={handleWelcomeJoinChannel}
+	/>
+{/if}
 
 <!-- User Settings modal -->
 {#if showSettings}

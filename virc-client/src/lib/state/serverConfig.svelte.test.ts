@@ -3,6 +3,7 @@ import {
 	serverConfig,
 	setServerConfig,
 	resetServerConfig,
+	getRoleColor,
 	type VircConfig,
 } from './serverConfig.svelte';
 
@@ -125,5 +126,82 @@ describe('serverConfig state', () => {
 		const config: VircConfig = { name: 'No Theme' };
 		setServerConfig(config);
 		expect(serverConfig.config?.theme).toBeUndefined();
+	});
+});
+
+describe('getRoleColor', () => {
+	beforeEach(() => {
+		resetServerConfig();
+	});
+
+	it('returns null for null mode', () => {
+		expect(getRoleColor(null)).toBeNull();
+	});
+
+	it('returns default color for owner mode when no config', () => {
+		expect(getRoleColor('~')).toBe('#e0a040');
+	});
+
+	it('returns default color for admin mode when no config', () => {
+		expect(getRoleColor('&')).toBe('#e05050');
+	});
+
+	it('returns default color for op mode when no config', () => {
+		expect(getRoleColor('@')).toBe('#50a0e0');
+	});
+
+	it('returns null for + mode (no default color)', () => {
+		expect(getRoleColor('+')).toBeNull();
+	});
+
+	it('returns null for unknown mode', () => {
+		expect(getRoleColor('?')).toBeNull();
+	});
+
+	it('uses virc.json roles when config is set', () => {
+		setServerConfig({
+			name: 'Custom',
+			roles: {
+				'~': { name: 'Founder', color: '#ff0000' },
+				'@': { name: 'Mod', color: '#00ff00' },
+				'+': { name: 'VIP', color: '#0000ff' },
+			},
+		});
+		expect(getRoleColor('~')).toBe('#ff0000');
+		expect(getRoleColor('@')).toBe('#00ff00');
+		expect(getRoleColor('+')).toBe('#0000ff');
+	});
+
+	it('returns null when virc.json role has null color', () => {
+		setServerConfig({
+			name: 'Custom',
+			roles: {
+				'@': { name: 'Mod', color: null },
+			},
+		});
+		expect(getRoleColor('@')).toBeNull();
+	});
+
+	it('returns null for mode not in virc.json roles', () => {
+		setServerConfig({
+			name: 'Custom',
+			roles: {
+				'@': { name: 'Mod', color: '#50a0e0' },
+			},
+		});
+		// '~' is not in custom roles, but custom roles override ALL defaults
+		expect(getRoleColor('~')).toBeNull();
+	});
+
+	it('reverts to defaults after resetServerConfig', () => {
+		setServerConfig({
+			name: 'Custom',
+			roles: {
+				'~': { name: 'Founder', color: '#ff0000' },
+			},
+		});
+		expect(getRoleColor('~')).toBe('#ff0000');
+		resetServerConfig();
+		expect(getRoleColor('~')).toBe('#e0a040');
 	});
 });
