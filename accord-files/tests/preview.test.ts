@@ -214,7 +214,9 @@ describe("assertPublicResolution", () => {
   test("allows hostname resolving to public IP", async () => {
     setDnsResolver(async () => ["93.184.216.34"]);
     try {
-      await expect(assertPublicResolution("example.com")).resolves.toBeUndefined();
+      const result = await assertPublicResolution("example.com");
+      expect(result.v4).toEqual(["93.184.216.34"]);
+      expect(result.v6).toEqual(["93.184.216.34"]);
     } finally {
       resetDnsResolver();
     }
@@ -222,7 +224,8 @@ describe("assertPublicResolution", () => {
 
   test("skips DNS for raw IPv4 addresses", async () => {
     // Raw IP should not trigger DNS resolution — already checked by isPrivateHost
-    await expect(assertPublicResolution("8.8.8.8")).resolves.toBeUndefined();
+    const result = await assertPublicResolution("8.8.8.8");
+    expect(result).toEqual({ v4: [], v6: [] });
   });
 
   test("rejects when DNS resolution fails", async () => {

@@ -169,11 +169,14 @@ function validateUrl(raw: string): URL | null {
  * Resolve a hostname via DNS and check that all resolved IPs are public.
  * Blocks DNS rebinding attacks where a public hostname resolves to a private IP.
  * Skips resolution for raw IP addresses (already checked by isPrivateHost).
+ *
+ * Returns the resolved IPv4 and IPv6 addresses so callers can reuse them
+ * without a second DNS lookup.
  */
-async function assertPublicResolution(hostname: string): Promise<void> {
+async function assertPublicResolution(hostname: string): Promise<{ v4: string[]; v6: string[] }> {
   // If hostname is already an IP literal, isPrivateHost already covered it
   if (parseIPv4(hostname) || hostname === "::1" || hostname.startsWith("[")) {
-    return;
+    return { v4: [], v6: [] };
   }
 
   // Resolve both A (IPv4) and AAAA (IPv6) records to prevent bypasses
@@ -206,6 +209,8 @@ async function assertPublicResolution(hostname: string): Promise<void> {
       throw new Error(`Hostname ${hostname} resolves to private IPv6`);
     }
   }
+
+  return { v4: v4Addrs, v6: v6Addrs };
 }
 
 /**
@@ -284,17 +289,9 @@ async function resolvePinnedUrl(parsed: URL): Promise<{ fetchUrl: string; hostHe
     return { fetchUrl: parsed.href, hostHeader };
   }
 
-  // Resolve and validate all IPs
-  await assertPublicResolution(hostname);
-
-  // Resolve and pin the IP we'll actually connect to, preventing rebinding.
-  // Try IPv4 first (simpler URL construction), fall back to IPv6.
-  const [v4Result, v6Result] = await Promise.allSettled([
-    dnsResolve4(hostname),
-    dnsResolve6(hostname),
-  ]);
-  const v4Addrs = v4Result.status === "fulfilled" ? v4Result.value : [];
-  const v6Addrs = v6Result.status === "fulfilled" ? v6Result.value : [];
+  // Resolve, validate all IPs are public, and reuse the results to pin.
+  // Single DNS lookup prevents TOCTOU rebinding and avoids duplicate resolution.
+  const { v4: v4Addrs, v6: v6Addrs } = await assertPublicResolution(hostname);
 
   if (v4Addrs.length > 0) {
     // Pin to the first resolved IPv4 address

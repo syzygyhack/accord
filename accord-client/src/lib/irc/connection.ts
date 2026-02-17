@@ -5,6 +5,15 @@ export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'rec
 
 type EventName = 'message' | 'close' | 'error' | 'reconnecting' | 'reconnected';
 
+/** Typed callback signatures for each IRC connection event. */
+interface IRCEventMap {
+	message: (line: string) => void;
+	close: (ev: CloseEvent) => void;
+	error: (ev: Event) => void;
+	reconnecting: (attempt: number) => void;
+	reconnected: () => void;
+}
+
 interface IRCConnectionOptions {
 	url: string;
 }
@@ -21,7 +30,7 @@ const CONNECT_TIMEOUT_MS = 10_000;
 export class IRCConnection {
 	private url: string;
 	private ws: WebSocket | null = null;
-	private listeners = new Map<EventName, ((...args: any[]) => void)[]>();
+	private listeners = new Map<EventName, ((...args: never[]) => void)[]>();
 	private intentionalClose = false;
 	private reconnectAttempt = 0;
 	private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -133,9 +142,9 @@ export class IRCConnection {
 	/**
 	 * Register an event handler.
 	 */
-	on(event: EventName, handler: (...args: any[]) => void): void {
+	on<E extends EventName>(event: E, handler: IRCEventMap[E]): void {
 		const handlers = this.listeners.get(event) ?? [];
-		handlers.push(handler);
+		handlers.push(handler as (...args: never[]) => void);
 		this.listeners.set(event, handlers);
 	}
 
@@ -143,21 +152,21 @@ export class IRCConnection {
 	 * Remove a previously registered event handler.
 	 * Returns true if the handler was found and removed, false otherwise.
 	 */
-	off(event: EventName, handler: (...args: any[]) => void): boolean {
+	off<E extends EventName>(event: E, handler: IRCEventMap[E]): boolean {
 		const handlers = this.listeners.get(event);
 		if (!handlers) return false;
-		const idx = handlers.indexOf(handler);
+		const idx = handlers.indexOf(handler as (...args: never[]) => void);
 		if (idx === -1) return false;
 		handlers.splice(idx, 1);
 		return true;
 	}
 
-	private emit(event: EventName, ...args: any[]): void {
+	private emit<E extends EventName>(event: E, ...args: Parameters<IRCEventMap[E]>): void {
 		const handlers = this.listeners.get(event);
 		if (handlers) {
 			for (const h of handlers) {
 				try {
-					h(...args);
+					(h as (...a: Parameters<IRCEventMap[E]>) => void)(...args);
 				} catch (err) {
 					console.error(`[IRC] Handler error for event '${event}':`, err);
 				}

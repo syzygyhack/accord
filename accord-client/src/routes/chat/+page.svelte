@@ -58,6 +58,7 @@
 	import { clearServerTheme } from '$lib/state/theme.svelte';
 	import { resetServerConfig } from '$lib/state/serverConfig.svelte';
 	import { clearCustomEmoji } from '$lib/emoji';
+	import { hasLocalStorage } from '$lib/utils/storage';
 
 	let conn: IRCConnection | null = $state(null);
 	let voiceRoom: Room | null = $state(null);
@@ -111,6 +112,9 @@
 	// Rate limit state
 	let rateLimitSeconds = $state(0);
 	let rateLimitTimer: ReturnType<typeof setInterval> | null = null;
+
+	// Voice error auto-dismiss timer ref
+	let voiceErrorTimer: ReturnType<typeof setTimeout> | null = null;
 
 	// Derived: is the active channel a DM?
 	let isActiveDM = $derived(
@@ -219,8 +223,13 @@
 		if (result.ok) {
 			voiceRoom = voiceState.isConnected ? result.room : null;
 		} else {
+			// Clear any pending dismiss timer so a new error gets the full 5s window
+			if (voiceErrorTimer) clearTimeout(voiceErrorTimer);
 			voiceError = result.error;
-			setTimeout(() => { voiceError = null; }, 5_000);
+			voiceErrorTimer = setTimeout(() => {
+				voiceError = null;
+				voiceErrorTimer = null;
+			}, 5_000);
 		}
 	}
 
@@ -307,9 +316,11 @@
 
 	/** Dismiss the welcome modal and persist in localStorage. */
 	function dismissWelcome(): void {
-		const serverUrl = localStorage.getItem('accord:serverUrl');
-		if (serverUrl) {
-			localStorage.setItem(`accord:welcome-dismissed:${serverUrl}`, '1');
+		if (hasLocalStorage()) {
+			const serverUrl = localStorage.getItem('accord:serverUrl');
+			if (serverUrl) {
+				localStorage.setItem(`accord:welcome-dismissed:${serverUrl}`, '1');
+			}
 		}
 		welcomeConfig = null;
 	}
@@ -428,8 +439,10 @@
 		// Best-effort credential cleanup (async, but localStorage clears synchronously)
 		void clearCredentials();
 		clearToken();
-		localStorage.removeItem('accord:serverUrl');
-		localStorage.removeItem('accord:filesUrl');
+		if (hasLocalStorage()) {
+			localStorage.removeItem('accord:serverUrl');
+			localStorage.removeItem('accord:filesUrl');
+		}
 		// Hard navigate — bypasses SvelteKit lifecycle that may be blocked
 		window.location.href = '/login';
 	}
@@ -446,6 +459,11 @@
 		if (rateLimitTimer) {
 			clearInterval(rateLimitTimer);
 			rateLimitTimer = null;
+		}
+
+		if (voiceErrorTimer) {
+			clearTimeout(voiceErrorTimer);
+			voiceErrorTimer = null;
 		}
 
 		// Clean up voice connection.

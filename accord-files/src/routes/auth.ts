@@ -3,6 +3,7 @@ import { SignJWT } from "jose";
 import { env } from "../env.js";
 import { JWT_ISSUER, JWT_AUDIENCE } from "../constants.js";
 import { ergoPost } from "../ergoClient.js";
+import { getJwtSecretKey } from "../middleware/auth.js";
 
 const auth = new Hono();
 
@@ -68,7 +69,6 @@ auth.post("/api/auth", async (c) => {
   }
 
   // Mint JWT
-  const secret = new TextEncoder().encode(env.JWT_SECRET);
   const now = Math.floor(Date.now() / 1000);
   const token = await new SignJWT({
     srv: env.SERVER_ID,
@@ -79,7 +79,7 @@ auth.post("/api/auth", async (c) => {
     .setIssuedAt(now)
     .setExpirationTime(now + env.JWT_EXPIRY)
     .setAudience(JWT_AUDIENCE)
-    .sign(secret);
+    .sign(getJwtSecretKey());
 
   c.header("Cache-Control", "no-store");
   return c.json({ token });

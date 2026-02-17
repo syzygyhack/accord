@@ -144,29 +144,31 @@ const UNSAFE_EXTENSIONS = new Set([
   ".swf",
 ]);
 
+/** Common extension → MIME type map (module-level constant). */
+const MIME_TYPES: Record<string, string> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".svg": "image/svg+xml",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
+  ".mp3": "audio/mpeg",
+  ".ogg": "audio/ogg",
+  ".wav": "audio/wav",
+  ".pdf": "application/pdf",
+  ".txt": "text/plain",
+  ".json": "application/json",
+  ".html": "text/html",
+  ".css": "text/css",
+  ".js": "application/javascript",
+  ".zip": "application/zip",
+};
+
 /** Map common extensions to MIME types. */
 function getMimeType(ext: string): string | null {
-  const map: Record<string, string> = {
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".gif": "image/gif",
-    ".webp": "image/webp",
-    ".svg": "image/svg+xml",
-    ".mp4": "video/mp4",
-    ".webm": "video/webm",
-    ".mp3": "audio/mpeg",
-    ".ogg": "audio/ogg",
-    ".wav": "audio/wav",
-    ".pdf": "application/pdf",
-    ".txt": "text/plain",
-    ".json": "application/json",
-    ".html": "text/html",
-    ".css": "text/css",
-    ".js": "application/javascript",
-    ".zip": "application/zip",
-  };
-  return map[ext] ?? null;
+  return MIME_TYPES[ext] ?? null;
 }
 
 export { files };

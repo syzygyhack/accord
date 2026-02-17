@@ -3,6 +3,15 @@ import { jwtVerify } from "jose";
 import { env } from "../env.js";
 import { JWT_ISSUER, JWT_AUDIENCE } from "../constants.js";
 
+/** Cached JWT secret encoding — avoids re-encoding on every request. */
+let _jwtSecretKey: Uint8Array | null = null;
+export function getJwtSecretKey(): Uint8Array {
+  if (!_jwtSecretKey) {
+    _jwtSecretKey = new TextEncoder().encode(env.JWT_SECRET);
+  }
+  return _jwtSecretKey;
+}
+
 export interface JwtPayload {
   sub: string;
   iss: string;
@@ -21,8 +30,7 @@ export async function authMiddleware(c: Context, next: Next) {
   const token = header.slice(7);
 
   try {
-    const secret = new TextEncoder().encode(env.JWT_SECRET);
-    const { payload } = await jwtVerify(token, secret, {
+    const { payload } = await jwtVerify(token, getJwtSecretKey(), {
       issuer: JWT_ISSUER,
       audience: JWT_AUDIENCE,
       algorithms: ["HS256"],
