@@ -5,142 +5,64 @@ Excludes: S3/R2 storage, mobile layout, PWA/Service Worker, push notifications, 
 
 ---
 
-## High Priority
+## Remaining Gaps
 
-### Virtual Scrolling
-- [ ] MessageList: render only visible messages (~50 at a time) instead of all loaded messages
-- [ ] Maintain scroll anchor when prepending history
-- Spec: FRONTEND.md > Message Area > Scroll Behavior
-
-### Message Hover Menu — Missing Actions
-- [ ] Edit own message (from hover More menu, not just Up arrow)
-- [ ] Copy Text
-- [ ] Copy Link (message permalink)
-- [ ] Mark Unread (set read marker to this message)
-- Spec: FRONTEND.md > Hover Toolbar
-
-### Server Settings Modal
-- [ ] Overview tab (server name, icon upload, description, welcome message)
-- [ ] Channels tab (create/edit/delete/reorder, set categories)
-- [ ] Roles tab (map mode prefixes to names, set role colors)
-- [ ] Members tab (list all, kick/ban, role assignment)
-- [ ] Invites tab (generate links, set expiration, view active)
-- [ ] Appearance tab (theme color overrides, preview)
-- [ ] Moderation tab (auto-mod rules, banned words, slow mode per channel)
-- Spec: FRONTEND.md > Modals & Overlays > Server Settings
-
----
-
-## Medium Priority
-
-### Resizable Columns
-- [ ] Channel sidebar: drag handle, min 180px / max 360px, persist width
-- [ ] Member list: drag handle, min 180px / max 300px, persist width
-- Spec: FRONTEND.md > Column Widths
-
-### Channel Sidebar Gaps
-- [ ] Announcement/read-only channel type (pin icon for +m mode channels)
-- [ ] Create channel `+` button next to category header (visible to ops)
-- [ ] Server name dropdown that opens Server Settings modal
-- Spec: FRONTEND.md > Channel Sidebar
-
-### Member List Gaps
-- [ ] Total member count header ("MEMBERS — 42")
-- [ ] Hover card on member (mini user card without clicking)
-- [ ] Right-click context menu: Kick, Ban, Mute, View Profile (permission-sensitive)
-- Spec: FRONTEND.md > Member List
-
-### Keyboard Shortcuts — Missing
-- [ ] `Ctrl+[` / `Ctrl+]` — navigate servers (prev/next)
-- [ ] `Ctrl+E` — toggle emoji picker
-- [ ] `Shift+Escape` — mark channel as read
-- [ ] `Page Up` / `Page Down` — scroll messages
-- [ ] `Home` — jump to oldest loaded message
-- [ ] `End` — jump to newest message
-- Spec: FRONTEND.md > Keyboard Shortcuts
-
-### Nick Coloring — Light Theme
-- [ ] Use 40% lightness on light theme (currently always 65%)
-- Spec: FRONTEND.md > Nick Coloring
-
-### Mention Highlight on Messages
-- [ ] Apply `--msg-mention-bg` and `--msg-mention-border` to messages that @mention current user
-- Spec: FRONTEND.md > Message Anatomy
-
-### Reaction Bar — Add Button
-- [ ] `+` button at end of reaction row to add a new reaction via emoji picker
-- [ ] Max 20 unique reactions per message, overflow scrolls horizontally
-- Spec: FRONTEND.md > Reactions
-
-### `/join` Slash Command
-- [ ] Add `/join #channel` to SlashCommandMenu and MessageInput command handler
-- Spec: FRONTEND.md > Message Input > Slash Commands
-
-### User Profile Popout Gaps
-- [ ] Registered date (from Ergo `/v1/ns/info` HTTP API)
-- [ ] Avatar URL from `draft/metadata-2` account key
-- [ ] Bio populated from server metadata
+### User Profile Popout — Data Sources
+- [ ] Avatar URL from `draft/metadata-2` account key (prop exists, no data source wired)
+- [ ] Bio populated from server metadata (prop exists, no data source wired)
 - Spec: FRONTEND.md > User Profile Popout
 
-### User Settings Gaps
-- [ ] Notifications tab (currently disabled/greyed out): per-server overrides, notification level defaults
-- [ ] Account tab: email and password change fields
-- Spec: FRONTEND.md > User Settings
+### Accessibility (from code review)
+- [ ] Focus trapping in modals (Settings, ServerSettings, WelcomeModal, etc.)
+- [ ] Keyboard navigation in context menus (arrow keys, Enter, Escape)
+- [ ] Keyboard alternative for drag-and-drop reorder (server list, channel list)
+- [ ] ARIA tab patterns in Settings/ServerSettings tab navigation
+- [ ] Focus management on dialog open (auto-focus first interactive element)
+- Spec: FRONTEND.md > Accessibility
 
-### Server Config Integration Gaps
-- [ ] `welcome.message` — show modal on first join (once per server, dismiss persisted)
-- [ ] `welcome.suggested_channels` — clickable channel pills in welcome modal
-- [ ] `roles.*.color` — override nick hash color in message rendering (currently only in member list)
-- Spec: FRONTEND.md > Server Config Integration
+### Architecture Debt (from code review)
+- [ ] Extract shared ContextMenu component (duplicated in ServerList, ChannelSidebar, MemberList, Message)
+- [ ] Extract connection/voice logic from chat/+page.svelte (2100+ line god component)
+- [ ] Virtual scrolling for member list (currently renders all members)
+- Spec: .cardinal/code-review-final.md
 
-### Header Bar
-- [ ] Channel settings gear button (ops only)
-- Spec: FRONTEND.md > Header Bar
+### Image Loading — Aspect Ratio
+- [ ] Placeholder with correct aspect ratio to prevent layout shift (blur-up transition is done)
+- Spec: FRONTEND.md > Loading States
 
 ---
 
-## Low Priority
+## Completed
 
-### Spoiler Formatting
-- [ ] Input: `||text||` syntax
-- [ ] Wire: `\x11[spoiler]\x11content\x11[/spoiler]\x11`
-- [ ] Render: blurred until clicked
-- Spec: FRONTEND.md > Text Formatting
+### High Priority (all done)
+- [x] Virtual scrolling — MessageList renders ~50 entries, prefix-sum offset cache, spacer divs
+- [x] Message hover menu — Edit, Copy Text, Copy Link, Mark Unread all wired
+- [x] Server Settings modal — all 7 tabs: Overview, Channels, Roles, Members, Invites, Appearance, Moderation
 
-### Code Block Syntax Highlighting
-- [ ] Detect language hint in ` ```lang ` blocks
-- [ ] Apply syntax highlighting to rendered code blocks
-- Spec: FRONTEND.md > Text Formatting
+### Medium Priority (all done)
+- [x] Resizable columns — ResizeHandle component, sidebar 180-360px, member list 180-300px, persisted
+- [x] Channel sidebar — readonly pin icons, ops create channel button, server name dropdown
+- [x] Member list — total count header, hover cards, right-click context menu (kick/ban/mute/profile)
+- [x] Keyboard shortcuts — Ctrl+[/], Ctrl+E, Shift+Escape, PageUp/Down, Home, End
+- [x] Nick coloring — 40% lightness on light theme, 65% on dark/amoled/compact
+- [x] Mention highlight — `--msg-mention-bg` and `--msg-mention-border` applied
+- [x] Reaction bar — '+' add button, overflow scrolling
+- [x] `/join` slash command
+- [x] User profile popout — registered date via Ergo API (`/v1/ns/info` proxy)
+- [x] User Settings — Notifications tab, Account email/password change
+- [x] Server config integration — welcome modal, suggested channels, role colors in messages
+- [x] Header bar — channel settings gear button (ops only)
 
-### Theming Gaps
-- [ ] User toggle to disable server themes (globally and per-server)
-- [ ] Contrast ratio warning when server theme makes text unreadable (< 3:1)
-- Spec: FRONTEND.md > Server-Owner Customization
-
-### Server List Context Menu
-- [ ] Right-click: server settings, mark as read, copy invite link, disconnect, remove
-- Spec: FRONTEND.md > Server List
-
-### Server List Reorder
-- [ ] Drag to reorder servers, persist order locally
-- Spec: FRONTEND.md > Server List
-
-### Channel Sidebar — Drag Reorder
-- [ ] Ops can drag-reorder channels within categories
-- Spec: FRONTEND.md > Channel Sidebar
-
-### Empty State — No Members Online
-- [ ] Member list: "It's quiet... nobody else is online"
-- Spec: FRONTEND.md > Empty States
-
-### Image Loading
-- [ ] Placeholder with correct aspect ratio (prevent layout shift)
-- [ ] Blur-up transition on load
-- Spec: FRONTEND.md > Loading States
-
-### Ergo Config — Channel History Length
-- [x] `channel-length` updated from 2048 to 4096 to match spec
-- Spec: PLAN.md > Ergo Configuration
+### Low Priority (all done)
+- [x] Spoiler formatting — `||text||` input, mIRC wire format, blur-until-click render
+- [x] Code block syntax highlighting — language detection, keyword/string/comment/number highlighting
+- [x] Theming — server theme disable toggles (global + per-server), WCAG contrast warnings
+- [x] Server list context menu — settings, mark read, copy invite link, disconnect, remove
+- [x] Server list drag reorder — persisted to localStorage
+- [x] Channel sidebar drag reorder — ops only, within categories
+- [x] Empty state — "It's quiet... nobody else is online" in member list
+- [x] Image blur-up — 10px blur → smooth unblur on load
+- [x] Ergo config — `channel-length` updated to 4096
 
 ---
 
