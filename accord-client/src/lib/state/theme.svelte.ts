@@ -9,6 +9,8 @@
  * Contrast ratio checking warns when server themes produce unreadable text.
  */
 
+import { hasLocalStorage } from '$lib/utils/storage';
+
 const STORAGE_KEY = 'accord:theme';
 const SERVER_THEME_PREFS_KEY = 'accord:serverThemePrefs';
 
@@ -58,7 +60,7 @@ interface ServerThemePrefs {
 
 function loadServerThemePrefs(): ServerThemePrefs {
 	try {
-		if (typeof localStorage === 'undefined') return { disableAll: false, disabledServers: [] };
+		if (!hasLocalStorage()) return { disableAll: false, disabledServers: [] };
 		const raw = localStorage.getItem(SERVER_THEME_PREFS_KEY);
 		if (raw) {
 			const parsed = JSON.parse(raw);
@@ -74,6 +76,7 @@ function loadServerThemePrefs(): ServerThemePrefs {
 }
 
 function persistServerThemePrefs(prefs: ServerThemePrefs): void {
+	if (!hasLocalStorage()) return;
 	try {
 		localStorage.setItem(SERVER_THEME_PREFS_KEY, JSON.stringify(prefs));
 	} catch {
@@ -165,7 +168,7 @@ function detectPreferredTheme(): Theme {
 
 function load(): Theme {
 	try {
-		if (typeof localStorage === 'undefined') return detectPreferredTheme();
+		if (!hasLocalStorage()) return detectPreferredTheme();
 		const raw = localStorage.getItem(STORAGE_KEY);
 		if (raw && VALID_THEMES.has(raw as Theme)) {
 			return raw as Theme;
@@ -177,6 +180,7 @@ function load(): Theme {
 }
 
 function persist(theme: Theme): void {
+	if (!hasLocalStorage()) return;
 	try {
 		localStorage.setItem(STORAGE_KEY, theme);
 	} catch {

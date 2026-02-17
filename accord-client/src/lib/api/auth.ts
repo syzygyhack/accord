@@ -15,6 +15,8 @@
  *   4. JWT auto-refreshes based on token expiry (default fallback: 50 minutes)
  */
 
+import { hasLocalStorage } from '$lib/utils/storage';
+
 const ACCOUNT_KEY = 'accord:account';
 
 // Legacy key — used for migration and web fallback
@@ -92,7 +94,7 @@ function getTokenExpiryMs(token: string): number | null {
 
 /** Best-effort cleanup of any pending keyring deletion. */
 async function cleanupPendingKeyringDelete(): Promise<void> {
-	if (typeof localStorage === 'undefined') return;
+	if (!hasLocalStorage()) return;
 	const pending = localStorage.getItem(KEYRING_PENDING_DELETE_KEY);
 	if (!pending) return;
 	const keyring = await getKeyring();
@@ -111,7 +113,7 @@ async function cleanupPendingKeyringDelete(): Promise<void> {
 
 /** Check whether the user has stored credentials (i.e. is "logged in"). */
 export function isAuthenticated(): boolean {
-	if (typeof localStorage === 'undefined') return false;
+	if (!hasLocalStorage()) return false;
 	// Check new key first, then legacy
 	return localStorage.getItem(ACCOUNT_KEY) !== null
 		|| localStorage.getItem(LEGACY_CREDENTIALS_KEY) !== null;
@@ -147,7 +149,7 @@ export async function storeCredentials(creds: StoredCredentials): Promise<void> 
  * Tries OS keychain first (with timeout), then falls back to localStorage.
  */
 export async function getCredentials(): Promise<StoredCredentials | null> {
-	if (typeof localStorage === 'undefined') return null;
+	if (!hasLocalStorage()) return null;
 
 	// Best-effort cleanup of any pending keyring deletion (no-op if none)
 	void cleanupPendingKeyringDelete();
@@ -187,7 +189,7 @@ export async function getCredentials(): Promise<StoredCredentials | null> {
 
 /** Clear credentials (logout). */
 export async function clearCredentials(): Promise<void> {
-	if (typeof localStorage === 'undefined') return;
+	if (!hasLocalStorage()) return;
 	const account = localStorage.getItem(ACCOUNT_KEY);
 
 	// Clear localStorage first (sync, reliable)

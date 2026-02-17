@@ -9,8 +9,8 @@ Work required before publishing. Ordered by priority.
 ### ~~Add LICENSE file~~ (DONE)
 - [x] Create `LICENSE` at repo root with MIT text
 
-### Commit uncommitted work
-- [ ] Stage and commit the 14 modified files + 3 untracked files currently in the working tree
+### ~~Commit uncommitted work~~ (DONE)
+- [x] Stage and commit the 14 modified files + 3 untracked files currently in the working tree
 - Includes: voice manager extraction, a11y utilities, navigation extraction, code review fixes
 
 ### ~~Remove hardcoded secret from shipped config~~ (DONE)
@@ -136,7 +136,7 @@ Full project rename. ~200 locations across source, config, tests, and docs.
 - [ ] Move `getMimeType` map to module-level constant (files.ts)
 - [ ] Add typed event map to IRC connection to replace `any` listener types
 - [x] ~~Fix double DNS resolution in preview.ts~~ — resolved via `resolvePinnedUrl()` DNS pinning
-- [ ] Add SSR guard (`hasLocalStorage()`) to remaining bare `localStorage` calls in +page.svelte
+- [x] ~~Add SSR guard (`hasLocalStorage()`) to all bare `localStorage` calls~~ — unified across all state modules, auth, and keybindings
 - [ ] Store `voiceError` auto-dismiss timer refs to prevent premature clearing
 
 ---
@@ -152,8 +152,8 @@ Not required for initial publish. Documented for future work.
 | User avatars / bios | Blocked on IRCv3 `draft/metadata-2` |
 | Screen sharing / video | Audio only for channels; DM video calls work |
 | Multi-server | UI accommodates server list; single-server for now |
-| Theme customization UI | Four themes implemented (dark/light/AMOLED/compact); CSS vars ready for full editor |
-| Custom server emoji | Rendered in emoji picker, tab completion, and messages |
+| Theme customization UI | Four themes implemented (dark/light/AMOLED/compact) with server theme overrides and contrast checking; CSS vars ready for full editor |
+| Custom server emoji | Fully wired: rendered in emoji picker, tab completion, and messages; URLs validated against http(s) |
 | Voice channel access control | Any authenticated user can get a token for any channel name |
 
 ---

@@ -28,6 +28,8 @@ export interface BindingInfo {
 	currentCombo: KeyCombo;
 }
 
+import { hasLocalStorage } from '$lib/utils/storage';
+
 const STORAGE_KEY = 'accord:keybindingOverrides';
 
 /** Active bindings, checked in order. First matching handler that returns true wins. */
@@ -39,7 +41,7 @@ let overrides: Map<string, KeyCombo> = new Map();
 /** Load overrides from localStorage on module init. */
 function loadOverrides(): void {
 	try {
-		if (typeof localStorage === 'undefined') return;
+		if (!hasLocalStorage()) return;
 		const raw = localStorage.getItem(STORAGE_KEY);
 		if (!raw) return;
 		const parsed = JSON.parse(raw) as Record<string, KeyCombo>;
@@ -51,7 +53,7 @@ function loadOverrides(): void {
 
 /** Save overrides to localStorage. */
 function saveOverrides(): void {
-	if (typeof localStorage === 'undefined') return;
+	if (!hasLocalStorage()) return;
 	const obj: Record<string, KeyCombo> = {};
 	for (const [key, combo] of overrides) {
 		obj[key] = { key: combo.key, ctrl: combo.ctrl, alt: combo.alt, shift: combo.shift };
@@ -195,7 +197,7 @@ export function setCustomBinding(description: string, combo: KeyCombo): void {
  */
 export function resetAllBindings(): void {
 	overrides.clear();
-	if (typeof localStorage !== 'undefined') {
+	if (hasLocalStorage()) {
 		localStorage.removeItem(STORAGE_KEY);
 	}
 }
@@ -267,7 +269,7 @@ export function comboFromEvent(e: KeyboardEvent): KeyCombo | null {
 export function _resetForTesting(): void {
 	bindings = [];
 	overrides = new Map();
-	if (typeof localStorage !== 'undefined') {
+	if (hasLocalStorage()) {
 		localStorage.removeItem(STORAGE_KEY);
 	}
 }

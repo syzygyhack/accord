@@ -14,6 +14,7 @@ import {
 	isAuthenticated as hasStoredCredentials,
 	type StoredCredentials,
 } from '../api/auth';
+import { hasLocalStorage } from '$lib/utils/storage';
 
 interface UserStore {
 	account: string | null;
@@ -52,7 +53,7 @@ export async function login(account: string, password: string): Promise<void> {
 export async function logout(): Promise<void> {
 	await clearCredentials();
 	clearToken();
-	if (typeof localStorage !== 'undefined') {
+	if (hasLocalStorage()) {
 		localStorage.removeItem('accord:serverUrl');
 		localStorage.removeItem('accord:filesUrl');
 	}
@@ -81,7 +82,7 @@ export async function getStoredCredentials(): Promise<StoredCredentials | null> 
  * the password is only fetched async when actually needed.
  */
 export function rehydrate(): void {
-	if (typeof localStorage === 'undefined') return;
+	if (!hasLocalStorage()) return;
 	// Check new key first, then legacy
 	const account = localStorage.getItem('accord:account');
 	if (account) {

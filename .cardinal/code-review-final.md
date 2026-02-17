@@ -624,11 +624,39 @@ Lists 8 stores but actual has 15. Missing: `appSettings`, `audioSettings`, `pres
 
 1. **Add focus trapping utility** -- Fixes all modal accessibility issues at once
 2. **Extract shared `<ContextMenu>` component** -- Eliminates 3x duplication, fixes keyboard nav
-3. **Unify localStorage SSR guard strategy** -- Use `hasLocalStorage()` everywhere
+3. ~~**Unify localStorage SSR guard strategy**~~ -- **RESOLVED**: All files now use `hasLocalStorage()`
 4. **Standardize API error return patterns** -- Pick one approach across all API modules
 5. **Create CSS design tokens for shadows, overlays, z-index** -- Fixes ~20 hardcoded value issues
-6. **Fix channel prefix checks** -- Use `isDMTarget()` or a shared `isChannel()` helper consistently
+6. ~~**Fix channel prefix checks**~~ -- **RESOLVED**: Already consistent (all check both `#` and `&`)
 7. **Add tests for `lifecycle.ts`, `messageActions.ts`, `shortcuts.ts`** -- Largest untested modules
-8. **Replace `#fff` with `var(--text-inverse)`** -- Quick grep-and-replace
+8. ~~**Replace `#fff` with `var(--text-inverse)`**~~ -- **RESOLVED**: Components already use `var(--text-inverse, #fff)` fallback pattern
 9. **Add syntax highlight CSS custom properties** -- Makes code blocks theme-aware
-10. **Update README stats and TODO.md stale items** -- Documentation accuracy
+10. ~~**Update README stats and TODO.md stale items**~~ -- **RESOLVED**: Stats and stale items updated
+
+---
+
+## Post-Review Fix Log
+
+### Fixes Applied (task_3da8ac21-f6e)
+
+| ID | Issue | Resolution |
+|----|-------|------------|
+| CR-F-INC-03 | Inconsistent localStorage SSR guards | **FIXED**: Replaced all inline `typeof localStorage` checks with `hasLocalStorage()` in appSettings.svelte.ts, theme.svelte.ts, user.svelte.ts, keybindings.ts, auth.ts |
+| CR-F-NEW-05 | ResizeHandle has ARIA but no keyboard handler | **FIXED**: Added Arrow key (10px step), Home/End (min/max) keyboard support + focus-visible style |
+| CR-F067 | Missing SSR guards for localStorage | **FIXED**: Added `hasLocalStorage()` guards to theme.svelte.ts `persist()` and `persistServerThemePrefs()` |
+| CR-F016 | Textarea missing focus ring | **Already fixed**: Has `:focus-visible` with accent outline (MessageInput.svelte:1024-1028) |
+| CR-F074 | Hardcoded `#fff` throughout | **Already fixed**: Components use `var(--text-inverse, #fff)` fallback pattern |
+| CR-F075 | Non-existent `--status-error` token | **Already fixed**: No references found in codebase |
+| CR-F-INC-02 | Inconsistent channel prefix checks | **Already fixed**: handler.ts:593 checks both `#` and `&`; all other locations consistent |
+| CR-F062 | rawTarget not null-checked | **Already fixed**: All handlers guard with `if (!rawTarget) return` |
+| CR-F060 | getMessage not reactive | **Already fixed**: Reads `_version` at line 176 |
+| CR-F001 | TOCTOU DNS rebinding | **Already fixed**: `resolvePinnedUrl()` pins resolved IP |
+| CR-F007 | Missing IPv6 all-zeros check | **Already fixed**: `::` check at line 117, `100::/64` and `2001:db8::/32` at lines 124-125 |
+| CR-F006 | OG tag XSS | **Already fixed**: `sanitizeOgValue()` strips HTML tags |
+| CR-F-NEW-03 | Custom emoji URL validation | **Already fixed**: lifecycle.ts validates http(s) only |
+| CR-F-NEW-04 | WebSocket URL validation | **Already fixed**: Login validates `ws://` or `wss://` pattern |
+| CR-F042 | Magic string `_input_` | **Already fixed**: Uses `__emoji_input__` (double-underscore prefix) |
+| CR-F071 | audioSettings validation | **Already fixed**: videoQuality validated, outputVolume clamped to 0-200 |
+| CR-F008 | CSS injection via role colors | **Already fixed**: `isSafeColor()` validates against regex |
+| CR-F041 | renderCodeBlocks dead code | **Intentional**: Exported standalone utility with 12+ tests; documented as step 0 in pipeline comment. Not called in production but available as public API |
+| Docs | README stats and TODO.md stale items | **FIXED**: Updated commit count, source lines, stale TODO items, Known Deferrals contradictions |

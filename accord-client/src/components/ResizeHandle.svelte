@@ -54,6 +54,30 @@
 		document.body.style.cursor = '';
 		document.body.style.userSelect = '';
 	}
+
+	const STEP = 10; // pixels per arrow key press
+
+	function handleKeyDown(e: KeyboardEvent): void {
+		let delta = 0;
+		if (e.key === 'ArrowLeft') {
+			delta = side === 'left' ? -STEP : STEP;
+		} else if (e.key === 'ArrowRight') {
+			delta = side === 'left' ? STEP : -STEP;
+		} else if (e.key === 'Home') {
+			onresize?.(min);
+			e.preventDefault();
+			return;
+		} else if (e.key === 'End') {
+			onresize?.(max);
+			e.preventDefault();
+			return;
+		} else {
+			return;
+		}
+		e.preventDefault();
+		const clamped = Math.max(min, Math.min(max, width + delta));
+		onresize?.(clamped);
+	}
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
@@ -71,6 +95,7 @@
 	onpointermove={handlePointerMove}
 	onpointerup={handlePointerUp}
 	onpointercancel={handlePointerUp}
+	onkeydown={handleKeyDown}
 ></div>
 
 <style>
@@ -95,5 +120,11 @@
 	.resize-handle:hover,
 	.resize-handle.dragging {
 		background: var(--accent-primary);
+	}
+
+	.resize-handle:focus-visible {
+		background: var(--accent-primary);
+		outline: 2px solid var(--accent-primary);
+		outline-offset: -1px;
 	}
 </style>
