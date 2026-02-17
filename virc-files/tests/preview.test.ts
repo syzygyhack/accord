@@ -174,8 +174,12 @@ describe("isPrivateHost", () => {
     expect(isPrivateHost("0x08080808")).toBe(false);
   });
 
+  test("rejects bracketed documentation-range IPv6 (2001:db8::/32)", () => {
+    expect(isPrivateHost("[2001:db8::1]")).toBe(true);
+  });
+
   test("accepts bracketed public IPv6", () => {
-    expect(isPrivateHost("[2001:db8::1]")).toBe(false);
+    expect(isPrivateHost("[2607:f8b0:4004::1]")).toBe(false);
   });
 });
 

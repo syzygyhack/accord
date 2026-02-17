@@ -853,7 +853,7 @@
 		height: 18px;
 		padding: 0 5px;
 		background: var(--danger);
-		color: #fff;
+		color: var(--text-inverse);
 		border-radius: 9px;
 		font-size: var(--font-xs);
 		font-weight: var(--weight-bold);

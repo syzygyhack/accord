@@ -1327,7 +1327,7 @@
 	.nick-save-btn {
 		padding: 4px 12px;
 		background: var(--accent-primary);
-		color: #fff;
+		color: var(--text-inverse);
 		border: none;
 		border-radius: 3px;
 		font-size: var(--font-sm);
@@ -1371,7 +1371,7 @@
 	.logout-btn {
 		padding: 8px 24px;
 		background: var(--danger);
-		color: #fff;
+		color: var(--text-inverse);
 		border: none;
 		border-radius: 4px;
 		font-size: var(--font-base);
@@ -1519,7 +1519,7 @@
 
 	.toggle-checkbox:checked::after {
 		transform: translateX(16px);
-		background: #fff;
+		background: var(--text-inverse);
 	}
 
 	.toggle-label {
@@ -1570,7 +1570,7 @@
 
 	.mic-test-btn.active {
 		background: var(--danger);
-		color: #fff;
+		color: var(--text-inverse);
 	}
 
 	.mic-test-btn.active:hover {
@@ -1865,7 +1865,7 @@
 	.settings-save-btn {
 		padding: 8px 20px;
 		background: var(--accent-primary);
-		color: #fff;
+		color: var(--text-inverse);
 		border: none;
 		border-radius: 4px;
 		font-size: var(--font-sm);
@@ -2264,7 +2264,7 @@
 
 	.contrast-warning-btn.danger {
 		background: var(--danger);
-		color: #fff;
+		color: var(--text-inverse);
 		border-color: var(--danger);
 	}
 

@@ -131,9 +131,6 @@
 		return true;
 	}
 
-	// Alias — identical logic used for both badge visibility and text styling
-	const hasVisibleUnread = shouldShowUnread;
-
 	/**
 	* Channels in channelState that don't appear in any virc.json category.
 	* These are shown in the "Other" group at the bottom.
@@ -342,7 +339,7 @@
 								class="channel-item"
 								class:active={!cat.voice && channelUIState.activeChannel === ch}
 								class:voice-connected={cat.voice && voiceState.currentRoom === ch}
-								class:has-unread={hasVisibleUnread(ch, chUnread, chMentions)}
+								class:has-unread={shouldShowUnread(ch, chUnread, chMentions)}
 								class:has-mentions={chMentions > 0}
 								class:is-muted={chMuted}
 								onclick={() => handleChannelClick(ch, !!cat.voice)}
@@ -435,7 +432,7 @@
 							<button
 								class="channel-item"
 								class:active={channelUIState.activeChannel === ch}
-								class:has-unread={hasVisibleUnread(ch, chUnread, chMentions)}
+								class:has-unread={shouldShowUnread(ch, chUnread, chMentions)}
 								class:has-mentions={chMentions > 0}
 								class:is-muted={chMuted}
 								onclick={() => handleChannelClick(ch, false)}
@@ -1047,7 +1044,7 @@
 		border: none;
 		border-radius: 4px;
 		background: var(--accent-primary);
-		color: #fff;
+		color: var(--text-inverse);
 		font-family: var(--font-primary);
 		font-size: var(--font-sm);
 		font-weight: var(--weight-medium);

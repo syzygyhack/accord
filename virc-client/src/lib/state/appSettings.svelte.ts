@@ -82,7 +82,7 @@ function persist(): void {
 /** Reactive app settings — components read/write this directly. */
 export const appSettings = {
 	get zoom() { return _state.zoom; },
-	set zoom(v: ZoomLevel) { _state.zoom = v; persist(); },
+	set zoom(v: ZoomLevel) { if (!VALID_ZOOM.has(v)) return; _state.zoom = v; persist(); },
 	get systemMessageDisplay() { return _state.systemMessageDisplay; },
 	set systemMessageDisplay(v: SystemMessageDisplay) { _state.systemMessageDisplay = v; persist(); },
 	get showRawIrc() { return _state.showRawIrc; },

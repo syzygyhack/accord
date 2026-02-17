@@ -53,12 +53,25 @@ export function resetServerConfig(): void {
 }
 
 /**
+ * Validate that a color string is safe for use in CSS style attributes.
+ * Prevents CSS injection from compromised server configs.
+ * Allows: hex (#abc, #aabbcc), rgb/rgba, hsl/hsla, and named colors.
+ */
+const SAFE_COLOR_RE = /^(#[0-9a-fA-F]{3,8}|(?:rgb|hsl)a?\([^;{}()]*\)|[a-zA-Z]{1,30})$/;
+
+function isSafeColor(color: string): boolean {
+	return SAFE_COLOR_RE.test(color.trim());
+}
+
+/**
  * Get the role color for a given mode prefix.
  * Uses virc.json roles if available, otherwise falls back to defaults.
- * Returns null if the mode has no configured color.
+ * Returns null if the mode has no configured color or color is invalid.
  */
 export function getRoleColor(mode: string | null): string | null {
 	if (!mode) return null;
 	const roles = serverConfig.config?.roles ?? DEFAULT_ROLES;
-	return roles[mode]?.color ?? null;
+	const color = roles[mode]?.color ?? null;
+	if (color && !isSafeColor(color)) return null;
+	return color;
 }

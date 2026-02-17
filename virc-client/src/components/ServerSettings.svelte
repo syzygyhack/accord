@@ -1040,7 +1040,7 @@
 
 	.ban-btn {
 		background: var(--danger);
-		color: #fff;
+		color: var(--text-inverse);
 	}
 
 	.ban-btn:hover:not(:disabled) {
@@ -1092,7 +1092,7 @@
 
 	.create-btn {
 		background: var(--accent-primary);
-		color: #fff;
+		color: var(--text-inverse);
 		white-space: nowrap;
 	}
 
@@ -1151,7 +1151,7 @@
 
 	.delete-btn:hover:not(:disabled) {
 		background: var(--danger);
-		color: #fff;
+		color: var(--text-inverse);
 	}
 
 	/* ---- Appearance Tab ---- */
@@ -1322,7 +1322,7 @@
 
 	.slow-mode-toggle.enabled {
 		background: var(--accent-primary);
-		color: #fff;
+		color: var(--text-inverse);
 	}
 
 	.slow-mode-toggle.enabled:hover:not(:disabled) {

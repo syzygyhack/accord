@@ -56,7 +56,7 @@ describe("POST /api/account/password", () => {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ currentPassword: "wrong", newPassword: "new" }),
+      body: JSON.stringify({ currentPassword: "wrongpass", newPassword: "newpassword" }),
     });
     const res = await account.fetch(r);
     expect(res.status).toBe(403);
@@ -114,7 +114,7 @@ describe("POST /api/account/password", () => {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ currentPassword: "old", newPassword: "new" }),
+      body: JSON.stringify({ currentPassword: "old-password", newPassword: "new-password" }),
     });
     const res = await account.fetch(r);
     expect(res.status).toBe(502);

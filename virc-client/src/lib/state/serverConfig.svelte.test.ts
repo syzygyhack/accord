@@ -193,6 +193,27 @@ describe('getRoleColor', () => {
 		expect(getRoleColor('~')).toBeNull();
 	});
 
+	it('rejects CSS injection in role colors', () => {
+		setServerConfig({
+			name: 'Evil',
+			roles: {
+				'~': { name: 'Owner', color: 'red; background-image: url(evil)' },
+				'@': { name: 'Mod', color: '#50a0e0' },
+				'%': { name: 'Helper', color: 'rgb(255, 0, 0)' },
+				'+': { name: 'Member', color: 'hsl(120, 50%, 50%)' },
+			},
+		});
+		// Malicious value blocked
+		expect(getRoleColor('~')).toBeNull();
+		// Valid hex passes
+		expect(getRoleColor('@')).toBe('#50a0e0');
+		// Valid rgb passes
+		expect(getRoleColor('%')).toBe('rgb(255, 0, 0)');
+		// Valid hsl passes
+		expect(getRoleColor('+')).toBe('hsl(120, 50%, 50%)');
+		resetServerConfig();
+	});
+
 	it('reverts to defaults after resetServerConfig', () => {
 		setServerConfig({
 			name: 'Custom',

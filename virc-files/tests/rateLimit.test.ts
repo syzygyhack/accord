@@ -1,6 +1,21 @@
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import { Hono } from "hono";
 import { rateLimit } from "../src/middleware/rateLimit.js";
+
+// Rate limit tests use X-Forwarded-For for IP differentiation,
+// so TRUST_PROXY must be set before the middleware is constructed.
+let savedTrustProxy: string | undefined;
+beforeAll(() => {
+  savedTrustProxy = process.env.TRUST_PROXY;
+  process.env.TRUST_PROXY = "true";
+});
+afterAll(() => {
+  if (savedTrustProxy === undefined) {
+    delete process.env.TRUST_PROXY;
+  } else {
+    process.env.TRUST_PROXY = savedTrustProxy;
+  }
+});
 
 function buildApp(max: number, windowMs: number) {
   const app = new Hono();

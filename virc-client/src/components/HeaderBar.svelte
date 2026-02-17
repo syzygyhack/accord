@@ -451,7 +451,7 @@
 		height: 14px;
 		padding: 0 3px;
 		background: var(--danger);
-		color: #fff;
+		color: var(--text-inverse);
 		border-radius: 7px;
 		font-size: 10px;
 		font-weight: var(--weight-bold);

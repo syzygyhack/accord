@@ -768,15 +768,6 @@
 		border-radius: 0 3px 3px 0;
 	}
 
-	.toolbar-btn-danger {
-		color: var(--danger);
-	}
-
-	.toolbar-btn-danger:hover {
-		background: var(--danger-bg);
-		color: var(--danger);
-	}
-
 	/* More menu dropdown */
 	.toolbar-more-wrapper {
 		position: relative;
@@ -1116,7 +1107,7 @@
 		border: none;
 		border-radius: 4px;
 		background: rgba(0, 0, 0, 0.5);
-		color: #fff;
+		color: var(--text-inverse);
 		cursor: pointer;
 		z-index: 1001;
 		transition: background var(--duration-message) ease;

@@ -369,7 +369,7 @@
 		border: none;
 		border-radius: 4px;
 		background: var(--accent-primary);
-		color: #fff;
+		color: var(--text-inverse);
 		font-family: var(--font-primary);
 		font-size: var(--font-sm);
 		font-weight: var(--weight-medium);

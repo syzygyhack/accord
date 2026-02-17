@@ -539,7 +539,7 @@
 	.error {
 		padding: 0.625rem 0.75rem;
 		font-size: var(--font-sm);
-		color: #fff;
+		color: var(--text-inverse);
 		background: var(--danger);
 		border-radius: 4px;
 	}

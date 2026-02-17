@@ -414,7 +414,7 @@
 
 	.video-nick {
 		font-size: var(--font-xs);
-		color: #fff;
+		color: var(--text-inverse);
 		font-weight: var(--weight-medium);
 	}
 
@@ -544,7 +544,7 @@
 	}
 
 	.ctl-btn.ctl-disconnect {
-		color: #fff;
+		color: var(--text-inverse);
 		background: var(--danger);
 	}
 

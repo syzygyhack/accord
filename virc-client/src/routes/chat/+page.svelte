@@ -1944,7 +1944,7 @@
 		gap: 12px;
 		padding: 8px 16px;
 		background: var(--danger);
-		color: #fff;
+		color: var(--text-inverse);
 		font-size: var(--font-sm);
 		font-weight: var(--weight-medium);
 	}
@@ -1954,7 +1954,7 @@
 		background: rgba(255, 255, 255, 0.2);
 		border: 1px solid rgba(255, 255, 255, 0.4);
 		border-radius: 4px;
-		color: #fff;
+		color: var(--text-inverse);
 		font-size: var(--font-sm);
 		cursor: pointer;
 	}
@@ -2122,7 +2122,7 @@
 		border: none;
 		border-radius: 4px;
 		background: var(--danger);
-		color: #fff;
+		color: var(--text-inverse);
 		font-family: var(--font-primary);
 		font-size: var(--font-sm);
 		font-weight: var(--weight-medium);

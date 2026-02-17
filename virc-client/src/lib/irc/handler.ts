@@ -433,6 +433,7 @@ function handleRedact(parsed: ParsedMessage): void {
 
 function handleJoin(parsed: ParsedMessage): void {
 	const channel = parsed.params[0];
+	if (!channel) return;
 	const nick = parsed.source?.nick ?? '';
 	// extended-join provides account and realname as additional params
 	const account = parsed.params[1] ?? parsed.tags['account'] ?? '';
@@ -463,6 +464,7 @@ function handleJoin(parsed: ParsedMessage): void {
 
 function handlePart(parsed: ParsedMessage): void {
 	const channel = parsed.params[0];
+	if (!channel) return;
 	const nick = parsed.source?.nick ?? '';
 	removeMember(channel, nick);
 	removeRichMember(channel, nick);
@@ -654,6 +656,7 @@ function handleMode(parsed: ParsedMessage): void {
 
 function handleTopic(parsed: ParsedMessage): void {
 	const channel = parsed.params[0];
+	if (!channel) return;
 	const topic = parsed.params[1] ?? '';
 	setTopic(channel, topic);
 }

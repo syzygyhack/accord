@@ -4,40 +4,32 @@
 	import { notificationState, getUnreadCount, getMentionCount, markAllRead } from '$lib/state/notifications.svelte';
 
 	/**
-	 * Aggregate unread + mention counts across all channels for a server.
+	 * Aggregate a per-channel count across all channels for a server.
 	 * Currently all channels belong to the single connected server, so
 	 * we sum across everything. When multi-server lands, this will filter
 	 * by server-owned channels.
 	 */
-	function getServerUnread(_serverId: string): number {
+	function aggregateAcrossChannels(_serverId: string, fn: (ch: string) => number): number {
 		// Touch reactive state
 		void notificationState.channels;
 		let total = 0;
-		// Sum across all category channels
 		for (const cat of channelUIState.categories) {
 			for (const ch of cat.channels) {
-				total += getUnreadCount(ch);
+				total += fn(ch);
 			}
 		}
-		// Sum DM unreads
 		for (const dm of channelUIState.dmConversations) {
-			total += getUnreadCount(dm.nick);
+			total += fn(dm.nick);
 		}
 		return total;
 	}
 
-	function getServerMentions(_serverId: string): number {
-		void notificationState.channels;
-		let total = 0;
-		for (const cat of channelUIState.categories) {
-			for (const ch of cat.channels) {
-				total += getMentionCount(ch);
-			}
-		}
-		for (const dm of channelUIState.dmConversations) {
-			total += getMentionCount(dm.nick);
-		}
-		return total;
+	function getServerUnread(serverId: string): number {
+		return aggregateAcrossChannels(serverId, getUnreadCount);
+	}
+
+	function getServerMentions(serverId: string): number {
+		return aggregateAcrossChannels(serverId, getMentionCount);
 	}
 
 	/**
@@ -288,7 +280,7 @@
 		transform: translateY(-50%);
 		width: 2px;
 		height: 0;
-		background: #ffffff;
+		background: var(--interactive-active);
 		border-radius: 0 2px 2px 0;
 		transition: height var(--duration-channel) ease;
 	}
@@ -348,7 +340,7 @@
 		height: 100%;
 		font-size: var(--font-sm);
 		font-weight: var(--weight-semibold);
-		color: #ffffff;
+		color: var(--text-inverse);
 		line-height: 1;
 		user-select: none;
 	}
@@ -363,7 +355,7 @@
 		padding: 0 4px;
 		border-radius: 8px;
 		background: var(--danger);
-		color: #ffffff;
+		color: var(--text-inverse);
 		font-size: 10px;
 		font-weight: var(--weight-bold);
 		display: flex;
@@ -390,7 +382,7 @@
 
 	.add-btn:hover {
 		background: var(--status-online);
-		color: #ffffff;
+		color: var(--text-inverse);
 		border-radius: 30%;
 	}
 
@@ -448,7 +440,7 @@
 
 	.context-item.danger:hover {
 		background: var(--danger);
-		color: #ffffff;
+		color: var(--text-inverse);
 	}
 
 	.context-separator {
