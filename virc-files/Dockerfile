@@ -10,10 +10,10 @@ COPY src/ ./src/
 RUN apt-get update -qq && apt-get install -y -qq curl && rm -rf /var/lib/apt/lists/*
 
 # Run as non-root user
-RUN groupadd --system virc && useradd --system --gid virc --no-create-home virc \
+RUN groupadd --system accord && useradd --system --gid accord --no-create-home accord \
     && mkdir -p /app/uploads /app/data \
-    && chown -R virc:virc /app
-USER virc
+    && chown -R accord:accord /app
+USER accord
 
 EXPOSE 8080
 CMD ["bun", "run", "src/index.ts"]

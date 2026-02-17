@@ -1,6 +1,6 @@
 import { SignJWT } from "jose";
 
-export const TEST_JWT_SECRET = "test-secret-for-virc-files-tests";
+export const TEST_JWT_SECRET = "test-secret-for-accord-files-tests";
 export const TEST_LIVEKIT_API_KEY = "test-lk-api-key";
 export const TEST_LIVEKIT_API_SECRET = "test-lk-api-secret-must-be-256-bits!!";
 export const TEST_ERGO_API = "http://ergo-test:8089";
@@ -12,7 +12,7 @@ export function setupEnv() {
   process.env.LIVEKIT_API_SECRET = TEST_LIVEKIT_API_SECRET;
   process.env.ERGO_API = TEST_ERGO_API;
   process.env.ERGO_API_TOKEN = "test-ergo-api-token";
-  process.env.SERVER_ID = "virc.local";
+  process.env.SERVER_ID = "accord.local";
   process.env.PORT = "0"; // won't bind
 }
 
@@ -25,15 +25,15 @@ export async function createTestJwt(
 ): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   const exp = opts?.expired ? now - 3600 : now + 3600;
-  const srv = opts?.srv ?? process.env.SERVER_ID ?? "virc.local";
+  const srv = opts?.srv ?? process.env.SERVER_ID ?? "accord.local";
 
   return new SignJWT({ srv })
     .setProtectedHeader({ alg: "HS256" })
-    .setIssuer("virc-files")
+    .setIssuer("accord-files")
     .setSubject(sub)
     .setIssuedAt(now)
     .setExpirationTime(exp)
-    .setAudience("virc-files")
+    .setAudience("accord-files")
     .sign(secret);
 }
 

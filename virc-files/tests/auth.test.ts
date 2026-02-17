@@ -118,13 +118,13 @@ describe("POST /api/auth", () => {
     const { token } = await res.json() as { token: string };
 
     const secret = new TextEncoder().encode(TEST_JWT_SECRET);
-    const { payload } = await jwtVerify(token, secret, { issuer: "virc-files", audience: "virc-files" });
+    const { payload } = await jwtVerify(token, secret, { issuer: "accord-files", audience: "accord-files" });
 
     expect(payload.sub).toBe("alice");
-    expect(payload.iss).toBe("virc-files");
+    expect(payload.iss).toBe("accord-files");
     expect(typeof payload.iat).toBe("number");
     expect(typeof payload.exp).toBe("number");
-    expect((payload as Record<string, unknown>).srv).toBe("virc.local");
+    expect((payload as Record<string, unknown>).srv).toBe("accord.local");
   });
 
   test("returned JWT can be verified with the same secret", async () => {
@@ -141,13 +141,13 @@ describe("POST /api/auth", () => {
 
     const secret = new TextEncoder().encode(TEST_JWT_SECRET);
     // Should not throw
-    const { payload } = await jwtVerify(token, secret, { issuer: "virc-files", audience: "virc-files" });
+    const { payload } = await jwtVerify(token, secret, { issuer: "accord-files", audience: "accord-files" });
     expect(payload.sub).toBe("bob");
   });
 
   test("returns 403 when Origin does not match ALLOWED_ORIGIN", async () => {
     const prev = process.env.ALLOWED_ORIGIN;
-    process.env.ALLOWED_ORIGIN = "https://virc.example.com";
+    process.env.ALLOWED_ORIGIN = "https://accord.example.com";
     try {
       const res = await auth.fetch(req("/api/auth", {
         method: "POST",
@@ -168,7 +168,7 @@ describe("POST /api/auth", () => {
 
   test("allows request when Origin matches ALLOWED_ORIGIN", async () => {
     const prev = process.env.ALLOWED_ORIGIN;
-    process.env.ALLOWED_ORIGIN = "https://virc.example.com";
+    process.env.ALLOWED_ORIGIN = "https://accord.example.com";
     globalThis.fetch = mock(async () =>
       new Response(JSON.stringify({ success: true }), { status: 200 }),
     ) as typeof fetch;
@@ -177,7 +177,7 @@ describe("POST /api/auth", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Origin: "https://virc.example.com",
+          Origin: "https://accord.example.com",
         },
         body: JSON.stringify({ account: "alice", password: "pass" }),
       }));
@@ -260,7 +260,7 @@ describe("POST /api/auth", () => {
       const { token } = await res.json() as { token: string };
 
       const secret = new TextEncoder().encode(TEST_JWT_SECRET);
-      const { payload } = await jwtVerify(token, secret, { issuer: "virc-files", audience: "virc-files" });
+      const { payload } = await jwtVerify(token, secret, { issuer: "accord-files", audience: "accord-files" });
       expect((payload as Record<string, unknown>).srv).toBe("chat.example.com");
     } finally {
       if (prev === undefined) delete process.env.SERVER_ID;
@@ -286,7 +286,7 @@ describe("POST /api/auth", () => {
       const { token } = await res.json() as { token: string };
 
       const secret = new TextEncoder().encode(TEST_JWT_SECRET);
-      const { payload } = await jwtVerify(token, secret, { issuer: "virc-files", audience: "virc-files" });
+      const { payload } = await jwtVerify(token, secret, { issuer: "accord-files", audience: "accord-files" });
       expect((payload as Record<string, unknown>).srv).toBe("chat.example.com");
     } finally {
       if (prevId === undefined) delete process.env.SERVER_ID;

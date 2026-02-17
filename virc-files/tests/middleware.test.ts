@@ -69,8 +69,8 @@ describe("authMiddleware", () => {
     expect(res.status).toBe(200);
     const body = await res.json() as { sub: string; iss: string; srv: string };
     expect(body.sub).toBe("alice");
-    expect(body.iss).toBe("virc-files");
-    expect(body.srv).toBe("virc.local");
+    expect(body.iss).toBe("accord-files");
+    expect(body.srv).toBe("accord.local");
   });
 
   test("rejects token issued for a different server", async () => {

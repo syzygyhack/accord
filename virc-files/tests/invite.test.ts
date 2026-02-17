@@ -13,7 +13,7 @@ let invite: ReturnType<typeof createInviteRouter>["router"];
 let store: InviteStore;
 
 beforeEach(async () => {
-  dataDir = await mkdtemp(join(tmpdir(), "virc-invite-test-"));
+  dataDir = await mkdtemp(join(tmpdir(), "accord-invite-test-"));
   const result = createInviteRouter(dataDir);
   invite = result.router;
   store = result.store;
