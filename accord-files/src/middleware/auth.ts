@@ -1,9 +1,7 @@
 import type { Context, Next } from "hono";
 import { jwtVerify } from "jose";
 import { env } from "../env.js";
-
-const JWT_ISSUER = "accord-files";
-const JWT_AUDIENCE = "accord-files";
+import { JWT_ISSUER, JWT_AUDIENCE } from "../constants.js";
 
 export interface JwtPayload {
   sub: string;

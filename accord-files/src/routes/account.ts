@@ -1,9 +1,7 @@
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import type { AppEnv } from "../types.js";
-import { env } from "../env.js";
-
-const ERGO_TIMEOUT_MS = 10_000;
+import { ergoPost } from "../ergoClient.js";
 
 const account = new Hono<AppEnv>();
 
@@ -43,17 +41,9 @@ account.post("/api/account/password", authMiddleware, async (c) => {
   // Verify current password via Ergo check_auth
   let verifyRes: Response;
   try {
-    verifyRes = await fetch(`${env.ERGO_API}/v1/check_auth`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${env.ERGO_API_TOKEN}`,
-      },
-      signal: AbortSignal.timeout(ERGO_TIMEOUT_MS),
-      body: JSON.stringify({
-        accountName: user.sub,
-        passphrase: currentPassword,
-      }),
+    verifyRes = await ergoPost("/v1/check_auth", {
+      accountName: user.sub,
+      passphrase: currentPassword,
     });
   } catch {
     return c.json({ error: "Account service unavailable" }, 502);
@@ -81,17 +71,9 @@ account.post("/api/account/password", authMiddleware, async (c) => {
   // Set new password via Ergo /v1/ns/set
   let setRes: Response;
   try {
-    setRes = await fetch(`${env.ERGO_API}/v1/ns/set`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${env.ERGO_API_TOKEN}`,
-      },
-      signal: AbortSignal.timeout(ERGO_TIMEOUT_MS),
-      body: JSON.stringify({
-        accountName: user.sub,
-        passphrase: newPassword,
-      }),
+    setRes = await ergoPost("/v1/ns/set", {
+      accountName: user.sub,
+      passphrase: newPassword,
     });
   } catch {
     return c.json({ error: "Account service unavailable" }, 502);
@@ -139,17 +121,9 @@ account.post("/api/account/email", authMiddleware, async (c) => {
   // Set email via Ergo /v1/ns/set
   let setRes: Response;
   try {
-    setRes = await fetch(`${env.ERGO_API}/v1/ns/set`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${env.ERGO_API_TOKEN}`,
-      },
-      signal: AbortSignal.timeout(ERGO_TIMEOUT_MS),
-      body: JSON.stringify({
-        accountName: user.sub,
-        email,
-      }),
+    setRes = await ergoPost("/v1/ns/set", {
+      accountName: user.sub,
+      email,
     });
   } catch {
     return c.json({ error: "Account service unavailable" }, 502);

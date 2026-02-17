@@ -1,8 +1,6 @@
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
-import { env } from "../env.js";
-
-const ERGO_TIMEOUT_MS = 10_000;
+import { ergoPost } from "../ergoClient.js";
 
 const accountInfo = new Hono();
 
@@ -14,18 +12,9 @@ accountInfo.get("/api/account-info", authMiddleware, async (c) => {
   }
 
   // Proxy to Ergo /v1/ns/info
-  const ergoUrl = `${env.ERGO_API}/v1/ns/info`;
   let ergoRes: Response;
   try {
-    ergoRes = await fetch(ergoUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${env.ERGO_API_TOKEN}`,
-      },
-      signal: AbortSignal.timeout(ERGO_TIMEOUT_MS),
-      body: JSON.stringify({ accountName: account }),
-    });
+    ergoRes = await ergoPost("/v1/ns/info", { accountName: account });
   } catch {
     return c.json({ error: "Account info service unavailable" }, 502);
   }

@@ -1,10 +1,8 @@
 import { Hono } from "hono";
 import { SignJWT } from "jose";
 import { env } from "../env.js";
-
-const ERGO_TIMEOUT_MS = 10_000;
-const JWT_ISSUER = "accord-files";
-const JWT_AUDIENCE = "accord-files";
+import { JWT_ISSUER, JWT_AUDIENCE } from "../constants.js";
+import { ergoPost } from "../ergoClient.js";
 
 const auth = new Hono();
 
@@ -38,21 +36,11 @@ auth.post("/api/auth", async (c) => {
   }
 
   // Validate credentials against Ergo HTTP API
-  const ergoUrl = `${env.ERGO_API}/v1/check_auth`;
   let ergoRes: Response;
   try {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${env.ERGO_API_TOKEN}`,
-    };
-    ergoRes = await fetch(ergoUrl, {
-      method: "POST",
-      headers,
-      signal: AbortSignal.timeout(ERGO_TIMEOUT_MS),
-      body: JSON.stringify({
-        accountName: account,
-        passphrase: password,
-      }),
+    ergoRes = await ergoPost("/v1/check_auth", {
+      accountName: account,
+      passphrase: password,
     });
   } catch {
     return c.json({ error: "Auth service unavailable" }, 503);
