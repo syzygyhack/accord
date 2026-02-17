@@ -9,8 +9,7 @@
  * deeply track Map/Set mutations).
  */
 
-/** Mode prefix precedence from highest to lowest. */
-const MODE_PRECEDENCE = ['~', '&', '@', '%', '+'] as const;
+import { MODE_ORDER } from '$lib/constants';
 
 export interface Member {
 	nick: string;
@@ -37,7 +36,7 @@ export const memberState = {
 
 /** Compute the highest mode from an array of mode prefixes. */
 function computeHighestMode(modes: string[]): string | null {
-	for (const mode of MODE_PRECEDENCE) {
+	for (const mode of MODE_ORDER) {
 		if (modes.includes(mode)) return mode;
 	}
 	return null;
@@ -185,9 +184,9 @@ export function getMembersByRole(channel: string): Map<string, Member[]> {
 
 /** Numeric rank for a mode prefix (lower = higher priority). */
 function modeRank(mode: string | null): number {
-	if (mode === null) return MODE_PRECEDENCE.length;
-	const idx = MODE_PRECEDENCE.indexOf(mode as (typeof MODE_PRECEDENCE)[number]);
-	return idx === -1 ? MODE_PRECEDENCE.length : idx;
+	if (mode === null) return MODE_ORDER.length;
+	const idx = MODE_ORDER.indexOf(mode as (typeof MODE_ORDER)[number]);
+	return idx === -1 ? MODE_ORDER.length : idx;
 }
 
 /** Set a member's presence to 'offline' across all channels. */

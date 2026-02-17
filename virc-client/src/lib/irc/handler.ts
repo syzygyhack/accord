@@ -7,6 +7,7 @@
 
 import type { IRCConnection } from './connection';
 import { parseMessage, type ParsedMessage } from './parser';
+import { MODE_ORDER } from '$lib/constants';
 import { appSettings } from '$lib/state/appSettings.svelte';
 import { pushRawLine } from '$lib/state/rawIrcLog.svelte';
 import {
@@ -84,6 +85,20 @@ const TYPING_TIMEOUT_MS = 6_000;
  */
 let _suppressSelfJoinCount = 0;
 
+/** Cached mention detection regex — rebuilt only when account changes. */
+let _mentionRegex: RegExp | null = null;
+let _mentionAccount = '';
+
+function getMentionRegex(account: string): RegExp | null {
+	if (!account) return null;
+	if (account !== _mentionAccount) {
+		_mentionAccount = account;
+		const escaped = account.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		_mentionRegex = new RegExp(`\\b@${escaped}\\b`, 'i');
+	}
+	return _mentionRegex;
+}
+
 /**
  * Mark a user as typing. Updates the shared reactive store and sets
  * a timeout to auto-clear after TYPING_TIMEOUT_MS.
@@ -119,6 +134,19 @@ function clearTyping(target: string, nick: string): void {
 		timers.delete(nick);
 		if (timers.size === 0) typingTimers.delete(target);
 	}
+}
+
+/**
+ * Resolve the buffer target for a message. For DMs (target = our nick),
+ * use the sender's nick as the buffer key so all DMs with that person
+ * end up in the same buffer. Case-insensitive per RFC 2812.
+ */
+function resolveBufferTarget(rawTarget: string, senderNick: string): { bufferTarget: string; isIncomingDM: boolean } {
+	const isIncomingDM = rawTarget.toLowerCase() === userState.nick?.toLowerCase();
+	return {
+		bufferTarget: isIncomingDM ? senderNick : rawTarget,
+		isIncomingDM,
+	};
 }
 
 /**
@@ -193,12 +221,9 @@ function parseNamesEntry(entry: string): { nick: string; prefix: string; modes: 
 	return { nick, prefix, modes };
 }
 
-/** Mode prefix precedence for computing highest mode. */
-const MODE_PRECEDENCE = ['~', '&', '@', '%', '+'];
-
 /** Compute the highest mode from an array of mode prefixes. */
 function computeHighestMode(modes: string[]): string | null {
-	for (const mode of MODE_PRECEDENCE) {
+	for (const mode of MODE_ORDER) {
 		if (modes.includes(mode)) return mode;
 	}
 	return null;
@@ -308,15 +333,11 @@ export function handleMessage(parsed: ParsedMessage): void {
 
 function handlePrivmsg(parsed: ParsedMessage): void {
 	const rawTarget = parsed.params[0];
+	if (!rawTarget) return;
 	const senderNick = parsed.source?.nick ?? '';
 	const senderAccount = parsed.tags['account'] ?? '';
 
-	// Determine the buffer target: if the message is addressed to our nick
-	// (i.e. a DM), use the sender's nick as the buffer key so all DMs
-	// with that person end up in the same buffer.
-	// Case-insensitive comparison: IRC nicks are case-insensitive per RFC 2812.
-	const isIncomingDM = rawTarget.toLowerCase() === userState.nick?.toLowerCase();
-	const bufferTarget = isIncomingDM ? senderNick : rawTarget;
+	const { bufferTarget, isIncomingDM } = resolveBufferTarget(rawTarget, senderNick);
 	const msg = privmsgToMessage(parsed, bufferTarget);
 
 	// Clear typing indicator for this user
@@ -356,17 +377,17 @@ function handlePrivmsg(parsed: ParsedMessage): void {
 	if (bufferTarget !== activeChannel && !isOwnMessage) {
 		const myAccount = userState.account ?? '';
 		// DMs are always considered mentions; word-boundary check for @mentions
-		const isMention = isIncomingDM || (myAccount !== '' && new RegExp(`\\b@${myAccount.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(msg.text));
+		const mentionRe = getMentionRegex(myAccount);
+		const isMention = isIncomingDM || (mentionRe !== null && mentionRe.test(msg.text));
 		incrementUnread(bufferTarget, isMention);
 	}
 }
 
 function handleTagmsg(parsed: ParsedMessage): void {
 	const rawTarget = parsed.params[0];
+	if (!rawTarget) return;
 	const nick = parsed.source?.nick ?? '';
-	// DM routing: if target is our nick, use sender's nick as buffer key
-	// Case-insensitive: IRC nicks are case-insensitive per RFC 2812.
-	const target = rawTarget.toLowerCase() === userState.nick?.toLowerCase() ? nick : rawTarget;
+	const { bufferTarget: target } = resolveBufferTarget(rawTarget, nick);
 
 	// Handle reactions: +draft/react tag (toggle semantics)
 	const reactEmoji = parsed.tags['+draft/react'];
@@ -406,8 +427,7 @@ function handleRedact(parsed: ParsedMessage): void {
 	// DM buffer routing: if the target is our nick, the redact applies to
 	// a message in the sender's DM buffer.
 	const senderNick = parsed.source?.nick ?? '';
-	const isIncomingDM = rawTarget.toLowerCase() === userState.nick?.toLowerCase();
-	const bufferTarget = isIncomingDM ? senderNick : rawTarget;
+	const { bufferTarget } = resolveBufferTarget(rawTarget, senderNick);
 	redactMessage(bufferTarget, msgid);
 }
 
@@ -677,13 +697,11 @@ function handleBatchedMessage(batchRef: string, parsed: ParsedMessage): void {
 
 	if (parsed.command === 'PRIVMSG') {
 		const rawTarget = parsed.params[0];
+		if (!rawTarget) return;
 		const senderNick = parsed.source?.nick ?? '';
 
 		// Apply the same DM buffer routing as live messages: if the message
-		// is addressed to our nick (incoming DM), use the sender's nick as
-		// the buffer key.
-		const isIncomingDM = rawTarget.toLowerCase() === userState.nick?.toLowerCase();
-		const bufferTarget = isIncomingDM ? senderNick : rawTarget;
+		const { bufferTarget } = resolveBufferTarget(rawTarget, senderNick);
 
 		const msg = privmsgToMessage(parsed, bufferTarget);
 
@@ -701,7 +719,19 @@ function handleBatchedMessage(batchRef: string, parsed: ParsedMessage): void {
 		}
 
 		batch.messages.push(msg);
+	} else if (parsed.command === 'REDACT') {
+		// Apply REDACT within the batch: mark the referenced message as redacted
+		const msgid = parsed.params[1];
+		if (msgid) {
+			const target = batch.messages.find((m) => m.msgid === msgid);
+			if (target) {
+				target.isRedacted = true;
+				target.text = '';
+			}
+		}
 	}
+	// TAGMSG (reactions) within batches are uncommon in chathistory;
+	// handled by the live handler once the batch is finalized.
 }
 
 function finalizeBatch(batch: BatchState): void {
@@ -919,6 +949,8 @@ export function resetHandlerState(): void {
 	typingTimers.clear();
 	resetTyping();
 	_suppressSelfJoinCount = 0;
+	_mentionRegex = null;
+	_mentionAccount = '';
 	activeHandler = null;
 	activeConn = null;
 }

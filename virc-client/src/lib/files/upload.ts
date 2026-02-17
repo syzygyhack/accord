@@ -5,6 +5,8 @@
  * with multipart/form-data encoding.
  */
 
+import { normalizeBaseUrl } from '$lib/utils/url';
+
 export interface UploadResult {
 	url: string;
 	filename: string;
@@ -26,7 +28,7 @@ export async function uploadFile(
 	token: string,
 	filesUrl: string,
 ): Promise<UploadResult> {
-	const baseUrl = filesUrl.replace(/\/+$/, '');
+	const baseUrl = normalizeBaseUrl(filesUrl);
 
 	const form = new FormData();
 	form.append('file', file);

@@ -131,15 +131,8 @@
 		return true;
 	}
 
-	/**
-	 * Whether to apply unread text styling for a channel.
-	 * Muted channels don't get bold/white text unless there are @mentions.
-	 */
-	function hasVisibleUnread(channel: string, unreadCount: number, mentionCount: number): boolean {
-		if (unreadCount === 0) return false;
-		if (isMuted(channel)) return mentionCount > 0;
-		return true;
-	}
+	// Alias — identical logic used for both badge visibility and text styling
+	const hasVisibleUnread = shouldShowUnread;
 
 	/**
 	* Channels in channelState that don't appear in any virc.json category.

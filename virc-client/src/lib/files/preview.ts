@@ -6,6 +6,7 @@
  */
 
 import { urlPattern } from '$lib/constants';
+import { normalizeBaseUrl } from '$lib/utils/url';
 
 export interface LinkPreview {
 	title: string | null;
@@ -86,7 +87,7 @@ async function _doFetch(
 	token: string,
 	filesUrl: string,
 ): Promise<LinkPreview | null> {
-	const baseUrl = filesUrl.replace(/\/+$/, '');
+	const baseUrl = normalizeBaseUrl(filesUrl);
 
 	try {
 		const res = await fetch(

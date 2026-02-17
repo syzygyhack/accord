@@ -428,10 +428,3 @@ export function resetMessages(): void {
 	savePinnedMessages();
 	notify();
 }
-
-// Legacy export — some imports reference messageState.channels / messageState.cursors.
-// Provide a getter-based facade so existing code doesn't break.
-export const messageState = {
-	get channels() { return channelMessages; },
-	get cursors() { return channelCursors; },
-};

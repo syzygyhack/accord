@@ -8,6 +8,8 @@
  * deeply track Map/Set mutations).
  */
 
+import { hasLocalStorage } from '$lib/utils/storage';
+
 export interface ChannelMember {
 	nick: string;
 	account: string;
@@ -144,11 +146,6 @@ export function resetChannels(): void {
 // ---------------------------------------------------------------------------
 
 const CHANNEL_ORDER_KEY = 'virc:channelOrder';
-
-/** Safe check for localStorage availability (missing in Node/SSR). */
-function hasLocalStorage(): boolean {
-	return typeof localStorage !== 'undefined';
-}
 
 /**
  * Load saved channel order from localStorage.

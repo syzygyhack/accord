@@ -6,6 +6,8 @@
  * Per-channel notification levels: all | mentions | nothing | mute.
  */
 
+import { hasLocalStorage } from '$lib/utils/storage';
+
 export type NotificationLevel = 'all' | 'mentions' | 'nothing' | 'mute';
 
 const NOTIFICATION_LEVELS_KEY = 'virc:notificationLevels';
@@ -22,11 +24,6 @@ interface NotificationStore {
 
 /** Per-channel notification level overrides (non-default only). */
 const notificationLevels: Map<string, NotificationLevel> = new Map();
-
-/** Safe check for localStorage availability (missing in Node/SSR). */
-function hasLocalStorage(): boolean {
-	return typeof localStorage !== 'undefined';
-}
 
 /** Load notification levels from localStorage. */
 function loadNotificationLevels(): void {

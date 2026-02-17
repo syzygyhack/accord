@@ -329,22 +329,22 @@
 				</button>
 
 				{#if !group.collapsed}
-					<div class="role-members" role="listbox" aria-label="{group.name} members">
+					<div class="role-members" role="list" aria-label="{group.name} members">
 						{#each group.members as member (member.nick)}
 							{@const presence = presenceInfo(member)}
 							{@const color = getMemberColor(member)}
 							<div
 								class="member-row"
-								role="option"
+								role="listitem"
 								tabindex="0"
-								aria-selected="false"
 								onclick={(e) => handleMemberClick(e, member)}
 								oncontextmenu={(e) => handleContextMenu(e, member.nick)}
 								onkeydown={(e) => handleMemberKeydown(e, member.nick)}
 								onmouseenter={(e) => handleMemberMouseEnter(e, member)}
 								onmouseleave={handleMemberMouseLeave}
 							>
-								<span class="presence-dot {presence.className}">{presence.dot}</span>
+								<span class="presence-dot {presence.className}" aria-hidden="true">{presence.dot}</span>
+								<span class="sr-only">{presence.className}</span>
 								<span class="member-nick" style="color: {color}">{member.nick}</span>
 							</div>
 						{/each}

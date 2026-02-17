@@ -814,7 +814,7 @@
 
 	.error-text {
 		font-size: var(--font-sm);
-		color: var(--status-error, #e05050);
+		color: var(--danger);
 		margin: 0;
 	}
 
@@ -1039,7 +1039,7 @@
 	}
 
 	.ban-btn {
-		background: var(--status-error, #e05050);
+		background: var(--danger);
 		color: #fff;
 	}
 
@@ -1145,12 +1145,12 @@
 
 	.delete-btn {
 		background: var(--surface-high);
-		color: var(--status-error, #e05050);
+		color: var(--danger);
 		flex-shrink: 0;
 	}
 
 	.delete-btn:hover:not(:disabled) {
-		background: var(--status-error, #e05050);
+		background: var(--danger);
 		color: #fff;
 	}
 

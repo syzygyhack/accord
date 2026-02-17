@@ -44,6 +44,7 @@ export class InviteStore {
   async save(): Promise<void> {
     this.writeQueue = this.writeQueue.then(() => this._doSave()).catch((err) => {
       console.error("[virc] InviteStore save failed:", err);
+      throw err; // Propagate so callers know the save failed
     });
     await this.writeQueue;
   }

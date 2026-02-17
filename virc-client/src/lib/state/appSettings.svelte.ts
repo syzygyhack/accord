@@ -46,6 +46,7 @@ function clampNumber(value: unknown, min: number, max: number, fallback: number)
 }
 
 function load(): AppSettingsData {
+	if (typeof localStorage === 'undefined') return { ...defaults };
 	try {
 		const raw = localStorage.getItem(STORAGE_KEY);
 		if (raw) {
@@ -70,6 +71,7 @@ function load(): AppSettingsData {
 const _state: AppSettingsData = $state(load());
 
 function persist(): void {
+	if (typeof localStorage === 'undefined') return;
 	try {
 		localStorage.setItem(STORAGE_KEY, JSON.stringify(_state));
 	} catch {

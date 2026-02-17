@@ -7,6 +7,8 @@
  *   DELETE /api/invite/:token  — delete invite
  */
 
+import { normalizeBaseUrl } from '$lib/utils/url';
+
 export interface InviteSummary {
 	token: string;
 	channel: string;
@@ -28,7 +30,7 @@ export interface CreateInviteResult {
 
 /** Fetch all invites from virc-files. Returns empty array on failure. */
 export async function listInvites(filesUrl: string, authToken: string): Promise<InviteSummary[]> {
-	const baseUrl = filesUrl.replace(/\/+$/, '');
+	const baseUrl = normalizeBaseUrl(filesUrl);
 	try {
 		const res = await fetch(`${baseUrl}/api/invite`, {
 			headers: { Authorization: `Bearer ${authToken}` },
@@ -49,7 +51,7 @@ export async function createInvite(
 	expiresIn?: string,
 	maxUses?: number,
 ): Promise<CreateInviteResult> {
-	const baseUrl = filesUrl.replace(/\/+$/, '');
+	const baseUrl = normalizeBaseUrl(filesUrl);
 	const body: Record<string, unknown> = { channel };
 	if (expiresIn) body.expiresIn = expiresIn;
 	if (maxUses !== undefined) body.maxUses = maxUses;
@@ -73,8 +75,8 @@ export async function createInvite(
 
 /** Delete an invite by token. Throws on failure. */
 export async function deleteInvite(filesUrl: string, authToken: string, inviteToken: string): Promise<void> {
-	const baseUrl = filesUrl.replace(/\/+$/, '');
-	const res = await fetch(`${baseUrl}/api/invite/${inviteToken}`, {
+	const baseUrl = normalizeBaseUrl(filesUrl);
+	const res = await fetch(`${baseUrl}/api/invite/${encodeURIComponent(inviteToken)}`, {
 		method: 'DELETE',
 		headers: { Authorization: `Bearer ${authToken}` },
 	});

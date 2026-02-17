@@ -555,7 +555,7 @@
 	onscroll={handleScroll}
 >
 	{#if isLoadingHistory}
-		<div class="skeleton-loading">
+		<div class="skeleton-loading" role="status" aria-label="Loading messages">
 			<div class="skeleton-row">
 				<div class="skeleton-avatar"></div>
 				<div class="skeleton-content">
@@ -575,7 +575,7 @@
 	{/if}
 
 	{#if isAwaitingInitialMessages}
-		<div class="skeleton-loading channel-switch-skeleton">
+		<div class="skeleton-loading channel-switch-skeleton" role="status" aria-label="Loading messages">
 			<div class="skeleton-row">
 				<div class="skeleton-avatar"></div>
 				<div class="skeleton-content">
@@ -616,7 +616,7 @@
 					{#if expandedGroups.has(entry.key)}
 						{#each entry.messages as sysMsg (sysMsg.msgid)}
 							<div class="system-message" data-msgid={sysMsg.msgid}>
-								<span class="system-icon">{systemIcon(sysMsg.type)}</span>
+								<span class="system-icon" aria-hidden="true">{systemIcon(sysMsg.type)}</span>
 								<span class="system-text">{sysMsg.text}</span>
 							</div>
 						{/each}
@@ -636,7 +636,7 @@
 						<UnreadDivider />
 					{/if}
 					<div class="system-message" data-msgid={entry.message.msgid}>
-						<span class="system-icon">{systemIcon(entry.message.type)}</span>
+						<span class="system-icon" aria-hidden="true">{systemIcon(entry.message.type)}</span>
 						<span class="system-text">{entry.message.text}</span>
 					</div>
 				{:else}

@@ -6,6 +6,8 @@
  * Server order is persisted to localStorage.
  */
 
+import { hasLocalStorage } from '$lib/utils/storage';
+
 export interface ServerInfo {
 	id: string;
 	name: string;
@@ -20,11 +22,6 @@ interface ServerStore {
 }
 
 const SERVER_ORDER_KEY = 'virc:serverOrder';
-
-/** Safe check for localStorage availability (missing in Node/SSR). */
-function hasLocalStorage(): boolean {
-	return typeof localStorage !== 'undefined';
-}
 
 /** Load saved server order from localStorage. Returns empty array if none. */
 function loadServerOrder(): string[] {

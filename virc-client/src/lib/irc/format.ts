@@ -37,14 +37,19 @@ const MONOSPACE = '\x11';
 const COLOR = '\x03';
 const RESET = '\x0F';
 
-/** Escape HTML special characters to prevent XSS. */
+/** HTML escape lookup for single-pass replacement. */
+const HTML_ESCAPE_MAP: Record<string, string> = {
+	'&': '&amp;',
+	'<': '&lt;',
+	'>': '&gt;',
+	'"': '&quot;',
+	"'": '&#39;',
+};
+const HTML_ESCAPE_RE = /[&<>"']/g;
+
+/** Escape HTML special characters to prevent XSS. Single-pass for efficiency. */
 function escapeHTML(text: string): string {
-	return text
-		.replace(/&/g, '&amp;')
-		.replace(/</g, '&lt;')
-		.replace(/>/g, '&gt;')
-		.replace(/"/g, '&quot;')
-		.replace(/'/g, '&#39;');
+	return text.replace(HTML_ESCAPE_RE, (ch) => HTML_ESCAPE_MAP[ch]);
 }
 
 /**

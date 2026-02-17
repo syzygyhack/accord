@@ -9,26 +9,36 @@ interface RateLimitOptions {
   max: number;
   /** Window duration in milliseconds. */
   windowMs: number;
+  /**
+   * Maximum number of unique IPs tracked in the store.
+   * When exceeded, oldest entries are evicted. Prevents memory exhaustion
+   * from attackers rotating IPs. Default: 50_000.
+   */
+  maxStoreSize?: number;
 }
 
 /**
  * In-memory sliding-window rate limiter.
  *
- * IP extraction strategy (in priority order):
- * 1. The rightmost entry in X-Forwarded-For that was appended by the
- *    trusted reverse proxy (Caddy/nginx). Using the rightmost avoids
- *    client spoofing, since clients control the leftmost entries.
- * 2. Falls back to "unknown" when no forwarded header is present.
+ * IP extraction strategy:
+ * When TRUST_PROXY is set to "true", uses the rightmost X-Forwarded-For entry
+ * (appended by the trusted reverse proxy). Otherwise, uses only the direct
+ * socket address to prevent spoofing. Falls back to "unknown" when no
+ * address is available.
  *
- * NOTE: This relies on a single trusted reverse proxy. For chained proxies
- * or direct exposure, use a reverse proxy rate limiter instead.
+ * Store size is capped (default 50,000 entries) to prevent memory exhaustion
+ * from IP rotation attacks. When full, oldest entries are evicted.
  */
 export function rateLimit(opts: RateLimitOptions) {
   const store = new Map<string, RateLimitEntry>();
+  const maxStoreSize = opts.maxStoreSize ?? 50_000;
 
   // Periodic cleanup every 60s to prevent memory leaks from stale entries
   const CLEANUP_INTERVAL_MS = 60_000;
   let lastCleanup = Date.now();
+
+  // Check env once at construction time (not per-request)
+  const trustProxy = process.env.TRUST_PROXY === "true";
 
   function cleanup(now: number) {
     for (const [key, entry] of store) {
@@ -38,16 +48,33 @@ export function rateLimit(opts: RateLimitOptions) {
     lastCleanup = now;
   }
 
+  /** Evict oldest entries when store exceeds max size. */
+  function evictOldest() {
+    if (store.size <= maxStoreSize) return;
+    const excess = store.size - maxStoreSize;
+    const keys = store.keys();
+    for (let i = 0; i < excess; i++) {
+      const { value } = keys.next();
+      if (value) store.delete(value);
+    }
+  }
+
   return async (c: Context, next: Next) => {
-    // Use rightmost X-Forwarded-For entry (set by trusted reverse proxy).
-    // The leftmost entries are client-controlled and spoofable.
-    // Falls back to the raw socket address when no proxy header is present.
-    const forwarded = c.req.header("X-Forwarded-For");
-    const parts = forwarded?.split(",");
-    const ip = parts?.[parts.length - 1]?.trim()
-      || c.req.header("X-Real-IP")
-      || (c.env?.remoteAddr as string | undefined)
-      || "unknown";
+    let ip: string;
+
+    if (trustProxy) {
+      // Trusted proxy mode: use rightmost X-Forwarded-For entry
+      // (set by trusted reverse proxy; leftmost entries are client-controlled)
+      const forwarded = c.req.header("X-Forwarded-For");
+      const parts = forwarded?.split(",");
+      ip = parts?.[parts.length - 1]?.trim()
+        || c.req.header("X-Real-IP")
+        || (c.env?.remoteAddr as string | undefined)
+        || "unknown";
+    } else {
+      // Direct mode: ignore X-Forwarded-For entirely (attacker-controlled)
+      ip = (c.env?.remoteAddr as string | undefined) || "unknown";
+    }
 
     const now = Date.now();
 
@@ -60,6 +87,7 @@ export function rateLimit(opts: RateLimitOptions) {
     if (!entry) {
       entry = { timestamps: [] };
       store.set(ip, entry);
+      evictOldest();
     }
 
     // Remove timestamps outside the window

@@ -5,6 +5,8 @@
  * Results are cached client-side to avoid duplicate requests.
  */
 
+import { normalizeBaseUrl } from '$lib/utils/url';
+
 export interface AccountInfo {
 	accountName: string;
 	registeredAt: string;
@@ -73,7 +75,7 @@ async function _doFetch(
 	token: string,
 	filesUrl: string,
 ): Promise<AccountInfo | null> {
-	const baseUrl = filesUrl.replace(/\/+$/, '');
+	const baseUrl = normalizeBaseUrl(filesUrl);
 
 	try {
 		const res = await fetch(

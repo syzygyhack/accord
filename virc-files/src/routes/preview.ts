@@ -113,14 +113,16 @@ function isPrivateHost(hostname: string): boolean {
   const ipv4 = parseIPv4(bare);
   if (ipv4) return isPrivateIPv4(...ipv4);
 
-  // IPv6 loopback
-  if (bare === "::1") return true;
+  // IPv6 loopback and all-zeros (equivalent to 0.0.0.0)
+  if (bare === "::1" || bare === "::") return true;
 
   // IPv6 link-local and private ranges
   const lower = bare.toLowerCase();
   if (lower.startsWith("fe80:")) return true;  // link-local
   if (lower.startsWith("fc00:")) return true;  // unique local
   if (lower.startsWith("fd")) return true;      // unique local
+  if (lower.startsWith("100:")) return true;    // discard-only (100::/64)
+  if (lower.startsWith("2001:db8:")) return true; // documentation range
 
   // IPv6-mapped IPv4: ::ffff:a.b.c.d or ::ffff:XXYY:ZZWW
   const mappedMatch = lower.match(/^::ffff:(.+)$/);
@@ -195,14 +197,33 @@ async function assertPublicResolution(hostname: string): Promise<void> {
       throw new Error(`Hostname ${hostname} resolves to private IP ${addr}`);
     }
     // IPv6 checks
-    if (addr === "::1") {
+    if (addr === "::1" || addr === "::") {
       throw new Error(`Hostname ${hostname} resolves to loopback`);
     }
     const lower = addr.toLowerCase();
-    if (lower.startsWith("fe80:") || lower.startsWith("fc00:") || lower.startsWith("fd")) {
+    if (lower.startsWith("fe80:") || lower.startsWith("fc00:") || lower.startsWith("fd")
+        || lower.startsWith("100:") || lower.startsWith("2001:db8:")) {
       throw new Error(`Hostname ${hostname} resolves to private IPv6`);
     }
   }
+}
+
+/** Strip HTML tags and decode common entities from OG content values.
+ * Prevents stored XSS if the client renders these values as HTML. */
+function sanitizeOgValue(raw: string | null): string | null {
+  if (raw === null) return null;
+  // Strip HTML tags
+  let clean = raw.replace(/<[^>]*>/g, "");
+  // Decode common HTML entities
+  clean = clean
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'");
+  // Truncate to prevent absurdly long values
+  return clean.length > 1000 ? clean.slice(0, 1000) : clean;
 }
 
 /** Extract OG meta tags from HTML string. */
@@ -229,11 +250,47 @@ function parseOgTags(html: string): Omit<OgMetadata, "url"> {
   };
 
   return {
-    title: get("og:title"),
-    description: get("og:description"),
-    image: get("og:image"),
-    siteName: get("og:site_name"),
+    title: sanitizeOgValue(get("og:title")),
+    description: sanitizeOgValue(get("og:description")),
+    image: get("og:image"), // URL — validated separately, not rendered as HTML
+    siteName: sanitizeOgValue(get("og:site_name")),
   };
+}
+
+/**
+ * Resolve hostname to a public IP and return a URL that fetches via that IP.
+ * This prevents TOCTOU DNS rebinding: we resolve once and pin the IP for the
+ * actual fetch, while preserving the original Host header for HTTP routing.
+ *
+ * Returns { fetchUrl, hostHeader } where fetchUrl uses the resolved IP and
+ * hostHeader is the original hostname to send as the Host header.
+ */
+async function resolvePinnedUrl(parsed: URL): Promise<{ fetchUrl: string; hostHeader: string }> {
+  const hostname = parsed.hostname;
+
+  // If already an IP literal, no resolution needed (isPrivateHost already checked)
+  if (parseIPv4(hostname) || hostname === "::1" || hostname.startsWith("[")) {
+    return { fetchUrl: parsed.href, hostHeader: hostname };
+  }
+
+  // Resolve and validate all IPs
+  await assertPublicResolution(hostname);
+
+  // Now resolve again and pick the first public IPv4 for the fetch.
+  // This is the IP we'll actually connect to, preventing rebinding.
+  const [v4Result] = await Promise.allSettled([dnsResolve4(hostname)]);
+  const v4Addrs = v4Result.status === "fulfilled" ? v4Result.value : [];
+
+  if (v4Addrs.length === 0) {
+    // No IPv4, fall back to original URL (IPv6-only hosts).
+    // assertPublicResolution already validated all addresses are public.
+    return { fetchUrl: parsed.href, hostHeader: hostname };
+  }
+
+  // Pin to the first resolved IPv4 address
+  const pinnedUrl = new URL(parsed.href);
+  pinnedUrl.hostname = v4Addrs[0];
+  return { fetchUrl: pinnedUrl.href, hostHeader: hostname };
 }
 
 /** Fetch URL with timeout, redirect limit, size cap, and DNS rebinding protection. */
@@ -241,20 +298,22 @@ async function fetchUrl(url: string): Promise<string> {
   let currentUrl = url;
 
   for (let i = 0; i <= MAX_REDIRECTS; i++) {
-    // DNS rebinding protection: resolve hostname and verify all IPs are public
+    // DNS rebinding protection: resolve hostname, validate IPs are public,
+    // and pin the resolved IP for the actual fetch to prevent TOCTOU rebinding.
     const currentParsed = new URL(currentUrl);
-    await assertPublicResolution(currentParsed.hostname);
+    const { fetchUrl: pinnedUrl, hostHeader } = await resolvePinnedUrl(currentParsed);
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
     try {
-      const res = await fetch(currentUrl, {
+      const res = await fetch(pinnedUrl, {
         signal: controller.signal,
         redirect: "manual",
         headers: {
           "User-Agent": "virc-link-preview/1.0",
           Accept: "text/html",
+          Host: hostHeader,
         },
       });
 

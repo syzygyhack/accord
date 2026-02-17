@@ -156,7 +156,11 @@ export class IRCConnection {
 		const handlers = this.listeners.get(event);
 		if (handlers) {
 			for (const h of handlers) {
-				h(...args);
+				try {
+					h(...args);
+				} catch (err) {
+					console.error(`[IRC] Handler error for event '${event}':`, err);
+				}
 			}
 		}
 	}

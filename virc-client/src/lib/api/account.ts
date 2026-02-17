@@ -4,6 +4,8 @@
  * Calls virc-files endpoints which proxy to Ergo's NickServ HTTP API.
  */
 
+import { normalizeBaseUrl } from '$lib/utils/url';
+
 export interface ChangePasswordRequest {
 	currentPassword: string;
 	newPassword: string;
@@ -28,7 +30,7 @@ export async function changePassword(
 	token: string,
 	req: ChangePasswordRequest,
 ): Promise<AccountApiResult> {
-	const baseUrl = filesUrl.replace(/\/+$/, '');
+	const baseUrl = normalizeBaseUrl(filesUrl);
 
 	try {
 		const res = await fetch(`${baseUrl}/api/account/password`, {
@@ -61,7 +63,7 @@ export async function changeEmail(
 	token: string,
 	req: ChangeEmailRequest,
 ): Promise<AccountApiResult> {
-	const baseUrl = filesUrl.replace(/\/+$/, '');
+	const baseUrl = normalizeBaseUrl(filesUrl);
 
 	try {
 		const res = await fetch(`${baseUrl}/api/account/email`, {

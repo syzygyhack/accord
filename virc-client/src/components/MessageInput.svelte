@@ -1021,6 +1021,12 @@
 		padding: 0;
 	}
 
+	textarea:focus-visible {
+		outline: 2px solid var(--accent-primary);
+		outline-offset: -2px;
+		border-radius: 2px;
+	}
+
 	textarea::placeholder {
 		color: var(--text-muted);
 	}

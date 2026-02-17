@@ -36,8 +36,8 @@ account.post("/api/account/password", authMiddleware, async (c) => {
     return c.json({ error: "Invalid input format" }, 400);
   }
 
-  if (newPassword.length < 1) {
-    return c.json({ error: "New password cannot be empty" }, 400);
+  if (newPassword.length < 8) {
+    return c.json({ error: "New password must be at least 8 characters" }, 400);
   }
 
   // Verify current password via Ergo check_auth
@@ -57,6 +57,10 @@ account.post("/api/account/password", authMiddleware, async (c) => {
     });
   } catch {
     return c.json({ error: "Account service unavailable" }, 502);
+  }
+
+  if (verifyRes.status >= 500) {
+    return c.json({ error: "Account service error" }, 502);
   }
 
   if (!verifyRes.ok) {
