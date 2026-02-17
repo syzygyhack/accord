@@ -376,15 +376,15 @@
 	}
 
 	onMount(() => {
-		window.addEventListener('virc:edit-message', handleEditMessage);
-		window.addEventListener('virc:insert-mention', handleInsertMention);
-		window.addEventListener('virc:insert-emoji', handleInsertEmoji);
+		window.addEventListener('accord:edit-message', handleEditMessage);
+		window.addEventListener('accord:insert-mention', handleInsertMention);
+		window.addEventListener('accord:insert-emoji', handleInsertEmoji);
 	});
 
 	onDestroy(() => {
-		window.removeEventListener('virc:edit-message', handleEditMessage);
-		window.removeEventListener('virc:insert-mention', handleInsertMention);
-		window.removeEventListener('virc:insert-emoji', handleInsertEmoji);
+		window.removeEventListener('accord:edit-message', handleEditMessage);
+		window.removeEventListener('accord:insert-mention', handleInsertMention);
+		window.removeEventListener('accord:insert-emoji', handleInsertEmoji);
 		clearTypingTimer();
 		// Clean up object URLs for staged file previews
 		for (const sf of stagedFiles) {

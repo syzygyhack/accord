@@ -562,13 +562,13 @@
 	}
 
 	onMount(() => {
-		window.addEventListener('virc:scroll-to-message', handleExternalScroll);
-		window.addEventListener('virc:scroll-messages', handleScrollCommand);
+		window.addEventListener('accord:scroll-to-message', handleExternalScroll);
+		window.addEventListener('accord:scroll-messages', handleScrollCommand);
 	});
 
 	onDestroy(() => {
-		window.removeEventListener('virc:scroll-to-message', handleExternalScroll);
-		window.removeEventListener('virc:scroll-messages', handleScrollCommand);
+		window.removeEventListener('accord:scroll-to-message', handleExternalScroll);
+		window.removeEventListener('accord:scroll-messages', handleScrollCommand);
 		if (scrollRafId !== undefined) cancelAnimationFrame(scrollRafId);
 	});
 </script>
