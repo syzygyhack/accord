@@ -26,7 +26,7 @@ export interface Message {
 	replyTo?: string; // msgid of parent
 	reactions: Map<string, Set<string>>; // emoji -> set of accounts
 	isRedacted: boolean;
-	isEdited?: boolean; // true when message has been updated via +virc/edit
+	isEdited?: boolean; // true when message has been updated via +accord/edit
 	type: MessageType;
 	sendState?: SendState; // only set for locally-sent messages
 }
@@ -193,7 +193,7 @@ export function redactMessage(target: string, msgid: string): void {
 }
 
 /**
- * Update a message's text in-place (for +virc/edit).
+ * Update a message's text in-place (for +accord/edit).
  * Stores the edit chain mapping so reactions/replies to the original msgid still resolve.
  * Returns true if the original message was found and updated.
  */

@@ -660,17 +660,17 @@ describe('MODE handling', () => {
 	});
 });
 
-describe('+virc/edit handling', () => {
-	it('updates original message text in-place when receiving +virc/edit', () => {
+describe('+accord/edit handling', () => {
+	it('updates original message text in-place when receiving +accord/edit', () => {
 		// Add original message
 		handle(
 			'@msgid=ORIG123;account=alice;time=2025-01-01T00:00:00Z :alice!a@host PRIVMSG #test :Hello wrold'
 		);
 		expect(getMessage('#test', 'ORIG123')!.text).toBe('Hello wrold');
 
-		// Edit arrives: new message with +virc/edit tag pointing to original
+		// Edit arrives: new message with +accord/edit tag pointing to original
 		handle(
-			'@msgid=EDIT456;+virc/edit=ORIG123;account=alice;time=2025-01-01T00:01:00Z :alice!a@host PRIVMSG #test :Hello world'
+			'@msgid=EDIT456;+accord/edit=ORIG123;account=alice;time=2025-01-01T00:01:00Z :alice!a@host PRIVMSG #test :Hello world'
 		);
 
 		// Original message should be updated in-place
@@ -685,7 +685,7 @@ describe('+virc/edit handling', () => {
 			'@msgid=ORIG1;account=alice :alice!a@host PRIVMSG #test :original'
 		);
 		handle(
-			'@msgid=EDIT1;+virc/edit=ORIG1;account=alice :alice!a@host PRIVMSG #test :edited'
+			'@msgid=EDIT1;+accord/edit=ORIG1;account=alice :alice!a@host PRIVMSG #test :edited'
 		);
 
 		const msgs = getMessages('#test');
@@ -696,7 +696,7 @@ describe('+virc/edit handling', () => {
 	it('adds as new message if original msgid not found', () => {
 		// Edit arrives but original message is not in buffer
 		handle(
-			'@msgid=EDIT1;+virc/edit=MISSING;account=alice :alice!a@host PRIVMSG #test :edited message'
+			'@msgid=EDIT1;+accord/edit=MISSING;account=alice :alice!a@host PRIVMSG #test :edited message'
 		);
 
 		const msgs = getMessages('#test');
@@ -710,7 +710,7 @@ describe('+virc/edit handling', () => {
 			'@msgid=ORIG1;account=alice :alice!a@host PRIVMSG #test :v1'
 		);
 		handle(
-			'@msgid=EDIT1;+virc/edit=ORIG1;account=alice :alice!a@host PRIVMSG #test :v2'
+			'@msgid=EDIT1;+accord/edit=ORIG1;account=alice :alice!a@host PRIVMSG #test :v2'
 		);
 
 		// Reactions to the original msgid should still resolve

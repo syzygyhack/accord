@@ -877,7 +877,7 @@
 
 	/** Called by MessageInput after a successful send while editing. */
 	function handleEditComplete(): void {
-		// The edit is handled entirely by the +virc/edit tag on the PRIVMSG.
+		// The edit is handled entirely by the +accord/edit tag on the PRIVMSG.
 		// The server echoes it back, and handlePrivmsg updates the message in-place
 		// via updateMessageText(). No REDACT needed — that would hide the message.
 		editingMsgid = null;

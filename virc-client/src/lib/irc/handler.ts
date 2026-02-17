@@ -345,8 +345,8 @@ function handlePrivmsg(parsed: ParsedMessage): void {
 		clearTyping(bufferTarget, msg.nick);
 	}
 
-	// Handle +virc/edit: update original message in-place instead of adding new
-	const editOriginalMsgid = parsed.tags['+virc/edit'];
+	// Handle +accord/edit: update original message in-place instead of adding new
+	const editOriginalMsgid = parsed.tags['+accord/edit'];
 	if (editOriginalMsgid) {
 		const updated = updateMessageText(bufferTarget, editOriginalMsgid, msg.text, msg.msgid);
 		if (updated) {
@@ -708,9 +708,9 @@ function handleBatchedMessage(batchRef: string, parsed: ParsedMessage): void {
 
 		const msg = privmsgToMessage(parsed, bufferTarget);
 
-		// Handle +virc/edit in history: update the earlier message in the
+		// Handle +accord/edit in history: update the earlier message in the
 		// batch instead of adding a duplicate.
-		const editOriginalMsgid = parsed.tags['+virc/edit'];
+		const editOriginalMsgid = parsed.tags['+accord/edit'];
 		if (editOriginalMsgid) {
 			const original = batch.messages.find((m) => m.msgid === editOriginalMsgid);
 			if (original) {

@@ -28,10 +28,10 @@ export function part(conn: IRCConnection, channel: string, reason?: string): voi
 	}
 }
 
-/** Send a PRIVMSG to a target (channel or nick). Optionally attach a +virc/edit tag for edits. Returns false if send failed. */
+/** Send a PRIVMSG to a target (channel or nick). Optionally attach a +accord/edit tag for edits. Returns false if send failed. */
 export function privmsg(conn: IRCConnection, target: string, text: string, editMsgid?: string): boolean {
 	if (editMsgid) {
-		return conn.send(`@+virc/edit=${escapeTagValue(editMsgid)} ${formatMessage('PRIVMSG', target, text)}`);
+		return conn.send(`@+accord/edit=${escapeTagValue(editMsgid)} ${formatMessage('PRIVMSG', target, text)}`);
 	} else {
 		return conn.send(formatMessage('PRIVMSG', target, text));
 	}

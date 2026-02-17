@@ -73,11 +73,11 @@ describe('IRC command helpers', () => {
 			expect(sent).toEqual(['PRIVMSG nick :hi there']);
 		});
 
-		it('sends PRIVMSG with +virc/edit tag when editMsgid is provided', () => {
+		it('sends PRIVMSG with +accord/edit tag when editMsgid is provided', () => {
 			const { conn, sent } = createMockConn();
 			privmsg(conn, '#test', 'corrected text', 'ORIG123');
 			expect(sent).toHaveLength(1);
-			expect(sent[0]).toBe('@+virc/edit=ORIG123 PRIVMSG #test :corrected text');
+			expect(sent[0]).toBe('@+accord/edit=ORIG123 PRIVMSG #test :corrected text');
 		});
 
 		it('sends PRIVMSG without tag when editMsgid is undefined', () => {
