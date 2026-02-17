@@ -6,6 +6,7 @@
  */
 
 import { getCustomEmojiMap } from '$lib/emoji';
+import { URL_PATTERN_SOURCE } from '$lib/constants';
 
 // mIRC color palette (indices 0-15)
 const MIRC_COLORS: string[] = [
@@ -284,7 +285,7 @@ export function linkify(text: string): string {
 	// The href needs entities decoded back for a valid URL, while the
 	// display text is kept as-is (already safe HTML).
 	return text.replace(
-		/(https?:\/\/[^\s<>"]+)/g,
+		new RegExp(`(${URL_PATTERN_SOURCE})`, 'g'),
 		(match) => {
 			// Strip trailing punctuation that's unlikely to be part of the URL
 			const trailingMatch = match.match(/[.,;:!?)]+$/);

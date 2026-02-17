@@ -9,20 +9,20 @@
 	import { voiceState } from '$lib/state/voice.svelte';
 
 	interface Props {
-		onToggleMembers?: () => void;
+		ontogglemembers?: () => void;
 		membersVisible?: boolean;
-		onTopicEdit?: (channel: string, newTopic: string) => void;
-		onToggleSidebar?: () => void;
+		ontopicedit?: (channel: string, newTopic: string) => void;
+		ontogglesidebar?: () => void;
 		showSidebarToggle?: boolean;
-		onVoiceCall?: (target: string) => void;
-		onVideoCall?: (target: string) => void;
-		onScrollToMessage?: (msgid: string) => void;
-		onToggleSearch?: () => void;
+		onvoicecall?: (target: string) => void;
+		onvideocall?: (target: string) => void;
+		onscrolltomessage?: (msgid: string) => void;
+		ontogglesearch?: () => void;
 		searchVisible?: boolean;
-		onOpenServerSettings?: () => void;
+		onopenserversettings?: () => void;
 	}
 
-	let { onToggleMembers, membersVisible = false, onTopicEdit, onToggleSidebar, showSidebarToggle = false, onVoiceCall, onVideoCall, onScrollToMessage, onToggleSearch, searchVisible = false, onOpenServerSettings }: Props = $props();
+	let { ontogglemembers, membersVisible = false, ontopicedit, ontogglesidebar, showSidebarToggle = false, onvoicecall, onvideocall, onscrolltomessage, ontogglesearch, searchVisible = false, onopenserversettings }: Props = $props();
 
 	let channelInfo = $derived(
 		channelUIState.activeChannel
@@ -103,7 +103,7 @@
 
 	function handlePinnedMessageClick(msgid: string): void {
 		showPinnedDropdown = false;
-		onScrollToMessage?.(msgid);
+		onscrolltomessage?.(msgid);
 	}
 
 	function handleTopicClick(): void {
@@ -120,8 +120,8 @@
 	function handleEditKeydown(e: KeyboardEvent): void {
 		if (e.key === 'Enter') {
 			e.preventDefault();
-			if (onTopicEdit && channelUIState.activeChannel) {
-				onTopicEdit(channelUIState.activeChannel, editValue);
+			if (ontopicedit && channelUIState.activeChannel) {
+				ontopicedit(channelUIState.activeChannel, editValue);
 			}
 			topicEditing = false;
 		} else if (e.key === 'Escape') {
@@ -141,7 +141,7 @@
 			class="action-button hamburger-button"
 			title="Toggle Sidebar"
 			aria-label="Toggle Sidebar"
-			onclick={onToggleSidebar}
+			onclick={ontogglesidebar}
 		>
 			<svg width="18" height="18" viewBox="0 0 18 18" fill="none">
 				<path d="M2 4h14M2 9h14M2 14h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
@@ -203,7 +203,7 @@
 				class:active={isInDMCall}
 				title={isInDMCall ? 'End Call' : 'Start Voice Call'}
 				aria-label={isInDMCall ? 'End Call' : 'Start Voice Call'}
-				onclick={() => onVoiceCall?.(channelUIState.activeChannel!)}
+				onclick={() => onvoicecall?.(channelUIState.activeChannel!)}
 			>
 				<svg width="18" height="18" viewBox="0 0 24 24" fill="none">
 					<path
@@ -220,7 +220,7 @@
 				class:active={isInDMCall && voiceState.localVideoEnabled}
 				title={isInDMCall ? 'Toggle Video' : 'Start Video Call'}
 				aria-label={isInDMCall ? 'Toggle Video' : 'Start Video Call'}
-				onclick={() => onVideoCall?.(channelUIState.activeChannel!)}
+				onclick={() => onvideocall?.(channelUIState.activeChannel!)}
 			>
 				<svg width="18" height="18" viewBox="0 0 24 24" fill="none">
 					<path
@@ -274,7 +274,7 @@
 			class:active={searchVisible}
 			title="Search Messages"
 			aria-label="Search Messages"
-			onclick={onToggleSearch}
+			onclick={ontogglesearch}
 		>
 			<svg width="18" height="18" viewBox="0 0 24 24" fill="none">
 				<circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2" />
@@ -286,7 +286,7 @@
 			class:active={membersVisible}
 			title="Toggle Member List"
 			aria-label="Toggle Member List"
-			onclick={onToggleMembers}
+			onclick={ontogglemembers}
 		>
 			<svg width="18" height="18" viewBox="0 0 18 18" fill="none">
 				<path
@@ -300,7 +300,7 @@
 				class="action-button"
 				title="Channel Settings"
 				aria-label="Channel Settings"
-				onclick={onOpenServerSettings}
+				onclick={onopenserversettings}
 			>
 				<svg width="18" height="18" viewBox="0 0 24 24" fill="none">
 					<path

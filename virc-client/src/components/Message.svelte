@@ -309,21 +309,9 @@
 	}
 </script>
 
-{#if compact}
-<div
-	class="message message-compact"
-	class:message-redacted={message.isRedacted}
-	class:message-failed={isFailed}
-	class:message-sending={isSending}
-	class:message-mention={isMention}
-	role="article"
-	title={devTooltip}
-	aria-label="{message.nick}: {message.isRedacted ? 'message deleted' : message.text.slice(0, 100)}"
-	onmouseenter={() => (hovered = true)}
-	onmouseleave={() => (hovered = false)}
-	onfocusin={() => (hovered = true)}
-	onfocusout={() => (hovered = false)}
->
+<!-- ===== Shared template snippets ===== -->
+
+{#snippet hoverToolbar()}
 	{#if !message.isRedacted}
 		<div class="hover-toolbar" class:toolbar-visible={hovered} aria-label="Message actions">
 			<button class="toolbar-btn" title="Add Reaction" aria-label="Add Reaction" onclick={handleReact}>
@@ -376,6 +364,143 @@
 			</div>
 		</div>
 	{/if}
+{/snippet}
+
+{#snippet mediaPreviews()}
+	{#if mediaUrls.length > 0}
+		<div class="media-previews">
+			{#each mediaUrls as media (media.url)}
+				{#if media.type === 'image'}
+					<button class="media-thumbnail-btn" onclick={() => openLightbox(media.url)}>
+						<div class="media-thumbnail-placeholder">
+							<img
+								class="media-thumbnail"
+								src={media.url}
+								alt="Image preview"
+								loading="lazy"
+								onload={(e) => (e.currentTarget as HTMLImageElement).dataset.loaded = ''}
+							/>
+						</div>
+					</button>
+				{:else if media.type === 'video'}
+					<video class="media-video" controls preload="metadata">
+						<source src={media.url} />
+						<track kind="captions" />
+					</video>
+				{:else if media.type === 'audio'}
+					<audio class="media-audio" controls preload="metadata">
+						<source src={media.url} />
+					</audio>
+				{/if}
+			{/each}
+		</div>
+	{/if}
+{/snippet}
+
+{#snippet linkPreviewCard()}
+	{#if linkPreview || previewLoading}
+		{#if previewLoading}
+			<div class="link-preview-card link-preview-skeleton">
+				<div class="skeleton-line skeleton-site-name"></div>
+				<div class="skeleton-line skeleton-title"></div>
+				<div class="skeleton-line skeleton-desc"></div>
+			</div>
+		{:else if linkPreview}
+			<a class="link-preview-card" href={linkPreview.url} target="_blank" rel="noopener noreferrer">
+				<div class="link-preview-text">
+					{#if linkPreview.siteName}
+						<span class="link-preview-site">{linkPreview.siteName}</span>
+					{/if}
+					{#if linkPreview.title}
+						<span class="link-preview-title">{linkPreview.title}</span>
+					{/if}
+					{#if linkPreview.description}
+						<span class="link-preview-desc">{linkPreview.description}</span>
+					{/if}
+				</div>
+				{#if linkPreview.image}
+					<img class="link-preview-thumb" src={linkPreview.image} alt="" loading="lazy" />
+				{/if}
+			</a>
+		{/if}
+	{/if}
+{/snippet}
+
+{#snippet reactionsBar()}
+	{#if reactionEntries.length > 0}
+		<div class="reactions-bar" class:reactions-bar-overflow={reactionEntries.length > 20}>
+			{#each reactionEntries as entry (entry.emoji)}
+				<button
+					class="reaction-pill"
+					class:reaction-self={entry.hasSelf}
+					onclick={() => handleToggleReaction(entry.emoji)}
+				>
+					<span class="reaction-emoji">
+						{#if entry.customUrl}
+							<img class="reaction-custom-emoji" src={entry.customUrl} alt={entry.emoji} title={entry.emoji} />
+						{:else}
+							{entry.emoji}
+						{/if}
+					</span>
+					<span class="reaction-count">{entry.count}</span>
+				</button>
+			{/each}
+			<button
+				class="reaction-pill reaction-add"
+				title="Add Reaction"
+				aria-label="Add Reaction"
+				onclick={handleReactionBarAdd}
+			>
+				<span class="reaction-add-icon">+</span>
+			</button>
+		</div>
+	{/if}
+{/snippet}
+
+{#snippet sendFailed()}
+	{#if isFailed}
+		<div class="send-failed">
+			<svg class="send-failed-icon" width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+				<path d="M7 0a7 7 0 110 14A7 7 0 017 0zm0 9.8a.9.9 0 100 1.8.9.9 0 000-1.8zM7.7 3.5H6.3l.2 5h1l.2-5z"/>
+			</svg>
+			<span class="send-failed-text">Failed to send</span>
+			<button class="send-failed-retry" onclick={handleRetry}>Retry</button>
+		</div>
+	{/if}
+{/snippet}
+
+{#snippet messageContent()}
+	{#if message.isRedacted}
+		<div class="message-text redacted">[message deleted]</div>
+	{:else}
+		{#if !isMediaOnly}
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div class="message-text" onclick={handleMessageTextClick}>{@html renderedText}</div>
+		{/if}
+		{@render mediaPreviews()}
+		{@render linkPreviewCard()}
+	{/if}
+{/snippet}
+
+<!-- ===== Compact mode ===== -->
+
+{#if compact}
+<div
+	class="message message-compact"
+	class:message-redacted={message.isRedacted}
+	class:message-failed={isFailed}
+	class:message-sending={isSending}
+	class:message-mention={isMention}
+	role="article"
+	title={devTooltip}
+	aria-label="{message.nick}: {message.isRedacted ? 'message deleted' : message.text.slice(0, 100)}"
+	onmouseenter={() => (hovered = true)}
+	onmouseleave={() => (hovered = false)}
+	onfocusin={() => (hovered = true)}
+	onfocusout={() => (hovered = false)}
+>
+	{@render hoverToolbar()}
 
 	{#if replyParent}
 		<div class="compact-reply-line">
@@ -415,32 +540,7 @@
 		<div class="compact-media-row">
 			<span class="compact-timestamp"></span>
 			<span class="compact-nick"></span>
-			<div class="media-previews">
-				{#each mediaUrls as media (media.url)}
-					{#if media.type === 'image'}
-						<button class="media-thumbnail-btn" onclick={() => openLightbox(media.url)}>
-							<div class="media-thumbnail-placeholder">
-								<img
-									class="media-thumbnail"
-									src={media.url}
-									alt="Image preview"
-									loading="lazy"
-									onload={(e) => (e.currentTarget as HTMLImageElement).dataset.loaded = ''}
-								/>
-							</div>
-						</button>
-					{:else if media.type === 'video'}
-						<video class="media-video" controls preload="metadata">
-							<source src={media.url} />
-							<track kind="captions" />
-						</video>
-					{:else if media.type === 'audio'}
-						<audio class="media-audio" controls preload="metadata">
-							<source src={media.url} />
-						</audio>
-					{/if}
-				{/each}
-			</div>
+			{@render mediaPreviews()}
 		</div>
 	{/if}
 
@@ -448,30 +548,7 @@
 		<div class="compact-media-row">
 			<span class="compact-timestamp"></span>
 			<span class="compact-nick"></span>
-			{#if previewLoading}
-				<div class="link-preview-card link-preview-skeleton">
-					<div class="skeleton-line skeleton-site-name"></div>
-					<div class="skeleton-line skeleton-title"></div>
-					<div class="skeleton-line skeleton-desc"></div>
-				</div>
-			{:else if linkPreview}
-				<a class="link-preview-card" href={linkPreview.url} target="_blank" rel="noopener noreferrer">
-					<div class="link-preview-text">
-						{#if linkPreview.siteName}
-							<span class="link-preview-site">{linkPreview.siteName}</span>
-						{/if}
-						{#if linkPreview.title}
-							<span class="link-preview-title">{linkPreview.title}</span>
-						{/if}
-						{#if linkPreview.description}
-							<span class="link-preview-desc">{linkPreview.description}</span>
-						{/if}
-					</div>
-					{#if linkPreview.image}
-						<img class="link-preview-thumb" src={linkPreview.image} alt="" loading="lazy" />
-					{/if}
-				</a>
-			{/if}
+			{@render linkPreviewCard()}
 		</div>
 	{/if}
 
@@ -479,45 +556,15 @@
 		<div class="compact-reactions-row">
 			<span class="compact-timestamp"></span>
 			<span class="compact-nick"></span>
-			<div class="reactions-bar" class:reactions-bar-overflow={reactionEntries.length > 20}>
-				{#each reactionEntries as entry (entry.emoji)}
-					<button
-						class="reaction-pill"
-						class:reaction-self={entry.hasSelf}
-						onclick={() => handleToggleReaction(entry.emoji)}
-					>
-						<span class="reaction-emoji">
-							{#if entry.customUrl}
-								<img class="reaction-custom-emoji" src={entry.customUrl} alt={entry.emoji} title={entry.emoji} />
-							{:else}
-								{entry.emoji}
-							{/if}
-						</span>
-						<span class="reaction-count">{entry.count}</span>
-					</button>
-				{/each}
-				<button
-					class="reaction-pill reaction-add"
-					title="Add Reaction"
-					aria-label="Add Reaction"
-					onclick={handleReactionBarAdd}
-				>
-					<span class="reaction-add-icon">+</span>
-				</button>
-			</div>
+			{@render reactionsBar()}
 		</div>
 	{/if}
 
-	{#if isFailed}
-		<div class="send-failed">
-			<svg class="send-failed-icon" width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
-				<path d="M7 0a7 7 0 110 14A7 7 0 017 0zm0 9.8a.9.9 0 100 1.8.9.9 0 000-1.8zM7.7 3.5H6.3l.2 5h1l.2-5z"/>
-			</svg>
-			<span class="send-failed-text">Failed to send</span>
-			<button class="send-failed-retry" onclick={handleRetry}>Retry</button>
-		</div>
-	{/if}
+	{@render sendFailed()}
 </div>
+
+<!-- ===== Cozy mode ===== -->
+
 {:else}
 <div
 	class="message"
@@ -534,58 +581,7 @@
 	onfocusin={() => (hovered = true)}
 	onfocusout={() => (hovered = false)}
 >
-	{#if !message.isRedacted}
-		<div class="hover-toolbar" class:toolbar-visible={hovered} aria-label="Message actions">
-			<button class="toolbar-btn" title="Add Reaction" aria-label="Add Reaction" onclick={handleReact}>
-				<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-					<path d="M8 1a7 7 0 110 14A7 7 0 018 1zm0 1.2A5.8 5.8 0 1013.8 8 5.8 5.8 0 008 2.2zM5.5 6a1 1 0 110 2 1 1 0 010-2zm5 0a1 1 0 110 2 1 1 0 010-2zm-6 3.5a.6.6 0 01.8-.3A5.3 5.3 0 008 10a5.3 5.3 0 002.7-.8.6.6 0 01.6 1A6.5 6.5 0 018 11.2a6.5 6.5 0 01-3.3-1 .6.6 0 01-.2-.7z"/>
-				</svg>
-			</button>
-			<button class="toolbar-btn" title="Reply" aria-label="Reply" onclick={handleReply}>
-				<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-					<path d="M6.6 3.4L1.2 7.6a.5.5 0 000 .8l5.4 4.2a.5.5 0 00.8-.4V10c3 0 5.4.8 7 3.6.2.4.6.4.6-.1C15 9.1 12 5.5 7.4 5.2V3.8a.5.5 0 00-.8-.4z"/>
-				</svg>
-			</button>
-			<div class="toolbar-more-wrapper" bind:this={moreMenuWrapper}>
-				<button class="toolbar-btn" title="More" aria-label="More actions" onclick={toggleMoreMenu}>
-					<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-						<circle cx="3" cy="8" r="1.5"/>
-						<circle cx="8" cy="8" r="1.5"/>
-						<circle cx="13" cy="8" r="1.5"/>
-					</svg>
-				</button>
-				{#if moreMenuOpen}
-					<!-- svelte-ignore a11y_no_static_element_interactions -->
-					<div class="more-menu">
-						{#if isOwnMessage}
-							<button class="more-menu-item" onclick={handleEdit}>
-								Edit Message
-							</button>
-						{/if}
-						<button class="more-menu-item" onclick={handleCopyText}>
-							Copy Text
-						</button>
-						<button class="more-menu-item" onclick={handleCopyLink}>
-							Copy Link
-						</button>
-						<button class="more-menu-item" onclick={handleMarkUnread}>
-							Mark Unread
-						</button>
-						{#if isOp}
-							<button class="more-menu-item" onclick={handlePin}>
-								{pinned ? 'Unpin Message' : 'Pin Message'}
-							</button>
-						{/if}
-						{#if canDelete}
-							<button class="more-menu-item more-menu-item-danger" onclick={(e) => handleMore(e)}>
-								Delete Message
-							</button>
-						{/if}
-					</div>
-				{/if}
-			</div>
-		</div>
-	{/if}
+	{@render hoverToolbar()}
 
 	{#if isFirstInGroup || !isGrouped}
 		{#if replyParent}
@@ -613,69 +609,7 @@
 					<span class="nick" style="color: {color}" role="button" tabindex="0" onclick={handleNickClick} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); handleNickClick(new MouseEvent('click', { clientX: rect.left, clientY: rect.bottom })); } }}>{message.nick}</span>
 					<span class="timestamp">{timestamp}</span>
 				</div>
-				{#if message.isRedacted}
-					<div class="message-text redacted">[message deleted]</div>
-				{:else}
-					{#if !isMediaOnly}
-						<!-- svelte-ignore a11y_click_events_have_key_events -->
-						<!-- svelte-ignore a11y_no_static_element_interactions -->
-						<div class="message-text" onclick={handleMessageTextClick}>{@html renderedText}</div>
-					{/if}
-					{#if mediaUrls.length > 0}
-						<div class="media-previews">
-							{#each mediaUrls as media (media.url)}
-								{#if media.type === 'image'}
-									<button class="media-thumbnail-btn" onclick={() => openLightbox(media.url)}>
-										<div class="media-thumbnail-placeholder">
-											<img
-												class="media-thumbnail"
-												src={media.url}
-												alt="Image preview"
-												loading="lazy"
-												onload={(e) => (e.currentTarget as HTMLImageElement).dataset.loaded = ''}
-											/>
-										</div>
-									</button>
-								{:else if media.type === 'video'}
-									<video class="media-video" controls preload="metadata">
-										<source src={media.url} />
-										<track kind="captions" />
-									</video>
-								{:else if media.type === 'audio'}
-									<audio class="media-audio" controls preload="metadata">
-										<source src={media.url} />
-									</audio>
-								{/if}
-							{/each}
-						</div>
-					{/if}
-					{#if linkPreview || previewLoading}
-						{#if previewLoading}
-							<div class="link-preview-card link-preview-skeleton">
-								<div class="skeleton-line skeleton-site-name"></div>
-								<div class="skeleton-line skeleton-title"></div>
-								<div class="skeleton-line skeleton-desc"></div>
-							</div>
-						{:else if linkPreview}
-							<a class="link-preview-card" href={linkPreview.url} target="_blank" rel="noopener noreferrer">
-								<div class="link-preview-text">
-									{#if linkPreview.siteName}
-										<span class="link-preview-site">{linkPreview.siteName}</span>
-									{/if}
-									{#if linkPreview.title}
-										<span class="link-preview-title">{linkPreview.title}</span>
-									{/if}
-									{#if linkPreview.description}
-										<span class="link-preview-desc">{linkPreview.description}</span>
-									{/if}
-								</div>
-								{#if linkPreview.image}
-									<img class="link-preview-thumb" src={linkPreview.image} alt="" loading="lazy" />
-								{/if}
-							</a>
-						{/if}
-					{/if}
-				{/if}
+				{@render messageContent()}
 			</div>
 		</div>
 	{:else}
@@ -683,110 +617,12 @@
 			<span class="timestamp-gutter" class:visible={hovered}>
 				{timestamp}
 			</span>
-			{#if message.isRedacted}
-				<div class="message-text redacted">[message deleted]</div>
-			{:else}
-				{#if !isMediaOnly}
-					<!-- svelte-ignore a11y_click_events_have_key_events -->
-					<!-- svelte-ignore a11y_no_static_element_interactions -->
-					<div class="message-text" onclick={handleMessageTextClick}>{@html renderedText}</div>
-				{/if}
-				{#if mediaUrls.length > 0}
-					<div class="media-previews">
-						{#each mediaUrls as media (media.url)}
-							{#if media.type === 'image'}
-								<button class="media-thumbnail-btn" onclick={() => openLightbox(media.url)}>
-									<div class="media-thumbnail-placeholder">
-										<img
-											class="media-thumbnail"
-											src={media.url}
-											alt="Image preview"
-											loading="lazy"
-											onload={(e) => (e.currentTarget as HTMLImageElement).dataset.loaded = ''}
-										/>
-									</div>
-								</button>
-							{:else if media.type === 'video'}
-								<video class="media-video" controls preload="metadata">
-									<source src={media.url} />
-									<track kind="captions" />
-								</video>
-							{:else if media.type === 'audio'}
-								<audio class="media-audio" controls preload="metadata">
-									<source src={media.url} />
-								</audio>
-							{/if}
-						{/each}
-					</div>
-				{/if}
-				{#if linkPreview || previewLoading}
-					{#if previewLoading}
-						<div class="link-preview-card link-preview-skeleton">
-							<div class="skeleton-line skeleton-site-name"></div>
-							<div class="skeleton-line skeleton-title"></div>
-							<div class="skeleton-line skeleton-desc"></div>
-						</div>
-					{:else if linkPreview}
-						<a class="link-preview-card" href={linkPreview.url} target="_blank" rel="noopener noreferrer">
-							<div class="link-preview-text">
-								{#if linkPreview.siteName}
-									<span class="link-preview-site">{linkPreview.siteName}</span>
-								{/if}
-								{#if linkPreview.title}
-									<span class="link-preview-title">{linkPreview.title}</span>
-								{/if}
-								{#if linkPreview.description}
-									<span class="link-preview-desc">{linkPreview.description}</span>
-								{/if}
-							</div>
-							{#if linkPreview.image}
-								<img class="link-preview-thumb" src={linkPreview.image} alt="" loading="lazy" />
-							{/if}
-						</a>
-					{/if}
-				{/if}
-			{/if}
+			{@render messageContent()}
 		</div>
 	{/if}
 
-	{#if reactionEntries.length > 0}
-		<div class="reactions-bar" class:reactions-bar-overflow={reactionEntries.length > 20}>
-			{#each reactionEntries as entry (entry.emoji)}
-				<button
-					class="reaction-pill"
-					class:reaction-self={entry.hasSelf}
-					onclick={() => handleToggleReaction(entry.emoji)}
-				>
-					<span class="reaction-emoji">
-						{#if entry.customUrl}
-							<img class="reaction-custom-emoji" src={entry.customUrl} alt={entry.emoji} title={entry.emoji} />
-						{:else}
-							{entry.emoji}
-						{/if}
-					</span>
-					<span class="reaction-count">{entry.count}</span>
-				</button>
-			{/each}
-			<button
-				class="reaction-pill reaction-add"
-				title="Add Reaction"
-				aria-label="Add Reaction"
-				onclick={handleReactionBarAdd}
-			>
-				<span class="reaction-add-icon">+</span>
-			</button>
-		</div>
-	{/if}
-
-	{#if isFailed}
-		<div class="send-failed">
-			<svg class="send-failed-icon" width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
-				<path d="M7 0a7 7 0 110 14A7 7 0 017 0zm0 9.8a.9.9 0 100 1.8.9.9 0 000-1.8zM7.7 3.5H6.3l.2 5h1l.2-5z"/>
-			</svg>
-			<span class="send-failed-text">Failed to send</span>
-			<button class="send-failed-retry" onclick={handleRetry}>Retry</button>
-		</div>
-	{/if}
+	{@render reactionsBar()}
+	{@render sendFailed()}
 </div>
 {/if}
 

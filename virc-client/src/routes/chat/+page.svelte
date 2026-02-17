@@ -1660,7 +1660,7 @@
 
 	<!-- Left column: Channel sidebar -->
 	<div class="left-panel" class:overlay={sidebarIsOverlay} class:visible={sidebarIsOverlay && showSidebar} style="width: {appSettings.sidebarWidth}px;">
-		<ChannelSidebar onVoiceChannelClick={handleVoiceChannelClick} {voiceRoom} onSettingsClick={() => (showSettings = true)} onServerSettingsClick={() => { serverSettingsInitialTab = 'overview'; showServerSettings = true; }} onCreateChannel={(ch) => { if (conn) { join(conn, [ch]); setActiveChannel(ch); chathistory(conn, 'LATEST', ch, '*', '50'); } }} onVoiceExpand={() => (showVoiceOverlay = true)} />
+		<ChannelSidebar onvoicechannelclick={handleVoiceChannelClick} {voiceRoom} onsettingsclick={() => (showSettings = true)} onserversettingsclick={() => { serverSettingsInitialTab = 'overview'; showServerSettings = true; }} oncreatechannel={(ch) => { if (conn) { join(conn, [ch]); setActiveChannel(ch); chathistory(conn, 'LATEST', ch, '*', '50'); } }} onvoiceexpand={() => (showVoiceOverlay = true)} />
 		{#if !sidebarIsOverlay}
 			<ResizeHandle side="left" min={SIDEBAR_MIN} max={SIDEBAR_MAX} width={appSettings.sidebarWidth} onresize={(w) => { appSettings.sidebarWidth = w; }} />
 		{/if}
@@ -1674,17 +1674,17 @@
 	<!-- Center column: Header + Messages + Input -->
 	<div class="center-panel">
 		<HeaderBar
-			onToggleMembers={toggleMembers}
+			ontogglemembers={toggleMembers}
 			membersVisible={showMembers}
-			onTopicEdit={handleTopicEdit}
-			onToggleSidebar={toggleSidebar}
+			ontopicedit={handleTopicEdit}
+			ontogglesidebar={toggleSidebar}
 			showSidebarToggle={sidebarIsOverlay}
-			onVoiceCall={handleDMVoiceCall}
-			onVideoCall={handleDMVideoCall}
-			onScrollToMessage={handleScrollToMessage}
-			onToggleSearch={toggleSearch}
+			onvoicecall={handleDMVoiceCall}
+			onvideocall={handleDMVideoCall}
+			onscrolltomessage={handleScrollToMessage}
+			ontogglesearch={toggleSearch}
 			searchVisible={showSearch}
-			onOpenServerSettings={() => { serverSettingsInitialTab = 'channels'; showServerSettings = true; }}
+			onopenserversettings={() => { serverSettingsInitialTab = 'channels'; showServerSettings = true; }}
 		/>
 
 		<div class="message-area">

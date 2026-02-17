@@ -5,6 +5,8 @@
  * and caches results client-side to avoid duplicate requests.
  */
 
+import { urlPattern } from '$lib/constants';
+
 export interface LinkPreview {
 	title: string | null;
 	description: string | null;
@@ -147,10 +149,10 @@ const MEDIA_EXTENSIONS = /\.(jpe?g|png|gif|webp|mp4|webm|mp3|ogg|flac)(\?|#|$)/i
  * Returns null if no eligible URL is found.
  */
 export function extractPreviewUrl(text: string): string | null {
-	const urlPattern = /https?:\/\/[^\s<>"]+/g;
+	const re = urlPattern();
 	let match: RegExpExecArray | null;
 
-	while ((match = urlPattern.exec(text)) !== null) {
+	while ((match = re.exec(text)) !== null) {
 		const url = match[0];
 		// Strip query/hash for extension check
 		const path = url.replace(/[?#].*$/, '');

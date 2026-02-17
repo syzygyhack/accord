@@ -4,6 +4,8 @@
  * Extracts URLs pointing to images, videos, and audio files from message text.
  */
 
+import { urlPattern } from '$lib/constants';
+
 export type MediaType = 'image' | 'video' | 'audio';
 
 export interface MediaUrl {
@@ -38,11 +40,11 @@ function getMediaType(url: string): MediaType | null {
  * Returns an array of { url, type } objects.
  */
 export function extractMediaUrls(text: string): MediaUrl[] {
-	const urlPattern = /https?:\/\/[^\s<>"]+/g;
+	const re = urlPattern();
 	const results: MediaUrl[] = [];
 	let match: RegExpExecArray | null;
 
-	while ((match = urlPattern.exec(text)) !== null) {
+	while ((match = re.exec(text)) !== null) {
 		const url = match[0];
 		const type = getMediaType(url);
 		if (type) {

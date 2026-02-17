@@ -2,10 +2,10 @@
 	import { userState } from '$lib/state/user.svelte';
 
 	interface Props {
-		onSettingsClick: () => void;
+		onsettingsclick: () => void;
 	}
 
-	let { onSettingsClick }: Props = $props();
+	let { onsettingsclick }: Props = $props();
 
 	let initial = $derived((userState.nick ?? '?')[0].toUpperCase());
 </script>
@@ -27,7 +27,7 @@
 
 		<button
 			class="action-btn settings-btn"
-			onclick={onSettingsClick}
+			onclick={onsettingsclick}
 			aria-label="User Settings"
 			title="User Settings"
 		>

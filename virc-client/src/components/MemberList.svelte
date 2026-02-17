@@ -6,24 +6,9 @@
 	import { themeState } from '$lib/state/theme.svelte';
 	import { getRoleColor } from '$lib/state/serverConfig.svelte';
 	import { formatMessage } from '$lib/irc/parser';
+	import { DEFAULT_ROLES, MODE_ORDER } from '$lib/constants';
 	import type { IRCConnection } from '$lib/irc/connection';
 	import UserProfilePopout from './UserProfilePopout.svelte';
-
-	/**
-	* Default role definitions matching virc-files/src/routes/config.ts.
-	* Used for display names; colors now come from getRoleColor() which
-	* respects virc.json overrides.
-	*/
-	const ROLE_MAP: Record<string, { name: string }> = {
-		'~': { name: 'Owner' },
-		'&': { name: 'Admin' },
-		'@': { name: 'Moderator' },
-		'%': { name: 'Helper' },
-		'+': { name: 'Member' },
-	};
-
-	/** Ordered list of mode prefixes from highest to lowest. */
-	const MODE_ORDER = ['~', '&', '@', '%', '+'] as const;
 
 	/** Delay in ms before showing hover card. */
 	const HOVER_DELAY = 400;
@@ -81,7 +66,7 @@
 		for (const mode of MODE_ORDER) {
 			const members = byRole.get(mode);
 			if (members && members.length > 0) {
-				const role = ROLE_MAP[mode];
+				const role = DEFAULT_ROLES[mode];
 				groups.push({
 					key: mode,
 					name: role?.name ?? mode,
@@ -305,7 +290,7 @@
 	/** Get role name for hover card display. */
 	function roleName(member: Member): string | null {
 		if (!member.highestMode) return null;
-		return ROLE_MAP[member.highestMode]?.name ?? null;
+		return DEFAULT_ROLES[member.highestMode]?.name ?? null;
 	}
 </script>
 

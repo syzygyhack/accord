@@ -8,19 +8,8 @@
 	import { listInvites, createInvite, deleteInvite, type InviteSummary } from '$lib/api/invites';
 	import { formatMessage } from '$lib/irc/parser';
 	import { themeState, parseServerTheme } from '$lib/state/theme.svelte';
+	import { DEFAULT_ROLES, MODE_ORDER } from '$lib/constants';
 	import type { IRCConnection } from '$lib/irc/connection';
-
-	/** Default role definitions matching virc-files defaults. */
-	const DEFAULT_ROLES: Record<string, { name: string; color: string | null }> = {
-		'~': { name: 'Owner', color: '#e0a040' },
-		'&': { name: 'Admin', color: '#e05050' },
-		'@': { name: 'Moderator', color: '#50a0e0' },
-		'%': { name: 'Helper', color: '#50e0a0' },
-		'+': { name: 'Member', color: null },
-	};
-
-	/** Mode prefix display order (highest to lowest). */
-	const MODE_ORDER = ['~', '&', '@', '%', '+'] as const;
 
 	type TabId = 'overview' | 'channels' | 'roles' | 'members' | 'invites' | 'appearance' | 'moderation';
 

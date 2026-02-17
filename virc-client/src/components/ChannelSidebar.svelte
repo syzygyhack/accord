@@ -24,15 +24,15 @@
 	import type { Room } from 'livekit-client';
 
 	interface Props {
-		onVoiceChannelClick?: (channel: string) => void;
+		onvoicechannelclick?: (channel: string) => void;
 		voiceRoom?: Room | null;
-		onSettingsClick?: () => void;
-		onServerSettingsClick?: () => void;
-		onCreateChannel?: (channel: string) => void;
-		onVoiceExpand?: () => void;
+		onsettingsclick?: () => void;
+		onserversettingsclick?: () => void;
+		oncreatechannel?: (channel: string) => void;
+		onvoiceexpand?: () => void;
 	}
 
-	let { onVoiceChannelClick, voiceRoom = null, onSettingsClick, onServerSettingsClick, onCreateChannel, onVoiceExpand }: Props = $props();
+	let { onvoicechannelclick, voiceRoom = null, onsettingsclick, onserversettingsclick, oncreatechannel, onvoiceexpand }: Props = $props();
 
 	/** Dropdown state for server name header. */
 	let serverDropdownOpen = $state(false);
@@ -47,7 +47,7 @@
 
 	function handleServerSettings(): void {
 		serverDropdownOpen = false;
-		onServerSettingsClick?.();
+		onserversettingsclick?.();
 	}
 
 	/**
@@ -88,7 +88,7 @@
 		if (!name) return;
 		// Ensure channel starts with #
 		const channel = name.startsWith('#') ? name : `#${name}`;
-		onCreateChannel?.(channel);
+		oncreatechannel?.(channel);
 		closeCreateChannel();
 	}
 
@@ -163,7 +163,7 @@
 
 	function handleChannelClick(name: string, isVoice: boolean): void {
 		if (isVoice) {
-			onVoiceChannelClick?.(name);
+			onvoicechannelclick?.(name);
 		} else {
 			setActiveChannel(name);
 		}
@@ -464,10 +464,10 @@
 	</div>
 
 	{#if voiceState.isConnected}
-		<VoicePanel {voiceRoom} onexpand={onVoiceExpand} />
+		<VoicePanel {voiceRoom} onexpand={onvoiceexpand} />
 	{/if}
 
-	<UserPanel onSettingsClick={() => onSettingsClick?.()} />
+	<UserPanel onsettingsclick={() => onsettingsclick?.()} />
 </aside>
 
 {#if contextMenu}

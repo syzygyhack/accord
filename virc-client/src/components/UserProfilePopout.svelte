@@ -6,18 +6,8 @@
 	import { fetchAccountInfo, formatRegisteredDate } from '$lib/api/accountInfo';
 	import { nickColor } from '$lib/irc/format';
 	import { themeState } from '$lib/state/theme.svelte';
-
-	/**
-	 * Default role definitions matching MemberList.svelte.
-	 * When virc.json config is loaded, roles could be overridden from there.
-	 */
-	const ROLE_MAP: Record<string, { name: string; color: string }> = {
-		'~': { name: 'Owner', color: '#e0a040' },
-		'&': { name: 'Admin', color: '#e05050' },
-		'@': { name: 'Moderator', color: '#50a0e0' },
-		'%': { name: 'Helper', color: '#50e0a0' },
-		'+': { name: 'Member', color: '#a0a0a0' },
-	};
+	import { getRoleColor } from '$lib/state/serverConfig.svelte';
+	import { DEFAULT_ROLES } from '$lib/constants';
 
 	interface Props {
 		nick: string;
@@ -76,7 +66,12 @@
 	let roles = $derived.by((): Array<{ name: string; color: string }> => {
 		if (!member) return [];
 		return member.modes
-			.map((mode) => ROLE_MAP[mode])
+			.map((mode) => {
+				const def = DEFAULT_ROLES[mode];
+				if (!def) return null;
+				const color = getRoleColor(mode) ?? def.color ?? '#a0a0a0';
+				return { name: def.name, color };
+			})
 			.filter((r): r is { name: string; color: string } => r != null);
 	});
 

@@ -6,6 +6,8 @@
  * other components that need server metadata.
  */
 
+import { DEFAULT_ROLES } from '$lib/constants';
+
 export interface VircConfig {
 	name?: string;
 	icon?: string;
@@ -49,15 +51,6 @@ export function setServerConfig(config: VircConfig): void {
 export function resetServerConfig(): void {
 	serverConfig.config = null;
 }
-
-/** Default role definitions matching virc-files/src/routes/config.ts. */
-const DEFAULT_ROLES: Record<string, { name: string; color: string | null }> = {
-	'~': { name: 'Owner', color: '#e0a040' },
-	'&': { name: 'Admin', color: '#e05050' },
-	'@': { name: 'Moderator', color: '#50a0e0' },
-	'%': { name: 'Helper', color: '#50e0a0' },
-	'+': { name: 'Member', color: null },
-};
 
 /**
  * Get the role color for a given mode prefix.
