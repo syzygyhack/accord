@@ -368,23 +368,288 @@ export function renderCustomEmoji(text: string): string {
 	});
 }
 
+// Language alias map for syntax highlighting
+const LANG_ALIASES: Record<string, string> = {
+	js: 'javascript',
+	ts: 'typescript',
+	py: 'python',
+	rb: 'ruby',
+	sh: 'shell',
+	bash: 'shell',
+	zsh: 'shell',
+	yml: 'yaml',
+	md: 'markdown',
+};
+
+// Keyword sets per language (resolved name)
+const LANG_KEYWORDS: Record<string, string[]> = {
+	javascript: [
+		'const', 'let', 'var', 'function', 'return', 'if', 'else', 'for', 'while',
+		'do', 'switch', 'case', 'break', 'continue', 'new', 'this', 'class',
+		'extends', 'import', 'export', 'default', 'from', 'async', 'await',
+		'try', 'catch', 'finally', 'throw', 'typeof', 'instanceof', 'in', 'of',
+		'yield', 'delete', 'void', 'with', 'debugger', 'super', 'static',
+	],
+	typescript: [
+		'const', 'let', 'var', 'function', 'return', 'if', 'else', 'for', 'while',
+		'do', 'switch', 'case', 'break', 'continue', 'new', 'this', 'class',
+		'extends', 'import', 'export', 'default', 'from', 'async', 'await',
+		'try', 'catch', 'finally', 'throw', 'typeof', 'instanceof', 'in', 'of',
+		'yield', 'delete', 'void', 'with', 'debugger', 'super', 'static',
+		'type', 'interface', 'enum', 'namespace', 'declare', 'implements',
+		'abstract', 'as', 'is', 'keyof', 'readonly', 'private', 'protected',
+		'public', 'override',
+	],
+	python: [
+		'def', 'class', 'return', 'if', 'elif', 'else', 'for', 'while', 'break',
+		'continue', 'import', 'from', 'as', 'try', 'except', 'finally', 'raise',
+		'with', 'yield', 'lambda', 'pass', 'del', 'global', 'nonlocal', 'assert',
+		'async', 'await', 'in', 'not', 'and', 'or', 'is',
+	],
+	go: [
+		'func', 'return', 'if', 'else', 'for', 'range', 'switch', 'case',
+		'break', 'continue', 'type', 'struct', 'interface', 'map', 'chan',
+		'go', 'select', 'defer', 'package', 'import', 'var', 'const',
+		'fallthrough', 'default',
+	],
+	rust: [
+		'fn', 'let', 'mut', 'const', 'return', 'if', 'else', 'for', 'while',
+		'loop', 'match', 'break', 'continue', 'struct', 'enum', 'impl', 'trait',
+		'pub', 'use', 'mod', 'crate', 'self', 'super', 'as', 'in', 'ref',
+		'move', 'async', 'await', 'where', 'type', 'unsafe', 'extern', 'dyn',
+	],
+	shell: [
+		'if', 'then', 'else', 'elif', 'fi', 'for', 'while', 'do', 'done',
+		'case', 'esac', 'function', 'return', 'exit', 'export', 'local',
+		'readonly', 'set', 'unset', 'shift', 'source', 'in',
+	],
+	css: [
+		'@import', '@media', '@keyframes', '@font-face', '@supports',
+		'!important',
+	],
+	ruby: [
+		'def', 'class', 'module', 'end', 'if', 'elsif', 'else', 'unless',
+		'while', 'until', 'for', 'do', 'begin', 'rescue', 'ensure', 'raise',
+		'return', 'yield', 'block_given?', 'require', 'include', 'attr_accessor',
+		'attr_reader', 'attr_writer', 'self', 'super', 'nil', 'true', 'false',
+		'and', 'or', 'not', 'in', 'then', 'when', 'case',
+	],
+};
+
+// Literals per language
+const LANG_LITERALS: Record<string, string[]> = {
+	javascript: ['true', 'false', 'null', 'undefined', 'NaN', 'Infinity'],
+	typescript: ['true', 'false', 'null', 'undefined', 'NaN', 'Infinity'],
+	python: ['True', 'False', 'None'],
+	go: ['true', 'false', 'nil', 'iota'],
+	rust: ['true', 'false', 'None', 'Some', 'Ok', 'Err'],
+	json: ['true', 'false', 'null'],
+	shell: ['true', 'false'],
+};
+
+/**
+ * Apply lightweight syntax highlighting to a code string.
+ *
+ * Tokenizes the code and wraps recognized tokens in spans with hljs-compatible
+ * class names: hljs-keyword, hljs-literal, hljs-string, hljs-number, hljs-comment.
+ *
+ * Input code must NOT be HTML-escaped — this function handles escaping internally.
+ */
+function highlightCode(code: string, lang: string): string {
+	const resolved = LANG_ALIASES[lang] || lang;
+	const keywords = new Set(LANG_KEYWORDS[resolved] || []);
+	const literals = new Set(LANG_LITERALS[resolved] || []);
+
+	// Comment styles per language
+	const hasLineComments = !['json', 'css', 'html'].includes(resolved);
+	const hasBlockComments = !['python', 'shell', 'yaml'].includes(resolved);
+	const hasPythonComments = resolved === 'python';
+	const hasShellComments = resolved === 'shell';
+
+	let result = '';
+	let i = 0;
+
+	while (i < code.length) {
+		// Line comments: // (most langs) or # (python, shell)
+		if (hasLineComments && code[i] === '/' && code[i + 1] === '/') {
+			const end = code.indexOf('\n', i);
+			const comment = end === -1 ? code.slice(i) : code.slice(i, end);
+			result += `<span class="hljs-comment">${escapeHTML(comment)}</span>`;
+			i += comment.length;
+			continue;
+		}
+		if ((hasPythonComments || hasShellComments) && code[i] === '#') {
+			const end = code.indexOf('\n', i);
+			const comment = end === -1 ? code.slice(i) : code.slice(i, end);
+			result += `<span class="hljs-comment">${escapeHTML(comment)}</span>`;
+			i += comment.length;
+			continue;
+		}
+
+		// Block comments: /* ... */
+		if (hasBlockComments && code[i] === '/' && code[i + 1] === '*') {
+			const end = code.indexOf('*/', i + 2);
+			const comment = end === -1 ? code.slice(i) : code.slice(i, end + 2);
+			result += `<span class="hljs-comment">${escapeHTML(comment)}</span>`;
+			i += comment.length;
+			continue;
+		}
+
+		// Strings: "..." or '...' (with backslash escapes)
+		if (code[i] === '"' || code[i] === "'") {
+			const quote = code[i];
+			let j = i + 1;
+			while (j < code.length && code[j] !== quote) {
+				if (code[j] === '\\') j++; // skip escaped char
+				j++;
+			}
+			if (j < code.length) j++; // include closing quote
+			const str = code.slice(i, j);
+			result += `<span class="hljs-string">${escapeHTML(str)}</span>`;
+			i = j;
+			continue;
+		}
+
+		// Template literals: `...`
+		if (code[i] === '`' && ['javascript', 'typescript'].includes(resolved)) {
+			let j = i + 1;
+			while (j < code.length && code[j] !== '`') {
+				if (code[j] === '\\') j++;
+				j++;
+			}
+			if (j < code.length) j++;
+			const str = code.slice(i, j);
+			result += `<span class="hljs-string">${escapeHTML(str)}</span>`;
+			i = j;
+			continue;
+		}
+
+		// Numbers
+		if (/\d/.test(code[i]) && (i === 0 || /[\s,;:=+\-*/%<>(&[{!|^~?]/.test(code[i - 1]))) {
+			let j = i;
+			// Hex: 0x...
+			if (code[j] === '0' && (code[j + 1] === 'x' || code[j + 1] === 'X')) {
+				j += 2;
+				while (j < code.length && /[0-9a-fA-F_]/.test(code[j])) j++;
+			} else {
+				while (j < code.length && /[0-9._eE+\-]/.test(code[j])) j++;
+			}
+			const num = code.slice(i, j);
+			result += `<span class="hljs-number">${escapeHTML(num)}</span>`;
+			i = j;
+			continue;
+		}
+
+		// Words (identifiers, keywords, literals)
+		if (/[a-zA-Z_$@!]/.test(code[i])) {
+			let j = i;
+			while (j < code.length && /[a-zA-Z0-9_$?]/.test(code[j])) j++;
+			const word = code.slice(i, j);
+			if (literals.has(word)) {
+				result += `<span class="hljs-literal">${escapeHTML(word)}</span>`;
+			} else if (keywords.has(word)) {
+				result += `<span class="hljs-keyword">${escapeHTML(word)}</span>`;
+			} else {
+				result += escapeHTML(word);
+			}
+			i = j;
+			continue;
+		}
+
+		// Default: escape and output character
+		result += escapeHTML(code[i]);
+		i++;
+	}
+
+	return result;
+}
+
+/**
+ * Detect and render fenced code blocks (``` ... ```) in message text.
+ *
+ * Matches ``` optionally followed by a language hint, then content until
+ * closing ```. Code blocks with a language hint get syntax highlighting;
+ * blocks without a hint render as plain monospace.
+ *
+ * Text outside code blocks is returned unchanged.
+ * HTML inside code blocks is escaped to prevent XSS.
+ *
+ * This function operates on **raw** message text (before renderIRC or linkify)
+ * because code blocks should not have IRC formatting applied inside them.
+ */
+export function renderCodeBlocks(text: string): string {
+	const FENCE = /```(\w*)\n([\s\S]*?)```/g;
+	let lastIndex = 0;
+	let result = '';
+	let match: RegExpExecArray | null;
+
+	while ((match = FENCE.exec(text)) !== null) {
+		// Append text before this code block (unchanged)
+		result += text.slice(lastIndex, match.index);
+
+		const lang = match[1]; // language hint (may be empty)
+		const code = match[2]; // code content
+
+		if (lang) {
+			const highlighted = highlightCode(code, lang);
+			result += `<pre class="code-block"><code class="language-${escapeHTML(lang)}">${highlighted}</code></pre>`;
+		} else {
+			result += `<pre class="code-block"><code>${escapeHTML(code)}</code></pre>`;
+		}
+
+		lastIndex = FENCE.lastIndex;
+	}
+
+	// Append remaining text after last code block
+	result += text.slice(lastIndex);
+	return result;
+}
+
 /**
  * Render an IRC message to safe HTML.
  *
  * Applies the full rendering pipeline in the **required** order:
- * 1. `renderIRC()` — escapes HTML and converts mIRC formatting codes to HTML tags
+ * 0. `renderCodeBlocks()` — extracts and highlights fenced code blocks (before IRC processing)
+ * 1. `renderIRC()` — escapes HTML and converts mIRC formatting codes to HTML tags (on non-code parts)
  * 2. `linkify()` — wraps URLs in anchor tags (assumes pre-escaped input)
  * 3. `highlightMentions()` — wraps @mentions and #channels in styled spans
  * 4. `renderCustomEmoji()` — replaces :name: patterns with server custom emoji images
+ *
+ * Code blocks are extracted first so their contents skip IRC formatting, linkification,
+ * and mention highlighting. This prevents code examples from being mangled.
  *
  * **This is the only safe entry point** for rendering user-generated message text
  * to HTML. Do not call `linkify()` or `highlightMentions()` directly on unescaped
  * text — doing so creates an XSS vulnerability.
  */
 export function renderMessage(text: string, myAccount: string): string {
-	let html = renderIRC(text);
+	// Extract code blocks first — they must not go through IRC/linkify processing
+	const FENCE = /```(\w*)\n([\s\S]*?)```/g;
+	const blocks: { placeholder: string; html: string }[] = [];
+	let blockIndex = 0;
+	const processed = text.replace(FENCE, (_match, lang: string, code: string) => {
+		const placeholder = `\x00CODEBLOCK_${blockIndex++}\x00`;
+		let html: string;
+		if (lang) {
+			const highlighted = highlightCode(code, lang);
+			html = `<pre class="code-block"><code class="language-${escapeHTML(lang)}">${highlighted}</code></pre>`;
+		} else {
+			html = `<pre class="code-block"><code>${escapeHTML(code)}</code></pre>`;
+		}
+		blocks.push({ placeholder, html });
+		return placeholder;
+	});
+
+	// Run normal pipeline on the non-code-block text
+	let html = renderIRC(processed);
 	html = linkify(html);
 	html = highlightMentions(html, myAccount);
 	html = renderCustomEmoji(html);
+
+	// Restore code blocks
+	for (const block of blocks) {
+		html = html.replace(block.placeholder, block.html);
+	}
+
 	return html;
 }

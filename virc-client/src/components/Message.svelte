@@ -419,7 +419,15 @@
 				{#each mediaUrls as media (media.url)}
 					{#if media.type === 'image'}
 						<button class="media-thumbnail-btn" onclick={() => openLightbox(media.url)}>
-							<img class="media-thumbnail" src={media.url} alt="Image preview" loading="lazy" />
+							<div class="media-thumbnail-placeholder">
+								<img
+									class="media-thumbnail"
+									src={media.url}
+									alt="Image preview"
+									loading="lazy"
+									onload={(e) => (e.currentTarget as HTMLImageElement).dataset.loaded = ''}
+								/>
+							</div>
 						</button>
 					{:else if media.type === 'video'}
 						<video class="media-video" controls preload="metadata">
@@ -618,12 +626,15 @@
 							{#each mediaUrls as media (media.url)}
 								{#if media.type === 'image'}
 									<button class="media-thumbnail-btn" onclick={() => openLightbox(media.url)}>
-										<img
-											class="media-thumbnail"
-											src={media.url}
-											alt="Image preview"
-											loading="lazy"
-										/>
+										<div class="media-thumbnail-placeholder">
+											<img
+												class="media-thumbnail"
+												src={media.url}
+												alt="Image preview"
+												loading="lazy"
+												onload={(e) => (e.currentTarget as HTMLImageElement).dataset.loaded = ''}
+											/>
+										</div>
 									</button>
 								{:else if media.type === 'video'}
 									<video class="media-video" controls preload="metadata">
@@ -685,12 +696,15 @@
 						{#each mediaUrls as media (media.url)}
 							{#if media.type === 'image'}
 								<button class="media-thumbnail-btn" onclick={() => openLightbox(media.url)}>
-									<img
-										class="media-thumbnail"
-										src={media.url}
-										alt="Image preview"
-										loading="lazy"
-									/>
+									<div class="media-thumbnail-placeholder">
+										<img
+											class="media-thumbnail"
+											src={media.url}
+											alt="Image preview"
+											loading="lazy"
+											onload={(e) => (e.currentTarget as HTMLImageElement).dataset.loaded = ''}
+										/>
+									</div>
 								</button>
 							{:else if media.type === 'video'}
 								<video class="media-video" controls preload="metadata">
@@ -1100,6 +1114,47 @@
 		border-radius: 3px;
 	}
 
+	/* Fenced code blocks with syntax highlighting */
+	.message-text :global(.code-block) {
+		margin: 4px 0;
+		padding: 8px 12px;
+		background: var(--surface-lowest);
+		border: 1px solid var(--surface-highest);
+		border-radius: 4px;
+		overflow-x: auto;
+		font-family: var(--font-mono);
+		font-size: var(--font-sm);
+		line-height: 1.45;
+	}
+
+	.message-text :global(.code-block code) {
+		padding: 0;
+		background: transparent;
+		border-radius: 0;
+	}
+
+	.message-text :global(.hljs-keyword) {
+		color: #c678dd;
+		font-weight: var(--weight-medium);
+	}
+
+	.message-text :global(.hljs-literal) {
+		color: #d19a66;
+	}
+
+	.message-text :global(.hljs-string) {
+		color: #98c379;
+	}
+
+	.message-text :global(.hljs-number) {
+		color: #d19a66;
+	}
+
+	.message-text :global(.hljs-comment) {
+		color: #5c6370;
+		font-style: italic;
+	}
+
 	.message-text :global(.mention) {
 		padding: 0 2px;
 		border-radius: 3px;
@@ -1165,6 +1220,14 @@
 		opacity: 0.9;
 	}
 
+	.media-thumbnail-placeholder {
+		max-width: 400px;
+		aspect-ratio: 16 / 9;
+		background: var(--surface-high);
+		border-radius: 4px;
+		overflow: hidden;
+	}
+
 	.media-thumbnail {
 		display: block;
 		max-width: 400px;
@@ -1174,6 +1237,12 @@
 		object-fit: contain;
 		border-radius: 4px;
 		background: var(--surface-high);
+		filter: blur(10px);
+		transition: filter 0.3s ease;
+	}
+
+	.media-thumbnail[data-loaded] {
+		filter: none;
 	}
 
 	.media-video {

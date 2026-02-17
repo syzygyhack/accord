@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { renderIRC, markdownToIRC, linkify, highlightMentions, nickColor, renderCustomEmoji, renderMessage } from './format';
+import { renderIRC, markdownToIRC, linkify, highlightMentions, nickColor, renderCustomEmoji, renderMessage, renderCodeBlocks } from './format';
 import { setCustomEmoji, clearCustomEmoji } from '$lib/emoji';
 
 describe('renderIRC', () => {
@@ -391,5 +391,121 @@ describe('renderMessage XSS safety', () => {
 		// Display text has single-escaped &amp; (not double &amp;amp;)
 		expect(result).toContain('>https://example.com/test&amp;param=1</a>');
 		expect(result).not.toContain('&amp;amp;');
+	});
+});
+
+describe('renderCodeBlocks', () => {
+	it('renders fenced code block with language hint as highlighted pre/code', () => {
+		const input = '```js\nconst x = 1;\n```';
+		const result = renderCodeBlocks(input);
+		expect(result).toContain('<pre class="code-block">');
+		expect(result).toContain('<code class="language-js">');
+		expect(result).toContain('</code></pre>');
+		// Should have some highlighted tokens for JS keyword
+		expect(result).toContain('<span class="hljs-keyword">');
+	});
+
+	it('renders fenced code block without language hint as plain monospace', () => {
+		const input = '```\nplain text here\n```';
+		const result = renderCodeBlocks(input);
+		expect(result).toContain('<pre class="code-block">');
+		expect(result).toContain('<code>');
+		expect(result).not.toContain('class="language-');
+		expect(result).toContain('plain text here');
+	});
+
+	it('preserves text outside code blocks', () => {
+		const input = 'before\n```\ncode\n```\nafter';
+		const result = renderCodeBlocks(input);
+		expect(result).toContain('before');
+		expect(result).toContain('after');
+		expect(result).toContain('<pre class="code-block">');
+	});
+
+	it('handles multiple code blocks', () => {
+		const input = '```js\nconst a = 1;\n```\ntext\n```py\nx = 1\n```';
+		const result = renderCodeBlocks(input);
+		expect(result).toContain('language-js');
+		expect(result).toContain('language-py');
+	});
+
+	it('escapes HTML inside code blocks', () => {
+		const input = '```\n<script>alert(1)</script>\n```';
+		const result = renderCodeBlocks(input);
+		expect(result).toContain('&lt;script&gt;');
+		expect(result).not.toContain('<script>alert');
+	});
+
+	it('highlights JavaScript keywords', () => {
+		const input = '```js\nconst x = true;\nfunction foo() { return null; }\n```';
+		const result = renderCodeBlocks(input);
+		expect(result).toContain('<span class="hljs-keyword">const</span>');
+		expect(result).toContain('<span class="hljs-keyword">function</span>');
+		expect(result).toContain('<span class="hljs-literal">true</span>');
+		expect(result).toContain('<span class="hljs-literal">null</span>');
+	});
+
+	it('highlights strings in code blocks', () => {
+		const input = '```js\nconst s = "hello";\n```';
+		const result = renderCodeBlocks(input);
+		expect(result).toContain('<span class="hljs-string">');
+	});
+
+	it('highlights comments in code blocks', () => {
+		const input = '```js\n// a comment\nconst x = 1; /* block */\n```';
+		const result = renderCodeBlocks(input);
+		expect(result).toContain('<span class="hljs-comment">');
+	});
+
+	it('highlights Python keywords', () => {
+		const input = '```python\ndef foo():\n    return True\n```';
+		const result = renderCodeBlocks(input);
+		expect(result).toContain('<span class="hljs-keyword">def</span>');
+		expect(result).toContain('<span class="hljs-literal">True</span>');
+	});
+
+	it('returns input unchanged when no code blocks present', () => {
+		const input = 'just regular text';
+		expect(renderCodeBlocks(input)).toBe('just regular text');
+	});
+
+	it('handles typescript alias', () => {
+		const input = '```ts\nconst x: number = 1;\n```';
+		const result = renderCodeBlocks(input);
+		expect(result).toContain('language-ts');
+		expect(result).toContain('<span class="hljs-keyword">const</span>');
+	});
+
+	it('handles shell/bash highlighting', () => {
+		const input = '```bash\necho "hello" | grep hello\n```';
+		const result = renderCodeBlocks(input);
+		expect(result).toContain('language-bash');
+		expect(result).toContain('<span class="hljs-string">');
+	});
+
+	it('handles JSON highlighting', () => {
+		const input = '```json\n{"key": "value", "num": 42, "bool": true}\n```';
+		const result = renderCodeBlocks(input);
+		expect(result).toContain('language-json');
+		expect(result).toContain('<span class="hljs-string">');
+		expect(result).toContain('<span class="hljs-number">');
+		expect(result).toContain('<span class="hljs-literal">true</span>');
+	});
+});
+
+describe('renderMessage with code blocks', () => {
+	it('processes code blocks in full rendering pipeline', () => {
+		const input = 'check this:\n```js\nconst x = 1;\n```';
+		const result = renderMessage(input, 'alice');
+		expect(result).toContain('<pre class="code-block">');
+		expect(result).toContain('<span class="hljs-keyword">const</span>');
+	});
+
+	it('code blocks without language render as plain monospace', () => {
+		const input = '```\nsome plain code\n```';
+		const result = renderMessage(input, 'alice');
+		expect(result).toContain('<pre class="code-block">');
+		expect(result).toContain('<code>');
+		expect(result).not.toContain('class="language-');
 	});
 });
