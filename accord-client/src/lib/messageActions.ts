@@ -91,7 +91,7 @@ export function handleReact(state: MessageActionState, msgid: string, anchor?: {
 
 /** Open emoji picker for inserting into the message input. */
 export function handleInputEmojiPicker(state: MessageActionState): void {
-	state.setEmojiPickerTarget('_input_');
+	state.setEmojiPickerTarget('__emoji_input__');
 	state.setEmojiPickerPosition({
 		x: Math.max(16, window.innerWidth / 2 - 176),
 		y: Math.max(16, window.innerHeight / 2 - 200),
@@ -101,7 +101,7 @@ export function handleInputEmojiPicker(state: MessageActionState): void {
 /** Emoji selected from picker — either insert into input or send reaction TAGMSG. */
 export function handleEmojiSelect(state: MessageActionState, emoji: string): void {
 	const target = state.getEmojiPickerTarget();
-	if (target === '_input_') {
+	if (target === '__emoji_input__') {
 		window.dispatchEvent(new CustomEvent('accord:insert-emoji', { detail: { emoji } }));
 		state.setEmojiPickerTarget(null);
 		state.setEmojiPickerPosition(null);

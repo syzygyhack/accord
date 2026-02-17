@@ -5,6 +5,8 @@
  * configuration. Persisted to localStorage so settings survive app restarts.
  */
 
+import { hasLocalStorage } from '$lib/utils/storage';
+
 const STORAGE_KEY = 'accord:audioSettings';
 
 export type VideoQuality = '360' | '720' | '1080' | '1440';
@@ -33,6 +35,7 @@ const defaults: AudioSettingsData = {
 };
 
 function load(): AudioSettingsData {
+	if (!hasLocalStorage()) return { ...defaults };
 	try {
 		const raw = localStorage.getItem(STORAGE_KEY);
 		if (raw) {
@@ -53,6 +56,7 @@ function load(): AudioSettingsData {
 const _state: AudioSettingsData = $state(load());
 
 function persist(): void {
+	if (!hasLocalStorage()) return;
 	try {
 		localStorage.setItem(STORAGE_KEY, JSON.stringify(_state));
 	} catch {
@@ -72,10 +76,16 @@ export const audioSettings = {
 	set videoDeviceId(v: string) { _state.videoDeviceId = v; persist(); },
 
 	get videoQuality() { return _state.videoQuality; },
-	set videoQuality(v: VideoQuality) { _state.videoQuality = v; persist(); },
+	set videoQuality(v: VideoQuality) {
+		if (!VALID_QUALITIES.includes(v)) return;
+		_state.videoQuality = v; persist();
+	},
 
 	get outputVolume() { return _state.outputVolume; },
-	set outputVolume(v: number) { _state.outputVolume = v; persist(); },
+	set outputVolume(v: number) {
+		const clamped = Math.max(0, Math.min(200, Number.isFinite(v) ? v : defaults.outputVolume));
+		_state.outputVolume = clamped; persist();
+	},
 
 	get pushToTalk() { return _state.pushToTalk; },
 	set pushToTalk(v: boolean) { _state.pushToTalk = v; persist(); },

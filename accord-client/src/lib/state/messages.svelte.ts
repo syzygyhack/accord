@@ -10,6 +10,8 @@
  * subscribe, then access the Map for data.
  */
 
+import { hasLocalStorage } from '$lib/utils/storage';
+
 const MAX_MESSAGES_PER_CHANNEL = 500;
 
 export type MessageType = 'privmsg' | 'join' | 'part' | 'quit' | 'nick' | 'mode';
@@ -55,6 +57,7 @@ const pinnedMessages = new Map<string, Set<string>>();
 
 /** Load pinned messages from localStorage on init. */
 function loadPinnedMessages(): void {
+	if (!hasLocalStorage()) return;
 	try {
 		const raw = localStorage.getItem(PINNED_STORAGE_KEY);
 		if (!raw) return;
@@ -69,6 +72,7 @@ function loadPinnedMessages(): void {
 
 /** Persist pinned messages to localStorage. */
 function savePinnedMessages(): void {
+	if (!hasLocalStorage()) return;
 	const data: Record<string, string[]> = {};
 	for (const [channel, msgids] of pinnedMessages) {
 		if (msgids.size > 0) {
@@ -168,6 +172,8 @@ export function replaceOptimisticMessage(target: string, echoMsg: Message): bool
 
 /** Look up a single message by msgid within a channel. */
 export function getMessage(target: string, msgid: string): Message | null {
+	// Touch _version so Svelte tracks this as a reactive dependency
+	void _version;
 	const msgs = channelMessages.get(target);
 	if (!msgs) return null;
 	return msgs.find((m) => m.msgid === msgid) ?? null;

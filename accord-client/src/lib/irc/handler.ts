@@ -590,7 +590,7 @@ const PARAM_MODES_SET_ONLY = new Set(['l', 'j', 'f']);
 
 function handleMode(parsed: ParsedMessage): void {
 	const channel = parsed.params[0];
-	if (!channel || !channel.startsWith('#')) return; // Only handle channel modes
+	if (!channel || (!channel.startsWith('#') && !channel.startsWith('&'))) return; // Only handle channel modes
 
 	const modeStr = parsed.params[1] ?? '';
 	const nick = parsed.source?.nick ?? 'server';

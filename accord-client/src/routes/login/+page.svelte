@@ -48,6 +48,10 @@
 			error = 'Server URL is required.';
 			return;
 		}
+		if (!/^wss?:\/\/.+/i.test(serverUrl.trim())) {
+			error = 'Server URL must start with ws:// or wss://';
+			return;
+		}
 		if (!username.trim() || !password.trim()) {
 			error = 'Username and password are required.';
 			return;
@@ -137,6 +141,10 @@
 	async function handleRegister(): Promise<void> {
 		if (!serverUrl.trim()) {
 			error = 'Server URL is required.';
+			return;
+		}
+		if (!/^wss?:\/\/.+/i.test(serverUrl.trim())) {
+			error = 'Server URL must start with ws:// or wss://';
 			return;
 		}
 		if (!username.trim() || !password.trim()) {

@@ -100,7 +100,13 @@ export async function connectToVoice(
 	if (startMuted) {
 		voiceState.localMuted = true;
 	} else {
-		await room.localParticipant.setMicrophoneEnabled(true, audioCaptureOpts);
+		try {
+			await room.localParticipant.setMicrophoneEnabled(true, audioCaptureOpts);
+		} catch (e) {
+			// Permission denied or device error — start muted instead of crashing
+			console.error('[accord] Microphone enable failed:', e);
+			voiceState.localMuted = true;
+		}
 	}
 
 	// Add local participant to the map.

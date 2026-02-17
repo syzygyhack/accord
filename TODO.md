@@ -6,17 +6,15 @@ Work required before publishing. Ordered by priority.
 
 ## Blockers
 
-### Add LICENSE file
-- [ ] Create `LICENSE` at repo root with MIT text
-- README claims MIT but no license file exists — project is under exclusive copyright without it
+### ~~Add LICENSE file~~ (DONE)
+- [x] Create `LICENSE` at repo root with MIT text
 
 ### Commit uncommitted work
 - [ ] Stage and commit the 14 modified files + 3 untracked files currently in the working tree
 - Includes: voice manager extraction, a11y utilities, navigation extraction, code review fixes
 
-### Remove hardcoded secret from shipped config
-- [ ] Replace OAuth2 `client-secret: "4TA0I7mJ3fUUcW05KJiODg"` in `config/ergo/ircd.yaml:623` with a placeholder
-- OAuth2 is disabled in the config, but users may copy the file verbatim
+### ~~Remove hardcoded secret from shipped config~~ (DONE)
+- [x] Replace OAuth2 `client-secret` in `config/ergo/ircd.yaml` with `"CHANGE-ME"` placeholder
 
 ---
 
@@ -98,27 +96,22 @@ Full project rename. ~200 locations across source, config, tests, and docs.
 
 ## Publish Hygiene
 
-### Add CI pipeline
-- [ ] Create `.github/workflows/ci.yml`
-- [ ] Run `vitest run` for client tests
-- [ ] Run `bun test` for server tests
-- [ ] Run `svelte-check` for type checking
-- [ ] Trigger on push and PR to main
+### ~~Add CI pipeline~~ (DONE)
+- [x] Create `.github/workflows/ci.yml` — runs vitest, bun test, svelte-check on push/PR
 
-### Add CHANGELOG
-- [ ] Create `CHANGELOG.md` with initial release notes summarizing current feature set
+### ~~Add CHANGELOG~~ (DONE)
+- [x] Create `CHANGELOG.md` with initial release notes
 
-### Bump version numbers
-- [ ] `accord-client/package.json` — `0.0.1` -> `0.1.0` (minimum)
-- [ ] `accord-files/package.json` — `0.1.0` is acceptable, or bump to match
+### ~~Bump version numbers~~ (DONE)
+- [x] Both packages at `0.1.0`
 
-### Add .dockerignore
-- [ ] Create `accord-files/.dockerignore` excluding tests/, node_modules/, *.md, .git
+### ~~Add .dockerignore~~ (DONE)
+- [x] `accord-files/.dockerignore` created
 
-### Fix README drift
-- [ ] Test count: 651 -> 899 (744 client + 155 server)
-- [ ] Component count: 23 -> 28
-- [ ] Update "By the Numbers" table (commits, line counts, test counts)
+### ~~Fix README drift~~ (DONE)
+- [x] Test count: 899 (744 client + 155 server)
+- [x] Component count: 28
+- [x] Updated "By the Numbers" table
 
 ### Fix svelte-check warnings
 - [ ] Migrate deprecated `<slot>` elements to Svelte 5 `{@render}` syntax (24 warnings)
@@ -142,7 +135,7 @@ Full project rename. ~200 locations across source, config, tests, and docs.
 - [ ] Cache `TextEncoder().encode(JWT_SECRET)` at module level instead of per-request (middleware/auth.ts)
 - [ ] Move `getMimeType` map to module-level constant (files.ts)
 - [ ] Add typed event map to IRC connection to replace `any` listener types
-- [ ] Fix double DNS resolution in preview.ts — reuse IPs from `assertPublicResolution`
+- [x] ~~Fix double DNS resolution in preview.ts~~ — resolved via `resolvePinnedUrl()` DNS pinning
 - [ ] Add SSR guard (`hasLocalStorage()`) to remaining bare `localStorage` calls in +page.svelte
 - [ ] Store `voiceError` auto-dismiss timer refs to prevent premature clearing
 
@@ -157,10 +150,10 @@ Not required for initial publish. Documented for future work.
 | Push notifications | Web Push API planned |
 | Search | Ergo SEARCH extension available |
 | User avatars / bios | Blocked on IRCv3 `draft/metadata-2` |
-| Screen sharing / video | Audio only; LiveKit supports it |
+| Screen sharing / video | Audio only for channels; DM video calls work |
 | Multi-server | UI accommodates server list; single-server for now |
-| Theme customization UI | Dark only; CSS vars ready for theming |
-| Custom server emoji | Config structure ready, rendering not wired |
+| Theme customization UI | Four themes implemented (dark/light/AMOLED/compact); CSS vars ready for full editor |
+| Custom server emoji | Rendered in emoji picker, tab completion, and messages |
 | Voice channel access control | Any authenticated user can get a token for any channel name |
 
 ---

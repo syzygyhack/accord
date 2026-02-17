@@ -64,7 +64,7 @@ The client connects to Ergo over a single WebSocket for all chat functionality. 
 - Pinned messages per channel (ops, stored in localStorage)
 - Spoiler formatting (`||text||` with blur-until-click reveal)
 - Syntax-highlighted code blocks (keyword/string/comment/number detection)
-- Slash command popup with 12 IRC commands, descriptions, and keyboard navigation
+- Slash command popup with 13 IRC commands, descriptions, and keyboard navigation
 - Commands gated by channel privilege level (mod commands require halfop+)
 - `//` escape to send literal `/`-prefixed messages
 
@@ -263,7 +263,7 @@ cd accord-files && bun test
 accord/
 ├── accord-client/                 # Svelte 5 + SvelteKit frontend
 │   ├── src/
-│   │   ├── components/          # 26 Svelte components
+│   │   ├── components/          # 28 Svelte components
 │   │   ├── lib/
 │   │   │   ├── api/             # Auth tokens, server discovery, invites, accounts
 │   │   │   ├── irc/             # IRC protocol layer
@@ -514,13 +514,13 @@ Development continued as **human-agent collaboration** — the human directed pr
 
 | Metric | Value |
 |--------|-------|
-| TypeScript + Svelte source | ~25,250 lines |
+| TypeScript + Svelte source | ~25,600 lines |
 | Test code | ~9,900 lines |
 | Design specs | ~1,860 lines |
 | Infrastructure config | ~1,400 lines |
-| Components | 26 |
+| Components | 28 |
 | Reactive stores | 15 |
-| Commits | 119 |
+| Commits | 131+ |
 | Packages | 2 |
 | Tests | 899 |
 | Cardinal tasks | 89 |

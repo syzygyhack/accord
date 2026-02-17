@@ -170,7 +170,7 @@ export async function handleDMVoiceCall(
 		if (currentRoom) {
 			const prevChannel = voiceState.currentRoom;
 			await disconnectVoice(currentRoom);
-			if (conn && prevChannel && prevChannel.startsWith('#')) {
+			if (conn && prevChannel && (prevChannel.startsWith('#') || prevChannel.startsWith('&'))) {
 				conn.send(`PART ${prevChannel}`);
 			}
 		}

@@ -122,13 +122,15 @@ function applyConfig(
 	if (config?.emoji && typeof config.emoji === 'object') {
 		const resolved: Record<string, string> = {};
 		for (const [name, url] of Object.entries(config.emoji)) {
+			if (typeof url !== 'string') continue;
 			if (url.startsWith('http://') || url.startsWith('https://')) {
 				resolved[name] = url;
-			} else if (filesUrl) {
+			} else if (url.startsWith('/') && filesUrl) {
+				// Relative path — resolve against files server
 				resolved[name] = `${filesUrl}${url}`;
-			} else {
-				resolved[name] = url;
 			}
+			// Skip non-http(s) URLs (javascript:, data:, etc.) and relative
+			// paths when no filesUrl is configured
 		}
 		setCustomEmoji(resolved);
 	}
