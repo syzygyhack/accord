@@ -52,7 +52,7 @@ The client connects to Ergo over a single WebSocket for all chat functionality. 
 ## Features
 
 ### Chat
-- Send/receive messages with mIRC formatting (bold, italic, underline, monospace)
+- Send/receive messages with mIRC formatting (bold, italic, underline, monospace, 99-color palette)
 - Message history pagination (CHATHISTORY BEFORE/LATEST/AFTER)
 - Replies with quoted parent preview
 - Emoji reactions (unicode, via TAGMSG)
@@ -64,7 +64,7 @@ The client connects to Ergo over a single WebSocket for all chat functionality. 
 - Pinned messages per channel (ops, stored in localStorage)
 - Spoiler formatting (`||text||` with blur-until-click reveal)
 - Syntax-highlighted code blocks (keyword/string/comment/number detection)
-- Slash command popup with 13 IRC commands, descriptions, and keyboard navigation
+- Slash command popup with 10 IRC commands, descriptions, and keyboard navigation
 - Commands gated by channel privilege level (mod commands require halfop+)
 - `//` escape to send literal `/`-prefixed messages
 
@@ -105,6 +105,7 @@ The client connects to Ergo over a single WebSocket for all chat functionality. 
 - Output volume control applied to all remote tracks
 - Camera and screen share controls
 - DM voice/video calls with deterministic room names
+- Automatic disconnect handling with state cleanup
 
 ### Server Management
 - Server Settings modal with 7 tabs: Overview, Channels, Roles, Members, Invites, Appearance, Moderation
@@ -136,7 +137,8 @@ The client connects to Ergo over a single WebSocket for all chat functionality. 
 - Customizable keybindings with recording UI
 - Tab completion (@user, #channel, :emoji:)
 - Hover toolbar (React, Reply, More)
-- Connection status banner with auto-reconnect
+- Connection status banner with auto-reconnect and DM/MONITOR restore
+- Scroll-to-message highlight animation
 - Rate limit countdown display
 - Server list with context menus, drag reorder, and unread/mention badges
 - Collapsible system messages (3+ consecutive events collapse with expand toggle)
@@ -181,7 +183,7 @@ Client-only tags (relayed transparently): `+draft/reply`, `+draft/react`, `+typi
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org) >= 20 (for SvelteKit)
+- [Node.js](https://nodejs.org) >= 20 and [pnpm](https://pnpm.io) (for SvelteKit)
 - [Docker](https://docs.docker.com/get-docker/) & Docker Compose
 - [Rust](https://rustup.rs/) (for Tauri desktop builds)
 
@@ -194,12 +196,12 @@ cd accord
 
 # Configure environment
 cp .env.example .env
-# Edit .env — set JWT_SECRET at minimum
+# Edit .env — set JWT_SECRET (min 32 chars), LIVEKIT_API_KEY/SECRET, ERGO_API_TOKEN, MYSQL_ROOT_PASSWORD
 
 # Build the client
 cd accord-client
-npm install
-npm run build
+pnpm install
+pnpm build
 cd ..
 
 # Start everything (Ergo, MariaDB, LiveKit, accord-files, Caddy)
@@ -227,10 +229,10 @@ All Docker services bind to `0.0.0.0` by default, so ports are already network-a
 cd accord-client
 
 # Development (hot-reload with Tauri window)
-npm run tauri:dev
+pnpm tauri:dev
 
 # Production build (generates installer for your platform)
-npm run tauri:build
+pnpm tauri:build
 ```
 
 Requires [Rust](https://rustup.rs/) and platform-specific Tauri dependencies (see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)).
@@ -242,16 +244,16 @@ Requires [Rust](https://rustup.rs/) and platform-specific Tauri dependencies (se
 docker compose up -d
 
 # Start client dev server (separate terminal)
-cd accord-client && npm install && npm run dev
+cd accord-client && pnpm install && pnpm dev
 ```
 
 ### Run Tests
 
 ```bash
-# Client tests (744 tests, Vitest)
-cd accord-client && npm test
+# Client tests (790 tests, Vitest)
+cd accord-client && pnpm test
 
-# Server tests (155 tests, Bun)
+# Server tests (191 tests, Bun)
 cd accord-files && bun test
 ```
 
@@ -277,10 +279,13 @@ accord/
 │   │   │   ├── state/           # 15 reactive stores ($state runes)
 │   │   │   ├── voice/           # LiveKit room + voice call management
 │   │   │   ├── files/           # File upload + URL preview client
+│   │   │   ├── connection/      # Reconnect lifecycle (gap fill, DM restore, MONITOR)
 │   │   │   ├── navigation/      # Channel/server navigation helpers
 │   │   │   ├── utils/           # A11y, storage, URL utilities
+│   │   │   ├── channelMonitor.ts # MONITOR nick tracking for DMs
 │   │   │   └── keybindings.ts   # Keyboard shortcut system
 │   │   └── routes/
+│   │       ├── +error.svelte    # Error boundary page
 │   │       ├── login/           # Login/register page
 │   │       └── chat/            # Main chat page
 │   └── src-tauri/               # Tauri 2 desktop shell
@@ -302,6 +307,7 @@ accord/
 │       ├── middleware/
 │       │   ├── auth.ts          # JWT verification
 │       │   └── rateLimit.ts     # Per-IP rate limiting
+│       ├── securityLog.ts       # Structured security event logging
 │       └── env.ts               # Environment config
 ├── config/
 │   ├── ergo/ircd.yaml           # Ergo IRC server config
@@ -357,12 +363,13 @@ No client forking required for customization.
 
 | Variable | Required | Default | Purpose |
 |----------|----------|---------|---------|
-| `JWT_SECRET` | Yes | — | JWT signing key |
-| `LIVEKIT_API_KEY` | Yes | `devkey` | LiveKit API key |
-| `LIVEKIT_API_SECRET` | Yes | `devsecret` | LiveKit API secret |
-| `MYSQL_ROOT_PASSWORD` | Yes | `changeme` | MariaDB root password (docker-compose syncs into Ergo) |
+| `JWT_SECRET` | Yes | — | JWT signing key (min 32 characters) |
+| `LIVEKIT_API_KEY` | Yes | — | LiveKit API key |
+| `LIVEKIT_API_SECRET` | Yes | — | LiveKit API secret |
+| `MYSQL_ROOT_PASSWORD` | Yes | — | MariaDB root password |
+| `MYSQL_ERGO_PASSWORD` | No | _(falls back to MYSQL_ROOT_PASSWORD)_ | Dedicated MariaDB password for the `ergo` user |
+| `ERGO_API_TOKEN` | Yes | — | Bearer token for Ergo HTTP API (injected into Ergo config) |
 | `ERGO_API` | No | `http://ergo:8089` | Ergo HTTP API URL |
-| `ERGO_API_TOKEN` | Yes | `dev-ergo-api-token` | Bearer token for Ergo HTTP API (injected into Ergo config) |
 | `ERGO_WEBSOCKET_ORIGINS` | No | `["http://localhost","http://127.0.0.1"]` | JSON array of allowed Origin values for IRC WebSocket connections |
 | `LIVEKIT_URL` | No | `ws://livekit:7880` | Internal LiveKit signaling URL |
 | `LIVEKIT_CLIENT_URL` | No | `ws://localhost:7880` | Client-facing LiveKit URL (set to LAN IP for network access) |
@@ -374,18 +381,21 @@ No client forking required for customization.
 | `CONFIG_PATH` | No | `config/accord.json` | Server config file path |
 | `SERVER_NAME` | No | — | Server display name |
 | `SERVER_ID` | No | — | Stable server identifier for JWTs/invite links (URL-safe; defaults to BASE_URL host or safe SERVER_NAME) |
+| `TRUST_PROXY` | No | `false` | Read client IP from `X-Forwarded-For` (enable only behind a trusted reverse proxy) |
 
 ---
 
 ## Docker Compose Services
 
-| Service | Image | Ports | Purpose |
-|---------|-------|-------|---------|
-| **ergo** | `ghcr.io/ergochat/ergo:stable` | 6667, 8097 | IRC server (WebSocket + plaintext) |
-| **mysql** | `mariadb:11` | 3306 | Message history persistence |
+| Service | Image | Exposed Ports | Purpose |
+|---------|-------|---------------|---------|
+| **ergo** | `ghcr.io/ergochat/ergo:stable` | _(internal only)_ | IRC server (WebSocket + plaintext) |
+| **mysql** | `mariadb:11` | _(internal only)_ | Message history persistence |
 | **livekit** | `livekit/livekit-server:v1.9.11` | 7880-7881, 50060-50160/udp | Voice/video SFU |
-| **accord-files** | Built from `./accord-files` | 8080 | Auth bridge, file uploads, config |
-| **caddy** | `caddy:2` | 80, 443 | Reverse proxy + static SPA |
+| **accord-files** | Built from `./accord-files` | _(internal only)_ | Auth bridge, file uploads, config |
+| **caddy** | `caddy:2` | 80, 443 | Reverse proxy + TLS + static SPA |
+
+Ergo, MariaDB, and accord-files are only reachable through Caddy. Uncomment port mappings in `docker-compose.yml` for local dev access.
 
 ---
 
@@ -415,16 +425,17 @@ No client forking required for customization.
 
 | Suite | Tests |
 |-------|-------|
+| IRC handler | 91 |
 | IRC format/rendering | 77 |
-| IRC handler | 70 |
 | Message store | 68 |
 | Theme store | 57 |
+| IRC commands | 42 |
 | Notification store | 41 |
 | Keybindings | 38 |
-| IRC commands | 29 |
 | Emoji library | 29 |
 | App settings | 28 |
 | Member store | 27 |
+| IRC connection | 26 |
 | Server store | 23 |
 | Server config store | 21 |
 | Media | 20 |
@@ -433,7 +444,6 @@ No client forking required for customization.
 | Voice store | 18 |
 | System messages | 17 |
 | File preview (client) | 17 |
-| IRC connection | 14 |
 | Auth API (client) | 13 |
 | Typing store | 13 |
 | Account info API | 12 |
@@ -446,29 +456,38 @@ No client forking required for customization.
 | User store | 7 |
 | File upload (client) | 5 |
 | Raw IRC log | 5 |
-| **Client total** | **744** |
+| **Client total** | **790** |
 | URL preview (server) | 54 |
+| File upload endpoint | 25 |
 | Invite endpoint | 22 |
-| File upload endpoint | 16 |
+| LiveKit endpoint | 17 |
+| Env validation | 16 |
 | Auth endpoint | 15 |
 | Config endpoint | 11 |
 | Account endpoint | 10 |
 | Account info endpoint | 9 |
 | Auth middleware | 7 |
-| LiveKit endpoint | 6 |
 | Rate limiter | 5 |
-| **Server total** | **155** |
-| **Total** | **899** |
+| **Server total** | **191** |
+| **Total** | **981** |
 
 ---
 
 ## Security Considerations
 
+**JWT secrets:** `JWT_SECRET` must be at least 32 characters (256 bits) per RFC 7518 Section 3.2. The server refuses to start if the secret is too short. All required secrets (`JWT_SECRET`, `ERGO_API_TOKEN`, `LIVEKIT_API_KEY`/`SECRET`, `MYSQL_ROOT_PASSWORD`) have no insecure defaults — they must be explicitly set.
+
+**Security audit logging:** All security-relevant events (auth success/failure, file uploads, invite operations, account changes) are logged as structured JSON to stdout. Pipe to a log aggregator (Loki, Datadog, CloudWatch) in production for incident response and audit trails.
+
+**Database isolation:** MariaDB uses a dedicated `ergo` user with limited privileges rather than root. Set `MYSQL_ERGO_PASSWORD` separately from `MYSQL_ROOT_PASSWORD` in production.
+
 **Rate limiting:** The rate limiter uses `TRUST_PROXY` to decide whether to read client IPs from `X-Forwarded-For`. When enabled without a trusted reverse proxy, attackers can spoof IPs to bypass rate limits. In production, always run behind Caddy (or another trusted proxy) and ensure no untrusted path can reach accord-files directly. When `TRUST_PROXY` is disabled (the default), the socket address is used.
 
 **Rate limit store:** The in-memory rate limit store caps at 50K entries with periodic cleanup. Under sustained attack from rotating IPs, the store can fill to the cap. For high-traffic deployments, consider an external rate limiter (e.g., Caddy's `rate_limit` directive or a WAF).
 
-**SSRF protection:** URL preview fetching validates hostnames against a private IP blocklist and pins DNS resolution to prevent rebinding. The blocklist covers IPv4 private ranges, IPv6 loopback/link-local/ULA/documentation, and `0.0.0.0`/`::`. Ensure accord-files cannot reach sensitive internal services even if a bypass is found.
+**SSRF protection:** URL preview fetching validates hostnames against a private IP blocklist and pins DNS resolution to prevent rebinding. The blocklist covers IPv4 private ranges, IPv6 loopback/link-local/ULA/documentation, and `0.0.0.0`/`::`. OpenGraph `og:image` URLs are also validated against the same blocklist. Ensure accord-files cannot reach sensitive internal services even if a bypass is found.
+
+**File uploads:** Uploaded files are validated by magic bytes (PNG, JPEG, GIF, WebP, PDF, ZIP) in addition to extension checks. HSTS headers and request body size limits (30 MB) are enforced at the Caddy layer.
 
 **Credentials in web builds:** In non-Tauri (browser) deployments, auth credentials are stored in `localStorage`. In Tauri desktop builds, the OS keyring is used instead. For web deployments, ensure the origin is protected against XSS.
 
@@ -487,7 +506,7 @@ No client forking required for customization.
 | Multi-server | Single server | UI accommodates server list |
 | Theme customization UI | Dark/light/AMOLED/compact | CSS vars ready for full theme editor |
 | Custom server emoji | Config structure ready | Rendered in emoji picker, tab completion, and messages |
-| Voice channel access control | Any authenticated user can get a token | Ergo lacks a channel membership query API |
+| Voice channel access control | Any authenticated user can get a token | Ergo lacks a channel membership query API; mitigated by auth requirement, rate limiting, and room participant caps |
 
 ---
 
@@ -524,19 +543,22 @@ Delivered: `/join` slash command, member list virtual scrolling and hover cards,
 ### Post-Cardinal
 Development continued as **human-agent collaboration** — the human directed priorities and reviewed results while Claude (Opus 4.6 via Avril) implemented features and fixes. Cross-model review (**Claude + OpenAI Codex**) identified issues including MODE parsing drift, MONITOR timing races, and slash command edge cases, all resolved. Post-Cardinal work added: voice manager extraction, accessibility utilities (focus trapping, menu keyboard navigation, ARIA tab patterns), channel navigation module, server theme disable toggles, WCAG contrast warnings, and a comprehensive TODO rewrite for the rename/publish roadmap.
 
+### Session 4: Security Audit & Hardening (Feb 18)
+A full codebase security audit identified 16 findings across the stack. Fixes applied: JWT secret minimum length enforcement, structured security event logging for all auth/upload/invite/account operations, dedicated MariaDB user isolation, og:image SSRF validation, magic byte file upload validation, HSTS headers, removal of insecure defaults from environment configuration, case-insensitive IRC key normalization, mIRC 99-color palette support, voice disconnect handling, and expanded test coverage (+82 tests).
+
 ### By the Numbers
 
 | Metric | Value |
 |--------|-------|
-| TypeScript + Svelte source | ~26,000 lines |
-| Test code | ~9,900 lines |
+| TypeScript + Svelte source | ~26,200 lines |
+| Test code | ~10,700 lines |
 | Design specs | ~1,860 lines |
 | Infrastructure config | ~1,400 lines |
 | Components | 28 |
 | Reactive stores | 15 |
-| Commits | 132+ |
+| Commits | 141+ |
 | Packages | 2 |
-| Tests | 899 |
+| Tests | 981 |
 | Cardinal tasks | 89 |
 
 ---
