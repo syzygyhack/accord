@@ -21,7 +21,7 @@ import type { Room } from 'livekit-client';
  * Result of a voice connection operation.
  * Returns the Room on success, or an error message string on failure.
  */
-export type VoiceResult = { ok: true; room: Room } | { ok: false; error: string };
+export type VoiceResult = { ok: true; room: Room | null } | { ok: false; error: string };
 
 /**
  * Resolve the account name for a DM target nick.
@@ -73,7 +73,16 @@ export function getDMRoomName(target: string): string {
 	}
 
 	// Lowercase to match server-side comparison (livekit.ts uses toLowerCase)
-	const accounts = [selfAccount.toLowerCase(), targetAccount.toLowerCase()].sort();
+	const a = selfAccount.toLowerCase();
+	const b = targetAccount.toLowerCase();
+
+	// Account names must not contain colons — the room format is "dm:a:b"
+	// and the server splits on ":" expecting exactly 3 parts.
+	if (a.includes(':') || b.includes(':')) {
+		throw new Error('Account name contains invalid character');
+	}
+
+	const accounts = [a, b].sort();
 	return `dm:${accounts[0]}:${accounts[1]}`;
 }
 
@@ -110,12 +119,13 @@ export async function handleVoiceChannelClick(
 	channel: string,
 	conn: IRCConnection | null,
 	currentRoom: Room | null,
+	onDisconnected?: (prevRoom: string | null) => void,
 ): Promise<VoiceResult> {
 	// If already in this channel, disconnect (toggle behavior)
 	if (voiceState.currentRoom === channel && currentRoom) {
 		await disconnectVoice(currentRoom);
 		if (conn) conn.send(`PART ${channel}`);
-		return { ok: true, room: null as unknown as Room }; // Caller should null out
+		return { ok: true, room: null };
 	}
 
 	// If connected to a different voice channel, disconnect first
@@ -136,7 +146,7 @@ export async function handleVoiceChannelClick(
 		const data = await fetchVoiceToken(channel);
 
 		// 3. Connect to the LiveKit room
-		const room = await connectToVoice(channel, data.url, data.token);
+		const room = await connectToVoice(channel, data.url, data.token, onDisconnected);
 
 		// 4. JOIN the IRC voice channel for presence
 		if (conn) join(conn, [channel]);
@@ -156,6 +166,7 @@ export async function handleDMVoiceCall(
 	target: string,
 	conn: IRCConnection | null,
 	currentRoom: Room | null,
+	onDisconnected?: (prevRoom: string | null) => void,
 ): Promise<VoiceResult> {
 	try {
 		const dmRoom = getDMRoomName(target);
@@ -163,7 +174,7 @@ export async function handleDMVoiceCall(
 		// If already in a DM call with this target, disconnect (toggle)
 		if (voiceState.currentRoom === dmRoom && currentRoom) {
 			await disconnectVoice(currentRoom);
-			return { ok: true, room: null as unknown as Room };
+			return { ok: true, room: null };
 		}
 
 		// If in another voice session, disconnect first
@@ -180,7 +191,7 @@ export async function handleDMVoiceCall(
 		for (const track of permStream.getTracks()) track.stop();
 
 		const data = await fetchVoiceToken(dmRoom);
-		const room = await connectToVoice(dmRoom, data.url, data.token);
+		const room = await connectToVoice(dmRoom, data.url, data.token, onDisconnected);
 		return { ok: true, room };
 	} catch (e) {
 		const msg = e instanceof Error ? e.message : String(e);
@@ -196,6 +207,7 @@ export async function handleDMVideoCall(
 	target: string,
 	conn: IRCConnection | null,
 	currentRoom: Room | null,
+	onDisconnected?: (prevRoom: string | null) => void,
 ): Promise<VoiceResult> {
 	try {
 		const dmRoom = getDMRoomName(target);
@@ -207,7 +219,7 @@ export async function handleDMVideoCall(
 		}
 
 		// Not in a call yet — start voice call first, then enable camera
-		const result = await handleDMVoiceCall(target, conn, currentRoom);
+		const result = await handleDMVoiceCall(target, conn, currentRoom, onDisconnected);
 		if (result.ok && result.room) {
 			await toggleVideoRoom(result.room);
 		}

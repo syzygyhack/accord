@@ -91,6 +91,9 @@ export const voiceState = {
 /** Handle for the duration counter so we can cancel it. */
 let durationTimer: ReturnType<typeof setInterval> | null = null;
 
+/** Whether the user was independently muted before deafening. */
+let _wasMutedBeforeDeafen = false;
+
 /** Mark voice as connected to a room and start the duration counter. */
 export function setConnected(room: string): void {
 	_scalars.isConnected = true;
@@ -120,6 +123,7 @@ export function setDisconnected(): void {
 	_scalars.localVideoEnabled = false;
 	_scalars.localScreenShareEnabled = false;
 	_scalars.connectDuration = 0;
+	_wasMutedBeforeDeafen = false;
 	notifyMap();
 	notifyVideo();
 
@@ -131,8 +135,6 @@ export function toggleMute(): void {
 	_scalars.localMuted = !_scalars.localMuted;
 }
 
-/** Whether the user was independently muted before deafening. */
-let _wasMutedBeforeDeafen = false;
 
 /** Toggle local deafen (also mutes when deafening, restores on undeafen). */
 export function toggleDeafen(): void {

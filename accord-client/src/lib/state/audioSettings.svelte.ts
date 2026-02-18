@@ -96,3 +96,15 @@ export const audioSettings = {
 	get noiseSuppression() { return _state.noiseSuppression; },
 	set noiseSuppression(v: boolean) { _state.noiseSuppression = v; persist(); },
 };
+
+/** Reset audio settings to defaults and clear localStorage. */
+export function resetAudioSettings(): void {
+	Object.assign(_state, defaults);
+	if (hasLocalStorage()) {
+		try {
+			localStorage.removeItem(STORAGE_KEY);
+		} catch {
+			// Unavailable
+		}
+	}
+}

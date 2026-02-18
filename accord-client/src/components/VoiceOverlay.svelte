@@ -70,10 +70,10 @@
 	// Controls
 	// ---------------------------------------------------------------------------
 
-	function handleMute(): void { toggleMute(voiceRoom); }
-	function handleDeafen(): void { toggleDeafen(voiceRoom); }
-	function handleVideo(): void { toggleVideo(voiceRoom); }
-	function handleScreenShare(): void { toggleScreenShare(voiceRoom); }
+	function handleMute(): void { toggleMute(voiceRoom).catch((e) => console.error('[voice] Mute toggle failed:', e)); }
+	function handleDeafen(): void { toggleDeafen(voiceRoom).catch((e) => console.error('[voice] Deafen toggle failed:', e)); }
+	function handleVideo(): void { toggleVideo(voiceRoom).catch((e) => console.error('[voice] Video toggle failed:', e)); }
+	function handleScreenShare(): void { toggleScreenShare(voiceRoom).catch((e) => console.error('[voice] Screen share toggle failed:', e)); }
 
 	async function handleDisconnect(): Promise<void> {
 		try {

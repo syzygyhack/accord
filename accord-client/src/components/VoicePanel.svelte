@@ -6,9 +6,10 @@
 	interface Props {
 		voiceRoom?: Room | null;
 		onexpand?: () => void;
+		ondisconnect?: () => void;
 	}
 
-	let { voiceRoom = null, onexpand }: Props = $props();
+	let { voiceRoom = null, onexpand, ondisconnect }: Props = $props();
 
 	/** Format seconds into MM:SS. */
 	function formatDuration(seconds: number): string {
@@ -18,25 +19,26 @@
 	}
 
 	function handleMute(): void {
-		if (voiceRoom) toggleMute(voiceRoom);
+		if (voiceRoom) toggleMute(voiceRoom).catch((e) => console.error('[voice] Mute toggle failed:', e));
 	}
 
 	function handleDeafen(): void {
-		if (voiceRoom) toggleDeafen(voiceRoom);
+		if (voiceRoom) toggleDeafen(voiceRoom).catch((e) => console.error('[voice] Deafen toggle failed:', e));
 	}
 
 	function handleVideo(): void {
-		if (voiceRoom) toggleVideo(voiceRoom);
+		if (voiceRoom) toggleVideo(voiceRoom).catch((e) => console.error('[voice] Video toggle failed:', e));
 	}
 
 	function handleScreenShare(): void {
-		if (voiceRoom) toggleScreenShare(voiceRoom);
+		if (voiceRoom) toggleScreenShare(voiceRoom).catch((e) => console.error('[voice] Screen share toggle failed:', e));
 	}
 
 	async function handleDisconnect(): Promise<void> {
 		if (!voiceRoom) return;
 		try {
 			await disconnectVoice(voiceRoom);
+			ondisconnect?.();
 		} catch (e) {
 			console.error('Disconnect failed:', e);
 		}

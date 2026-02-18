@@ -58,6 +58,7 @@ export async function connectToVoice(
 	channel: string,
 	livekitUrl: string,
 	token: string,
+	onDisconnected?: (prevRoom: string | null) => void,
 ): Promise<Room> {
 	// Configure room with selected audio devices and processing.
 	const audioCaptureOpts: AudioCaptureOptions = {
@@ -86,7 +87,7 @@ export async function connectToVoice(
 	});
 
 	// Wire up event listeners before connecting so we don't miss early events.
-	setupRoomEvents(room);
+	setupRoomEvents(room, onDisconnected);
 
 	await room.connect(livekitUrl, token);
 
@@ -257,7 +258,7 @@ function trackSource(pub: TrackPublication): 'camera' | 'screen' | null {
 /**
  * Set up LiveKit room event listeners that sync to voiceState.
  */
-function setupRoomEvents(room: Room): void {
+function setupRoomEvents(room: Room, onDisconnected?: (prevRoom: string | null) => void): void {
 	// Apply output volume to newly subscribed audio tracks,
 	// and register video tracks in the video grid.
 	room.on(
@@ -389,4 +390,13 @@ function setupRoomEvents(room: Room): void {
 			}
 		},
 	);
+
+	// Handle unexpected disconnections (network drop, server restart, token expiry).
+	// Resets voice state so the UI doesn't remain in a zombie "connected" state.
+	// Capture currentRoom BEFORE clearing state so the callback can PART the channel.
+	room.on(RoomEvent.Disconnected, () => {
+		const prevRoom = voiceState.currentRoom;
+		setDisconnected();
+		onDisconnected?.(prevRoom);
+	});
 }
