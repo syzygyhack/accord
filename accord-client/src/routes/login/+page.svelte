@@ -4,6 +4,7 @@
 	import { negotiateCaps } from '$lib/irc/cap';
 	import { authenticateSASL } from '$lib/irc/sasl';
 	import { parseMessage } from '$lib/irc/parser';
+	import { isValidNick } from '$lib/irc/commands';
 	import { login } from '$lib/state/user.svelte';
 	import { fetchToken, startTokenRefresh } from '$lib/api/auth';
 	import { discoverFilesUrl } from '$lib/api/discovery';
@@ -33,11 +34,6 @@
 	let loading = $state(false);
 	let error: string | null = $state(null);
 	let statusMessage: string | null = $state(null);
-
-	/** Validate an IRC nickname: 1–20 chars, no spaces or control characters. */
-	function isValidNick(nick: string): boolean {
-		return /^[^\s\x00-\x1f,:*?@!]{1,20}$/.test(nick);
-	}
 
 	/**
 	* Perform SASL login: connect, negotiate caps, authenticate, store creds,
@@ -340,9 +336,9 @@
 
 	function handleSubmit(): void {
 		if (mode === 'login') {
-			handleLogin();
+			void handleLogin();
 		} else {
-			handleRegister();
+			void handleRegister();
 		}
 	}
 </script>

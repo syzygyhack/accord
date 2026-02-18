@@ -62,7 +62,7 @@
 
 	let conn: IRCConnection | null = $state(null);
 	let voiceRoom: Room | null = $state(null);
-	let showMembers = $state(false);
+	let showMembers = $state(true);
 	let showSidebar = $state(false);
 	let innerWidth = $state(0);
 	let error: string | null = $state(null);
@@ -219,7 +219,7 @@
 	}
 
 	/** Apply result from a voice manager call — update room or show error. */
-	function applyVoiceResult(result: { ok: true; room: Room } | { ok: false; error: string }): void {
+	function applyVoiceResult(result: { ok: true; room: Room | null } | { ok: false; error: string }): void {
 		if (result.ok) {
 			voiceRoom = voiceState.isConnected ? result.room : null;
 		} else {
@@ -233,9 +233,17 @@
 		}
 	}
 
-	async function handleVoiceChannelClick(ch: string): Promise<void> { applyVoiceResult(await voiceChannelClick(ch, conn, voiceRoom)); }
-	async function handleDMVoiceCall(target: string): Promise<void> { applyVoiceResult(await dmVoiceCall(target, conn, voiceRoom)); }
-	async function handleDMVideoCall(target: string): Promise<void> { applyVoiceResult(await dmVideoCall(target, conn, voiceRoom)); }
+	/** Called when LiveKit disconnects unexpectedly (network drop, token expiry). */
+	function onVoiceDisconnected(prevChannel: string | null): void {
+		voiceRoom = null;
+		if (conn && prevChannel && (prevChannel.startsWith('#') || prevChannel.startsWith('&'))) {
+			conn.send(`PART ${prevChannel}`);
+		}
+	}
+
+	async function handleVoiceChannelClick(ch: string): Promise<void> { applyVoiceResult(await voiceChannelClick(ch, conn, voiceRoom, onVoiceDisconnected)); }
+	async function handleDMVoiceCall(target: string): Promise<void> { applyVoiceResult(await dmVoiceCall(target, conn, voiceRoom, onVoiceDisconnected)); }
+	async function handleDMVideoCall(target: string): Promise<void> { applyVoiceResult(await dmVideoCall(target, conn, voiceRoom, onVoiceDisconnected)); }
 
 	/**
 	* Start the connection lifecycle using the extracted module.
@@ -496,7 +504,7 @@
 
 	<!-- Left column: Channel sidebar (ChannelSidebar is already an <aside> landmark) -->
 	<div class="left-panel" class:overlay={sidebarIsOverlay} class:visible={sidebarIsOverlay && showSidebar} style="width: {appSettings.sidebarWidth}px;">
-		<ChannelSidebar onvoicechannelclick={handleVoiceChannelClick} {voiceRoom} onsettingsclick={() => (showSettings = true)} onserversettingsclick={() => { serverSettingsInitialTab = 'overview'; showServerSettings = true; }} oncreatechannel={(ch) => { if (conn) { join(conn, [ch]); setActiveChannel(ch); chathistory(conn, 'LATEST', ch, '*', '50'); } }} onvoiceexpand={() => (showVoiceOverlay = true)} />
+		<ChannelSidebar onvoicechannelclick={handleVoiceChannelClick} {voiceRoom} onsettingsclick={() => (showSettings = true)} onserversettingsclick={() => { serverSettingsInitialTab = 'overview'; showServerSettings = true; }} oncreatechannel={(ch) => { if (conn) { join(conn, [ch]); setActiveChannel(ch); chathistory(conn, 'LATEST', ch, '*', '50'); } }} onvoiceexpand={() => (showVoiceOverlay = true)} onvoicedisconnect={() => { onVoiceDisconnected(null); voiceRoom = null; }} />
 		{#if !sidebarIsOverlay}
 			<ResizeHandle side="left" min={SIDEBAR_MIN} max={SIDEBAR_MAX} width={appSettings.sidebarWidth} onresize={(w) => { appSettings.sidebarWidth = w; }} />
 		{/if}
@@ -597,7 +605,7 @@
 	</main>
 
 	<!-- Right column: Member list (MemberList is already an <aside> landmark) -->
-	{#if !isActiveDM && (isDesktop || showMembers)}
+	{#if !isActiveDM && showMembers}
 		<div class="right-panel" class:overlay={!isDesktop} class:visible={!isDesktop && showMembers} style="width: {appSettings.memberListWidth}px;">
 			{#if isDesktop}
 				<ResizeHandle side="right" min={MEMBER_MIN} max={MEMBER_MAX} width={appSettings.memberListWidth} onresize={(w) => { appSettings.memberListWidth = w; }} />

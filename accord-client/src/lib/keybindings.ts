@@ -54,11 +54,15 @@ function loadOverrides(): void {
 /** Save overrides to localStorage. */
 function saveOverrides(): void {
 	if (!hasLocalStorage()) return;
-	const obj: Record<string, KeyCombo> = {};
-	for (const [key, combo] of overrides) {
-		obj[key] = { key: combo.key, ctrl: combo.ctrl, alt: combo.alt, shift: combo.shift };
+	try {
+		const obj: Record<string, KeyCombo> = {};
+		for (const [key, combo] of overrides) {
+			obj[key] = { key: combo.key, ctrl: combo.ctrl, alt: combo.alt, shift: combo.shift };
+		}
+		localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
+	} catch {
+		// Storage full or unavailable
 	}
-	localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
 }
 
 // Load on module init

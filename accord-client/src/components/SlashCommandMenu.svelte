@@ -14,19 +14,16 @@
 	}
 
 	export const SLASH_COMMANDS: CommandDef[] = [
-		{ name: 'join', usage: '/join #channel', description: 'Join a channel', level: 'user' },
 		{ name: 'me', usage: '/me <action>', description: 'Send an action message', level: 'user' },
 		{ name: 'msg', usage: '/msg <user> <message>', description: 'Send a direct message', level: 'user' },
 		{ name: 'nick', usage: '/nick <name>', description: 'Change your display name', level: 'user' },
 		{ name: 'part', usage: '/part [channel] [reason]', description: 'Leave a channel', level: 'user' },
 		{ name: 'topic', usage: '/topic [new topic]', description: 'View or set channel topic', level: 'user' },
 		{ name: 'invite', usage: '/invite <user> [channel]', description: 'Invite a user to a channel', level: 'user' },
-		{ name: 'whois', usage: '/whois <user>', description: 'Show user information', level: 'user' },
 		{ name: 'kick', usage: '/kick <user> [reason]', description: 'Kick a user from the channel', level: 'mod' },
 		{ name: 'mute', usage: '/mute <user>', description: 'Mute a user in the channel', level: 'mod' },
 		{ name: 'ban', usage: '/ban <user>', description: 'Ban a user from the channel', level: 'mod' },
 		{ name: 'unban', usage: '/unban <user>', description: 'Remove a ban on a user', level: 'mod' },
-		{ name: 'mode', usage: '/mode <target> <modes>', description: 'Set channel or user modes', level: 'mod' },
 	];
 
 	/** Mode prefixes that qualify as "mod" level (halfop and above). */

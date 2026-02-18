@@ -445,13 +445,16 @@
 		scrollToBottom();
 	}
 
-	/** Scroll to a specific message by msgid. */
+	/** Scroll to a specific message by msgid and briefly highlight it. */
 	function handleScrollToMessage(msgid: string): void {
 		if (!scrollContainer) return;
 		// Use CSS.escape to prevent selector injection from untrusted msgid values
 		const el = scrollContainer.querySelector(`[data-msgid="${CSS.escape(msgid)}"]`);
 		if (el) {
 			el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+			// Brief highlight flash — add class after scroll starts, remove after 2s
+			el.classList.add('message-highlight');
+			setTimeout(() => el.classList.remove('message-highlight'), 2000);
 		}
 	}
 
@@ -884,5 +887,19 @@
 		font-size: var(--font-xs);
 		font-weight: var(--weight-bold);
 		line-height: 1;
+	}
+
+	/* Scroll-to-message highlight flash — fades out over 1.5s */
+	:global(.message-highlight) {
+		animation: highlight-fade 2s ease-out;
+	}
+
+	@keyframes highlight-fade {
+		0%, 30% {
+			background: var(--accent-bg);
+		}
+		100% {
+			background: transparent;
+		}
 	}
 </style>

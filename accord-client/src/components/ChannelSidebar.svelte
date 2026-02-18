@@ -5,6 +5,7 @@
 		setActiveChannel,
 		toggleCategory,
 		reorderChannels,
+		removeDMConversation,
 		type ChannelCategory,
 	} from '$lib/state/channels.svelte';
 	import { getActiveServer } from '$lib/state/servers.svelte';
@@ -31,9 +32,10 @@
 		onserversettingsclick?: () => void;
 		oncreatechannel?: (channel: string) => void;
 		onvoiceexpand?: () => void;
+		onvoicedisconnect?: () => void;
 	}
 
-	let { onvoicechannelclick, voiceRoom = null, onsettingsclick, onserversettingsclick, oncreatechannel, onvoiceexpand }: Props = $props();
+	let { onvoicechannelclick, voiceRoom = null, onsettingsclick, onserversettingsclick, oncreatechannel, onvoiceexpand, onvoicedisconnect }: Props = $props();
 
 	/** Dropdown state for server name header. */
 	let serverDropdownOpen = $state(false);
@@ -85,11 +87,17 @@
 		newChannelName = '';
 	}
 
+	/** Validate an IRC channel name: starts with # or &, 2-50 chars, no spaces/commas/control chars. */
+	function isValidChannelName(name: string): boolean {
+		return /^[#&][^\s,\x00-\x1f]{1,49}$/.test(name);
+	}
+
 	function handleCreateChannelSubmit(): void {
 		const name = newChannelName.trim();
 		if (!name) return;
 		// Ensure channel starts with #
-		const channel = name.startsWith('#') ? name : `#${name}`;
+		const channel = name.startsWith('#') || name.startsWith('&') ? name : `#${name}`;
+		if (!isValidChannelName(channel)) return;
 		oncreatechannel?.(channel);
 		closeCreateChannel();
 	}
@@ -141,7 +149,7 @@
 		const categorized = new Set<string>();
 		for (const cat of channelUIState.categories) {
 			for (const ch of cat.channels) {
-				categorized.add(ch);
+				categorized.add(ch.toLowerCase());
 			}
 		}
 		const result: string[] = [];
@@ -274,26 +282,38 @@
 					{#each channelUIState.dmConversations as dm (dm.nick)}
 						{@const dmUnread = getUnreadCount(dm.nick)}
 						{@const dmMentions = getMentionCount(dm.nick)}
-						<button
-							class="channel-item dm-item"
-							class:active={channelUIState.activeChannel === dm.nick}
-							class:has-unread={dmUnread > 0}
-							class:has-mentions={dmMentions > 0}
-							onclick={() => handleChannelClick(dm.nick, false)}
-						>
-							<span class="channel-icon dm-icon">@</span>
-							<div class="dm-content">
-								<span class="channel-name">{dm.nick}</span>
-								{#if dm.lastMessage}
-									<span class="dm-preview">{dm.lastMessage}</span>
+						<div class="dm-row">
+							<button
+								class="channel-item dm-item"
+								class:active={channelUIState.activeChannel === dm.nick}
+								class:has-unread={dmUnread > 0}
+								class:has-mentions={dmMentions > 0}
+								onclick={() => handleChannelClick(dm.nick, false)}
+							>
+								<span class="channel-icon dm-icon">@</span>
+								<div class="dm-content">
+									<span class="channel-name">{dm.nick}</span>
+									{#if dm.lastMessage}
+										<span class="dm-preview">{dm.lastMessage}</span>
+									{/if}
+								</div>
+								{#if dmUnread > 0}
+									<span class="unread-badge" class:mention-badge={dmMentions > 0}>
+										{dmMentions > 0 ? dmMentions : dmUnread}
+									</span>
 								{/if}
-							</div>
-							{#if dmUnread > 0}
-								<span class="unread-badge" class:mention-badge={dmMentions > 0}>
-									{dmMentions > 0 ? dmMentions : dmUnread}
-								</span>
-							{/if}
-						</button>
+							</button>
+							<button
+								class="dm-close-btn"
+								onclick={(e) => { e.stopPropagation(); removeDMConversation(dm.nick); }}
+								aria-label="Close conversation with {dm.nick}"
+								title="Close DM"
+							>
+								<svg width="14" height="14" viewBox="0 0 16 16">
+									<path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+								</svg>
+							</button>
+						</div>
 					{/each}
 				</div>
 			</div>
@@ -470,7 +490,7 @@
 	</div>
 
 	{#if voiceState.isConnected}
-		<VoicePanel {voiceRoom} onexpand={onvoiceexpand} />
+		<VoicePanel {voiceRoom} onexpand={onvoiceexpand} ondisconnect={onvoicedisconnect} />
 	{/if}
 
 	<UserPanel onsettingsclick={() => onsettingsclick?.()} />
@@ -526,8 +546,10 @@
 		<div class="create-channel-dialog" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Create or join channel" tabindex="-1">
 			<div class="create-channel-title">Join / Create Channel</div>
 			<form onsubmit={(e) => { e.preventDefault(); handleCreateChannelSubmit(); }}>
+				<label for="create-channel-name" class="sr-only">Channel name</label>
 				<!-- svelte-ignore a11y_autofocus -->
 				<input
+					id="create-channel-name"
 					class="create-channel-input"
 					type="text"
 					bind:value={newChannelName}
@@ -803,6 +825,45 @@
 	.dm-icon {
 		font-size: var(--font-sm);
 		font-weight: var(--weight-bold);
+	}
+
+	.dm-row {
+		display: flex;
+		align-items: center;
+		position: relative;
+	}
+
+	.dm-row .channel-item {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.dm-close-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 24px;
+		height: 24px;
+		padding: 0;
+		margin-right: 8px;
+		background: none;
+		border: none;
+		border-radius: 4px;
+		cursor: pointer;
+		color: var(--text-muted);
+		opacity: 0;
+		flex-shrink: 0;
+		transition: opacity 80ms, color 80ms, background 80ms;
+	}
+
+	.dm-row:hover .dm-close-btn {
+		opacity: 1;
+	}
+
+	.dm-close-btn:hover {
+		opacity: 1;
+		color: var(--text-primary);
+		background: var(--surface-highest);
 	}
 
 	.dm-item {

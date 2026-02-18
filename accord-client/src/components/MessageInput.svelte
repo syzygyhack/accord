@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { markdownToIRC } from '$lib/irc/format';
 	import type { IRCConnection } from '$lib/irc/connection';
-	import { join, privmsg, tagmsg, part, topic, escapeTagValue } from '$lib/irc/commands';
+	import { privmsg, tagmsg, part, topic, escapeTagValue, isValidNick } from '$lib/irc/commands';
 	import { formatMessage } from '$lib/irc/parser';
 	import SlashCommandMenu from './SlashCommandMenu.svelte';
 	import { filterCommands, type CommandDef } from './SlashCommandMenu.svelte';
@@ -453,29 +453,24 @@
 		const command = cmd.toLowerCase();
 
 		switch (command) {
-			case 'join': {
-				const channel = args.trim();
-				if (channel) {
-					join(connection, [channel]);
-				}
-				return true;
-			}
 			case 'me':
 				// ACTION: send as CTCP ACTION
 				connection.send(formatMessage('PRIVMSG', target, `\x01ACTION ${args}\x01`));
 				return true;
 			case 'msg': {
 				const msgMatch = args.match(/^(\S+)\s+(.*)/);
-				if (msgMatch) {
+				if (msgMatch && isValidNick(msgMatch[1])) {
 					privmsg(connection, msgMatch[1], msgMatch[2]);
 				}
 				return true;
 			}
-			case 'nick':
-				if (args.trim()) {
-					connection.send(formatMessage('NICK', args.trim()));
+			case 'nick': {
+				const newNick = args.trim();
+				if (newNick && isValidNick(newNick)) {
+					connection.send(formatMessage('NICK', newNick));
 				}
 				return true;
+			}
 			case 'part': {
 				const partArgs = args.trim();
 				let partTarget: string;
@@ -511,29 +506,21 @@
 				const inviteParts = args.trim().split(/\s+/);
 				const inviteUser = inviteParts[0];
 				const inviteChannel = inviteParts[1] || target;
-				if (inviteUser) {
+				if (inviteUser && isValidNick(inviteUser)) {
 					connection.send(formatMessage('INVITE', inviteUser, inviteChannel));
 				}
 				return true;
 			}
-			case 'whois': {
-				const whoisUser = args.trim();
-				if (whoisUser) {
-					connection.send(formatMessage('WHOIS', whoisUser));
-				}
-				return true;
-			}
 			case 'mute': {
-				// Mute = set +q (quiet) on the user's hostmask
 				const muteUser = args.trim();
-				if (muteUser) {
+				if (muteUser && isValidNick(muteUser)) {
 					connection.send(formatMessage('MODE', target, '+q', `${muteUser}!*@*`));
 				}
 				return true;
 			}
 			case 'kick': {
 				const kickMatch = args.match(/^(\S+)\s*(.*)/);
-				if (kickMatch) {
+				if (kickMatch && isValidNick(kickMatch[1])) {
 					const reason = kickMatch[2] || undefined;
 					if (reason) {
 						connection.send(formatMessage('KICK', target, kickMatch[1], reason));
@@ -545,24 +532,18 @@
 			}
 			case 'ban': {
 				const banUser = args.trim();
-				if (banUser) {
+				if (banUser && isValidNick(banUser)) {
 					connection.send(formatMessage('MODE', target, '+b', `${banUser}!*@*`));
 				}
 				return true;
 			}
 			case 'unban': {
 				const unbanUser = args.trim();
-				if (unbanUser) {
+				if (unbanUser && isValidNick(unbanUser)) {
 					connection.send(formatMessage('MODE', target, '-b', `${unbanUser}!*@*`));
 				}
 				return true;
 			}
-			case 'mode':
-				if (args.trim()) {
-					const modeArgs = args.trim().split(/\s+/);
-					connection.send(formatMessage('MODE', target, ...modeArgs));
-				}
-				return true;
 			default:
 				return false;
 		}
@@ -598,6 +579,9 @@
 		const hasFiles = stagedFiles.length > 0;
 
 		if ((!trimmed && !hasFiles) || !connection || inputDisabled) return;
+
+		// Capture target now — prop may change if user switches channels during async upload
+		const sendTarget = target;
 
 		// Check for slash commands (// escapes to send a literal /message)
 		if (trimmed.startsWith('/') && !trimmed.startsWith('//') && !hasFiles) {
@@ -659,15 +643,15 @@
 
 		if (editing && editMsgid) {
 			oneditcomplete?.();
-			privmsg(connection, target, ircText, editMsgid);
+			privmsg(connection, sendTarget, ircText, editMsgid);
 		} else {
 			// Add optimistic message immediately so it appears without waiting for server echo
 			const localMsgid = generateLocalMsgid();
-			addMessage(target, {
+			addMessage(sendTarget, {
 				msgid: localMsgid,
 				nick: userState.nick ?? '',
 				account: userState.account ?? '',
-				target,
+				target: sendTarget,
 				text: ircText,
 				time: new Date(),
 				tags: {},
@@ -681,13 +665,13 @@
 			let sent: boolean;
 			if (reply) {
 				const tags = `@+draft/reply=${escapeTagValue(reply.msgid)}`;
-				sent = connection.send(`${tags} PRIVMSG ${target} :${ircText}`);
+				sent = connection.send(`${tags} PRIVMSG ${sendTarget} :${ircText}`);
 			} else {
-				sent = privmsg(connection, target, ircText);
+				sent = privmsg(connection, sendTarget, ircText);
 			}
 
 			if (!sent) {
-				updateSendState(target, localMsgid, 'failed');
+				updateSendState(sendTarget, localMsgid, 'failed');
 			}
 		}
 
@@ -697,7 +681,7 @@
 
 		// Send typing=done since we just sent a message
 		if (connection) {
-			tagmsg(connection, target, { '+typing': 'done' });
+			tagmsg(connection, sendTarget, { '+typing': 'done' });
 		}
 
 		requestAnimationFrame(adjustHeight);
