@@ -5,8 +5,59 @@ import { mkdir, stat } from "fs/promises";
 import { authMiddleware } from "../middleware/auth.js";
 import type { AppEnv } from "../types.js";
 import { env } from "../env.js";
+import { securityLog } from "../securityLog.js";
 
 const files = new Hono<AppEnv>();
+
+/**
+ * Magic byte signatures for common media types.
+ * Used to reject uploads where the extension claims an image/video/audio type
+ * but the content doesn't match. This prevents serving mismatched content even
+ * though nosniff + extension-based Content-Type already blocks MIME confusion.
+ */
+const MAGIC_BYTES: Array<{ extensions: Set<string>; signatures: Uint8Array[] }> =
+  [
+    {
+      extensions: new Set([".png"]),
+      signatures: [new Uint8Array([0x89, 0x50, 0x4e, 0x47])], // \x89PNG
+    },
+    {
+      extensions: new Set([".jpg", ".jpeg"]),
+      signatures: [new Uint8Array([0xff, 0xd8, 0xff])],
+    },
+    {
+      extensions: new Set([".gif"]),
+      signatures: [
+        new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x37, 0x61]), // GIF87a
+        new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]), // GIF89a
+      ],
+    },
+    {
+      extensions: new Set([".webp"]),
+      // RIFF....WEBP
+      signatures: [new Uint8Array([0x52, 0x49, 0x46, 0x46])],
+    },
+    {
+      extensions: new Set([".pdf"]),
+      signatures: [new Uint8Array([0x25, 0x50, 0x44, 0x46])], // %PDF
+    },
+    {
+      extensions: new Set([".zip"]),
+      signatures: [new Uint8Array([0x50, 0x4b, 0x03, 0x04])], // PK\x03\x04
+    },
+  ];
+
+/** Check if the file's leading bytes match expected signatures for its extension. */
+function validateMagicBytes(
+  ext: string,
+  header: Uint8Array,
+): boolean {
+  const rule = MAGIC_BYTES.find((r) => r.extensions.has(ext));
+  if (!rule) return true; // No rule for this extension — skip validation
+  return rule.signatures.some((sig) =>
+    sig.every((byte, i) => i < header.length && header[i] === byte),
+  );
+}
 
 /** Ensure the upload directory exists. */
 async function ensureUploadDir(): Promise<string> {
@@ -43,7 +94,15 @@ files.post("/api/upload", authMiddleware, async (c) => {
     return c.json({ error: "File too large" }, 413);
   }
 
-  const ext = extname(file.name) || "";
+  const ext = extname(file.name).toLowerCase() || "";
+
+  // Validate magic bytes for known binary types (defense-in-depth)
+  const headerSlice = file.slice(0, 12);
+  const header = new Uint8Array(await headerSlice.arrayBuffer());
+  if (!validateMagicBytes(ext, header)) {
+    return c.json({ error: "File content does not match its extension" }, 422);
+  }
+
   const uuid = randomUUID();
   const storedName = `${uuid}${ext}`;
 
@@ -51,6 +110,9 @@ files.post("/api/upload", authMiddleware, async (c) => {
   const filePath = join(dir, storedName);
 
   await Bun.write(filePath, file);
+
+  const user = c.get("user");
+  securityLog("upload", { account: user.sub, detail: `${file.name} (${file.size}b) -> ${storedName}` });
 
   return c.json({
     url: `/api/files/${storedName}`,

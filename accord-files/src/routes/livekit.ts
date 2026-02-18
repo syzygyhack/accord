@@ -31,13 +31,18 @@ livekit.post("/api/livekit/token", authMiddleware, async (c) => {
     return c.json({ error: "Invalid room name" }, 400);
   }
 
-  // NOTE: Channel membership is not verified here because Ergo's HTTP API
-  // does not expose a channel membership endpoint. In IRC, channels are
-  // generally joinable by anyone who knows the name — the IRC server
-  // enforces access control (invite-only, bans, etc.) at JOIN time.
-  // A malicious user could obtain a voice token for a channel they haven't
-  // JOINed, but they would be in an isolated voice room with no IRC context.
-  // If Ergo adds a membership query API in the future, add a check here.
+  // SECURITY: Channel membership is NOT verified here because Ergo's HTTP API
+  // does not expose a channel membership query endpoint (as of v2.14).
+  //
+  // Risk: An authenticated user can obtain a voice token for any channel room
+  // name, even if they haven't JOINed the IRC channel. Mitigations:
+  //   1. Voice rooms are isolated from IRC — no chat messages are bridged
+  //   2. Rate limiting (20 req/min) prevents room exhaustion attacks
+  //   3. LiveKit rooms have max_participants=50 and empty_timeout=300s
+  //   4. The user must still have valid JWT auth (account on this server)
+  //
+  // TODO: If Ergo adds a /v1/channel_members or similar endpoint, add a
+  // membership check here before issuing the token.
 
   // For DM rooms (format: "dm:account1:account2"), verify the requesting user
   // is one of the two participants to prevent eavesdropping.
@@ -55,7 +60,7 @@ livekit.post("/api/livekit/token", authMiddleware, async (c) => {
 
   const at = new AccessToken(env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET, {
     identity: user.sub,
-    ttl: 3600, // 1 hour
+    ttl: 28800, // 8 hours — LiveKit disconnects on expiry; client handles via RoomEvent.Disconnected
   });
 
   at.addGrant({

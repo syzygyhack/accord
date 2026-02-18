@@ -4,6 +4,7 @@ import { env } from "../env.js";
 import { JWT_ISSUER, JWT_AUDIENCE } from "../constants.js";
 import { ergoPost } from "../ergoClient.js";
 import { getJwtSecretKey } from "../middleware/auth.js";
+import { securityLog, clientIp } from "../securityLog.js";
 
 const auth = new Hono();
 
@@ -51,6 +52,7 @@ auth.post("/api/auth", async (c) => {
     // 4xx = Ergo rejected the request (bad credentials or access denied)
     // 5xx = upstream failure
     if (ergoRes.status >= 400 && ergoRes.status < 500) {
+      securityLog("auth.failure", { account, ip: clientIp(c), detail: "ergo_rejected" });
       return c.json({ error: "Invalid credentials" }, 401);
     }
     console.warn(`Ergo auth check failed: ${ergoRes.status}`);
@@ -65,6 +67,7 @@ auth.post("/api/auth", async (c) => {
   }
 
   if (!ergoBody.success) {
+    securityLog("auth.failure", { account, ip: clientIp(c), detail: "invalid_credentials" });
     return c.json({ error: "Invalid credentials" }, 401);
   }
 
@@ -81,6 +84,7 @@ auth.post("/api/auth", async (c) => {
     .setAudience(JWT_AUDIENCE)
     .sign(getJwtSecretKey());
 
+  securityLog("auth.success", { account, ip: clientIp(c) });
   c.header("Cache-Control", "no-store");
   return c.json({ token });
 });

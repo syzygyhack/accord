@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import type { AppEnv } from "../types.js";
 import { ergoPost } from "../ergoClient.js";
+import { securityLog, clientIp } from "../securityLog.js";
 
 const account = new Hono<AppEnv>();
 
@@ -83,6 +84,7 @@ account.post("/api/account/password", authMiddleware, async (c) => {
     return c.json({ error: "Failed to update password" }, 502);
   }
 
+  securityLog("account.password_change", { account: user.sub, ip: clientIp(c) });
   return c.json({ success: true });
 });
 
@@ -133,6 +135,7 @@ account.post("/api/account/email", authMiddleware, async (c) => {
     return c.json({ error: "Failed to update email" }, 502);
   }
 
+  securityLog("account.email_change", { account: user.sub, ip: clientIp(c), detail: email });
   return c.json({ success: true });
 });
 

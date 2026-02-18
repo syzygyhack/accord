@@ -5,6 +5,7 @@ import { randomBytes } from "node:crypto";
 import { authMiddleware } from "../middleware/auth.js";
 import { env } from "../env.js";
 import type { AppEnv } from "../types.js";
+import { securityLog } from "../securityLog.js";
 
 // --- Types ---
 
@@ -220,6 +221,8 @@ export function createInviteRouter(dataDir?: string) {
     store.add(invite);
     await store.save();
 
+    securityLog("invite.create", { account: user.sub, detail: `${token} for ${body.channel}` });
+
     // Use BASE_URL env var if set (trusted). Falling back to request headers is
     // unsafe (attacker-controlled Host header can craft phishing links), so we
     // only return the token when BASE_URL is not configured.
@@ -296,6 +299,9 @@ export function createInviteRouter(dataDir?: string) {
     invite.useCount++;
     await store.save();
 
+    const redeemer = c.get("user");
+    securityLog("invite.redeem", { account: redeemer.sub, detail: `${token} for ${invite.channel}` });
+
     return c.json({
       channel: invite.channel,
       server: invite.server,
@@ -320,6 +326,7 @@ export function createInviteRouter(dataDir?: string) {
 
     store.remove(token);
     await store.save();
+    securityLog("invite.revoke", { account: user.sub, detail: token });
     return c.json({ ok: true });
   });
 

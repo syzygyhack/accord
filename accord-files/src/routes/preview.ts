@@ -410,10 +410,13 @@ preview.get("/api/preview", authMiddleware, async (c) => {
 
     // Resolve relative og:image URLs against the page URL so the client
     // receives an absolute URL it can render directly.
+    // Validate against private IP ranges to prevent the client browser from
+    // making requests to internal network resources (ACC-3).
     let image = og.image;
     if (image) {
       try {
-        image = new URL(image, parsed.href).href;
+        const absoluteImage = new URL(image, parsed.href).href;
+        image = validateUrl(absoluteImage) ? absoluteImage : null;
       } catch {
         image = null; // Malformed URL — drop it
       }

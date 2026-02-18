@@ -571,7 +571,7 @@ accounts:
 
         # QUIT always-on clients from the server if they go this long without connecting
         # (use 0 or omit for no expiration):
-        #always-on-expiration: 90d
+        always-on-expiration: 90d
 
     # vhosts controls the assignment of vhosts (strings displayed in place of the user's
     # hostname/IP) by the HostServ service
@@ -824,8 +824,9 @@ datastore:
         port: 3306
         # if socket-path is set, it will be used instead of host:port
         #socket-path: "/var/run/mysqld/mysqld.sock"
-        user: "root"
-        # NOTE: docker-compose overrides this via ERGO__DATASTORE__MYSQL__PASSWORD.
+        # NOTE: docker-compose overrides user and password via environment variables.
+        # The dedicated 'ergo' user has access only to the ergo_history database.
+        user: "ergo"
         password: "changeme"
         history-database: "ergo_history"
         timeout: 3s
@@ -991,7 +992,7 @@ history:
 
     # maximum number of CHATHISTORY messages that can be
     # requested at once (0 disables support for CHATHISTORY)
-    chathistory-maxmessages: 1000
+    chathistory-maxmessages: 200
 
     # maximum number of messages that can be replayed at once during znc emulation
     # (znc.in/playback, or automatic replay on initial reattach to a persistent client):
@@ -1029,7 +1030,7 @@ history:
         enabled: true
 
         # store unregistered channel messages in the persistent database?
-        unregistered-channels: false
+        unregistered-channels: true
 
         # for a registered channel, the channel owner can potentially customize
         # the history storage setting. as the server operator, your options are
@@ -1115,6 +1116,9 @@ api:
     # is the API enabled at all?
     enabled: true
     # listen address:
+    # Binds 0.0.0.0 inside the container; port 8089 is NOT exposed in
+    # docker-compose.yml, so it's only reachable from other containers
+    # on the Docker network (e.g. accord-files).
     listener: "0.0.0.0:8089"
     # serve over TLS (strongly recommended if the listener is public):
     #tls:

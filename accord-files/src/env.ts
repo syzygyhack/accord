@@ -50,6 +50,9 @@ function validateOnce(): void {
   if (jwt && INSECURE_SECRETS.has(jwt)) {
     console.warn("WARNING: JWT_SECRET is a known default — generate a secure random value for production");
   }
+  if (jwt && jwt.length < 32) {
+    throw new Error("JWT_SECRET must be at least 32 characters (256 bits) — see RFC 7518 Section 3.2. Generate with: openssl rand -base64 32");
+  }
 
   if (!process.env.SERVER_NAME) {
     console.warn("WARNING: SERVER_NAME is not set — clients will see a generic server name");
