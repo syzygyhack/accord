@@ -27,6 +27,7 @@
 	} from '$lib/keybindings';
 	import { channelState } from '$lib/state/channels.svelte';
 	import { getNotificationLevel, setNotificationLevel, type NotificationLevel } from '$lib/state/notifications.svelte';
+	import { getNotificationPermission, requestNotificationPermission } from '$lib/notifications';
 	import { getToken } from '$lib/api/auth';
 	import { getActiveServer, serverState } from '$lib/state/servers.svelte';
 	import { changePassword, changeEmail, type AccountApiResult } from '$lib/api/account';
@@ -96,6 +97,12 @@
 	let initial = $derived((userState.nick ?? '?')[0].toUpperCase());
 
 	// --- Notifications state ---
+	let notifPermission = $state(getNotificationPermission());
+
+	async function handleRequestNotifPermission(): Promise<void> {
+		notifPermission = await requestNotificationPermission();
+	}
+
 	const notificationLevelOptions: { value: NotificationLevel; label: string; desc: string }[] = [
 		{ value: 'all', label: 'All Messages', desc: 'Get notified for every message' },
 		{ value: 'mentions', label: 'Only @Mentions', desc: 'Only notify when you are mentioned' },
@@ -823,6 +830,58 @@
 						<p class="device-hint">No media devices detected. Join a voice channel first to grant microphone permission, then reopen settings.</p>
 					{/if}
 				{:else if activeTab === 'notifications'}
+					<div class="settings-section">
+						<h3 class="section-title">Notification Sounds</h3>
+						<label class="toggle-row">
+							<input type="checkbox" class="toggle-checkbox" bind:checked={appSettings.notificationSoundsEnabled} />
+							<div class="toggle-info">
+								<span class="toggle-label">Enable notification sounds</span>
+								<span class="toggle-hint">Play a sound when you receive mentions, DMs, or messages.</span>
+							</div>
+						</label>
+						{#if appSettings.notificationSoundsEnabled}
+							<div class="volume-row">
+								<span class="volume-label">Volume</span>
+								<input
+									type="range"
+									class="volume-slider"
+									min="0"
+									max="100"
+									step="1"
+									bind:value={appSettings.notificationVolume}
+								/>
+								<span class="volume-value">{appSettings.notificationVolume}%</span>
+							</div>
+						{/if}
+					</div>
+
+					<div class="section-divider"></div>
+
+					<div class="settings-section">
+						<h3 class="section-title">Desktop Notifications</h3>
+						<label class="toggle-row">
+							<input type="checkbox" class="toggle-checkbox" bind:checked={appSettings.desktopNotificationsEnabled} />
+							<div class="toggle-info">
+								<span class="toggle-label">Enable desktop notifications</span>
+								<span class="toggle-hint">Show system notifications when the window is unfocused.</span>
+							</div>
+						</label>
+						{#if appSettings.desktopNotificationsEnabled && notifPermission !== 'granted'}
+							<div class="notif-permission-row">
+								{#if notifPermission === 'denied'}
+									<p class="setting-hint" style="color: var(--danger)">Notification permission was denied. Please enable it in your browser settings.</p>
+								{:else}
+									<button class="settings-save-btn" onclick={handleRequestNotifPermission}>
+										Allow Notifications
+									</button>
+									<p class="setting-hint">Browser permission is required for desktop notifications.</p>
+								{/if}
+							</div>
+						{/if}
+					</div>
+
+					<div class="section-divider"></div>
+
 					<div class="settings-section">
 						<h3 class="section-title">Default Notification Level</h3>
 						<p class="setting-hint">Controls notifications for all channels unless overridden below.</p>
@@ -1893,6 +1952,62 @@
 	.form-success {
 		font-size: var(--font-xs);
 		color: var(--success);
+	}
+
+	/* ---- Notifications Tab: Sound & Desktop ---- */
+
+	.volume-row {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+
+	.volume-label {
+		font-size: var(--font-sm);
+		color: var(--text-secondary);
+		min-width: 48px;
+	}
+
+	.volume-slider {
+		flex: 1;
+		height: 4px;
+		appearance: none;
+		background: var(--surface-highest);
+		border-radius: 2px;
+		outline: none;
+		cursor: pointer;
+	}
+
+	.volume-slider::-webkit-slider-thumb {
+		appearance: none;
+		width: 14px;
+		height: 14px;
+		border-radius: 50%;
+		background: var(--accent-primary);
+		cursor: pointer;
+	}
+
+	.volume-slider::-moz-range-thumb {
+		width: 14px;
+		height: 14px;
+		border-radius: 50%;
+		background: var(--accent-primary);
+		border: none;
+		cursor: pointer;
+	}
+
+	.volume-value {
+		font-size: var(--font-xs);
+		color: var(--text-muted);
+		font-family: var(--font-mono);
+		min-width: 36px;
+		text-align: right;
+	}
+
+	.notif-permission-row {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
 	}
 
 	/* ---- Notifications Tab ---- */

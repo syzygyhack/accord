@@ -383,7 +383,12 @@ function handlePrivmsg(parsed: ParsedMessage): void {
 		// DMs are always considered mentions; word-boundary check for @mentions
 		const mentionRe = getMentionRegex(myAccount);
 		const isMention = isIncomingDM || (mentionRe !== null && mentionRe.test(msg.text));
-		incrementUnread(bufferTarget, isMention);
+		const preview = msg.text.length > 80 ? msg.text.slice(0, 80) + '...' : msg.text;
+		incrementUnread(bufferTarget, isMention, {
+			sender: senderNick ?? undefined,
+			messagePreview: preview,
+			isDM: isIncomingDM,
+		});
 	}
 }
 

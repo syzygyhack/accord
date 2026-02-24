@@ -7,6 +7,8 @@
  */
 
 import { hasLocalStorage } from '$lib/utils/storage';
+import { playNotificationSound } from '$lib/sound';
+import { showMentionNotification, showDMNotification } from '$lib/notifications';
 
 export type NotificationLevel = 'all' | 'mentions' | 'nothing' | 'mute';
 
@@ -122,6 +124,16 @@ function ensureChannel(channel: string): ChannelNotification {
 	return _channels.get(key)!;
 }
 
+/** Optional metadata for triggering sound/desktop notifications. */
+export interface IncrementUnreadOptions {
+	/** Sender nick for desktop notification display. */
+	sender?: string;
+	/** Message preview text for desktop notifications. */
+	messagePreview?: string;
+	/** Whether this is a DM (affects sound type). */
+	isDM?: boolean;
+}
+
 /**
  * Increment unread count for a channel. Called on new message when channel
  * is not the active channel. If isMention is true, also increments mention count.
@@ -129,8 +141,11 @@ function ensureChannel(channel: string): ChannelNotification {
  * Respects per-channel notification levels:
  * - 'mute': Suppresses unread increments unless isMention is true.
  * - All other levels: Increments normally (OS notification filtering is separate).
+ *
+ * When `options` is provided, triggers notification sounds and desktop
+ * notifications based on settings and notification level.
  */
-export function incrementUnread(channel: string, isMention: boolean): void {
+export function incrementUnread(channel: string, isMention: boolean, options?: IncrementUnreadOptions): void {
 	const level = getNotificationLevel(channel);
 
 	// Muted channels only track @mentions, not regular unreads
@@ -144,6 +159,21 @@ export function incrementUnread(channel: string, isMention: boolean): void {
 		ch.mentionCount++;
 	}
 	notify();
+
+	// --- Trigger sound and desktop notifications ---
+	if (options?.isDM) {
+		playNotificationSound('dm');
+		if (options.sender) {
+			showDMNotification(options.sender, options.messagePreview ?? '');
+		}
+	} else if (isMention) {
+		playNotificationSound('mention');
+		if (options?.sender) {
+			showMentionNotification(channel, options.sender, options.messagePreview ?? '');
+		}
+	} else if (level === 'all') {
+		playNotificationSound('message');
+	}
 }
 
 /**

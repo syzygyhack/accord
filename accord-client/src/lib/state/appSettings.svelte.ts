@@ -21,6 +21,9 @@ interface AppSettingsData {
 	developerMode: boolean;
 	sidebarWidth: number;
 	memberListWidth: number;
+	notificationSoundsEnabled: boolean;
+	notificationVolume: number;
+	desktopNotificationsEnabled: boolean;
 }
 
 export const SIDEBAR_MIN = 180;
@@ -29,6 +32,9 @@ export const SIDEBAR_DEFAULT = 240;
 export const MEMBER_MIN = 180;
 export const MEMBER_MAX = 300;
 export const MEMBER_DEFAULT = 240;
+export const VOLUME_MIN = 0;
+export const VOLUME_MAX = 100;
+export const VOLUME_DEFAULT = 50;
 
 const defaults: AppSettingsData = {
 	zoom: 125,
@@ -37,6 +43,9 @@ const defaults: AppSettingsData = {
 	developerMode: false,
 	sidebarWidth: SIDEBAR_DEFAULT,
 	memberListWidth: MEMBER_DEFAULT,
+	notificationSoundsEnabled: true,
+	notificationVolume: VOLUME_DEFAULT,
+	desktopNotificationsEnabled: false,
 };
 
 const VALID_ZOOM: ReadonlySet<number> = new Set([100, 125, 150]);
@@ -62,6 +71,9 @@ function load(): AppSettingsData {
 				developerMode: typeof parsed.developerMode === 'boolean' ? parsed.developerMode : defaults.developerMode,
 				sidebarWidth: clampNumber(parsed.sidebarWidth, SIDEBAR_MIN, SIDEBAR_MAX, SIDEBAR_DEFAULT),
 				memberListWidth: clampNumber(parsed.memberListWidth, MEMBER_MIN, MEMBER_MAX, MEMBER_DEFAULT),
+				notificationSoundsEnabled: typeof parsed.notificationSoundsEnabled === 'boolean' ? parsed.notificationSoundsEnabled : defaults.notificationSoundsEnabled,
+				notificationVolume: clampNumber(parsed.notificationVolume, VOLUME_MIN, VOLUME_MAX, VOLUME_DEFAULT),
+				desktopNotificationsEnabled: typeof parsed.desktopNotificationsEnabled === 'boolean' ? parsed.desktopNotificationsEnabled : defaults.desktopNotificationsEnabled,
 			};
 		}
 	} catch {
@@ -95,6 +107,12 @@ export const appSettings = {
 	set sidebarWidth(v: number) { _state.sidebarWidth = clampNumber(v, SIDEBAR_MIN, SIDEBAR_MAX, SIDEBAR_DEFAULT); persist(); },
 	get memberListWidth() { return _state.memberListWidth; },
 	set memberListWidth(v: number) { _state.memberListWidth = clampNumber(v, MEMBER_MIN, MEMBER_MAX, MEMBER_DEFAULT); persist(); },
+	get notificationSoundsEnabled() { return _state.notificationSoundsEnabled; },
+	set notificationSoundsEnabled(v: boolean) { _state.notificationSoundsEnabled = v; persist(); },
+	get notificationVolume() { return _state.notificationVolume; },
+	set notificationVolume(v: number) { _state.notificationVolume = clampNumber(v, VOLUME_MIN, VOLUME_MAX, VOLUME_DEFAULT); persist(); },
+	get desktopNotificationsEnabled() { return _state.desktopNotificationsEnabled; },
+	set desktopNotificationsEnabled(v: boolean) { _state.desktopNotificationsEnabled = v; persist(); },
 };
 
 /** Reset settings to defaults (for testing). */
@@ -105,5 +123,8 @@ export function resetAppSettings(): void {
 	_state.developerMode = defaults.developerMode;
 	_state.sidebarWidth = defaults.sidebarWidth;
 	_state.memberListWidth = defaults.memberListWidth;
+	_state.notificationSoundsEnabled = defaults.notificationSoundsEnabled;
+	_state.notificationVolume = defaults.notificationVolume;
+	_state.desktopNotificationsEnabled = defaults.desktopNotificationsEnabled;
 	persist();
 }
