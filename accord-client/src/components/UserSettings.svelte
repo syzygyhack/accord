@@ -31,6 +31,14 @@
 	import { getToken } from '$lib/api/auth';
 	import { getActiveServer, serverState } from '$lib/state/servers.svelte';
 	import { changePassword, changeEmail, type AccountApiResult } from '$lib/api/account';
+	import {
+		getProfile,
+		updateProfile,
+		uploadAvatar,
+		resolveAvatarUrl,
+		fetchProfile,
+	} from '$lib/state/profiles.svelte';
+	import Avatar from './Avatar.svelte';
 	import type { IRCConnection } from '$lib/irc/connection';
 
 	interface Props {
@@ -129,6 +137,19 @@
 	let passwordSuccess: string | null = $state(null);
 	let passwordSubmitting = $state(false);
 
+	// --- Profile editing state ---
+	let profileDisplayName = $state('');
+	let profileBio = $state('');
+	let profileSaving = $state(false);
+	let profileError: string | null = $state(null);
+	let profileSuccess: string | null = $state(null);
+	let avatarUploading = $state(false);
+	let avatarError: string | null = $state(null);
+	let avatarFileInput: HTMLInputElement | undefined = $state();
+
+	let currentProfile = $derived(getProfile(userState.account ?? ''));
+	let currentAvatarUrl = $derived(resolveAvatarUrl(currentProfile?.avatar));
+
 	async function submitEmail(): Promise<void> {
 		const trimmed = emailInput.trim();
 		emailError = null;
@@ -156,6 +177,56 @@
 		} else {
 			emailError = result.error ?? 'Failed to update email';
 		}
+	}
+
+	async function submitProfile(): Promise<void> {
+		profileError = null;
+		profileSuccess = null;
+		profileSaving = true;
+		const result = await updateProfile({
+			displayName: profileDisplayName.trim() || undefined,
+			bio: profileBio.trim() || undefined,
+		});
+		profileSaving = false;
+		if (result) {
+			profileSuccess = 'Profile updated';
+		} else {
+			profileError = 'Failed to update profile';
+		}
+	}
+
+	async function handleAvatarUpload(): Promise<void> {
+		const file = avatarFileInput?.files?.[0];
+		if (!file) return;
+		avatarError = null;
+
+		// Validate file type
+		const allowed = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+		if (!allowed.includes(file.type)) {
+			avatarError = 'Only PNG, JPEG, GIF, or WebP images are allowed';
+			return;
+		}
+		// Validate file size (2MB)
+		if (file.size > 2 * 1024 * 1024) {
+			avatarError = 'Avatar must be under 2 MB';
+			return;
+		}
+
+		avatarUploading = true;
+		const url = await uploadAvatar(file);
+		avatarUploading = false;
+		if (url) {
+			// Re-fetch profile to update the cached avatar URL
+			if (userState.account) {
+				await fetchProfile(userState.account);
+			}
+		} else {
+			avatarError = 'Failed to upload avatar';
+		}
+	}
+
+	function triggerAvatarUpload(): void {
+		avatarFileInput?.click();
 	}
 
 	async function submitPasswordChange(): Promise<void> {
@@ -519,6 +590,21 @@
 		prevNS = ns;
 	});
 
+	// Populate profile fields when profile loads / tab opens
+	$effect(() => {
+		if (activeTab === 'account' && currentProfile) {
+			profileDisplayName = currentProfile.displayName ?? '';
+			profileBio = currentProfile.bio ?? '';
+		}
+	});
+
+	// Fetch own profile if not cached
+	$effect(() => {
+		if (activeTab === 'account' && userState.account && !getProfile(userState.account)) {
+			fetchProfile(userState.account);
+		}
+	});
+
 	onMount(() => {
 		loadDevices();
 
@@ -594,7 +680,7 @@
 				{#if activeTab === 'account'}
 					<div class="account-card">
 						<div class="account-avatar">
-							<span class="avatar-letter-lg">{initial}</span>
+							<Avatar account={userState.account ?? ''} nick={userState.nick ?? '?'} size="lg" />
 						</div>
 						<div class="account-details">
 							<div class="account-field">
@@ -629,6 +715,70 @@
 							</div>
 						</div>
 					</div>
+					<div class="section-divider"></div>
+
+					<div class="settings-section">
+						<h3 class="section-title">Profile</h3>
+						<p class="setting-hint">Customize how others see you on this server.</p>
+
+						<div class="profile-edit-avatar-row">
+							<div class="profile-edit-avatar-preview">
+								{#if currentAvatarUrl}
+									<img class="profile-edit-avatar-img" src={currentAvatarUrl} alt="Your avatar" />
+								{:else}
+									<Avatar account={userState.account ?? ''} nick={userState.nick ?? '?'} size="lg" />
+								{/if}
+							</div>
+							<div class="profile-edit-avatar-actions">
+								<button class="settings-save-btn" onclick={triggerAvatarUpload} disabled={avatarUploading}>
+									{avatarUploading ? 'Uploading...' : 'Upload Avatar'}
+								</button>
+								<input
+									type="file"
+									accept="image/png,image/jpeg,image/gif,image/webp"
+									class="hidden-file-input"
+									bind:this={avatarFileInput}
+									onchange={handleAvatarUpload}
+								/>
+								{#if avatarError}
+									<span class="form-error">{avatarError}</span>
+								{/if}
+							</div>
+						</div>
+
+						<label class="form-field">
+							<span class="field-label">Display Name</span>
+							<input
+								type="text"
+								class="settings-input"
+								placeholder="How you want to be known"
+								bind:value={profileDisplayName}
+								maxlength="500"
+							/>
+						</label>
+
+						<label class="form-field">
+							<span class="field-label">Bio</span>
+							<textarea
+								class="settings-textarea"
+								placeholder="Tell others about yourself"
+								bind:value={profileBio}
+								maxlength="500"
+								rows="3"
+							></textarea>
+						</label>
+
+						<button class="settings-save-btn" onclick={submitProfile} disabled={profileSaving}>
+							{profileSaving ? 'Saving...' : 'Save Profile'}
+						</button>
+						{#if profileError}
+							<span class="form-error">{profileError}</span>
+						{/if}
+						{#if profileSuccess}
+							<span class="form-success">{profileSuccess}</span>
+						{/if}
+					</div>
+
 					<div class="section-divider"></div>
 
 					<div class="settings-section">
@@ -1298,20 +1448,9 @@
 
 	.account-avatar {
 		flex-shrink: 0;
-	}
-
-	.avatar-letter-lg {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 64px;
-		height: 64px;
-		border-radius: 50%;
-		background: var(--accent-primary);
-		color: var(--text-inverse, #fff);
-		font-size: var(--font-xl);
-		font-weight: var(--weight-bold);
-		line-height: 1;
 	}
 
 	.account-details {
@@ -2279,6 +2418,60 @@
 	.stack-sep {
 		color: var(--text-muted);
 		font-size: var(--font-xs);
+	}
+
+	/* ---- Profile Edit ---- */
+
+	.profile-edit-avatar-row {
+		display: flex;
+		align-items: center;
+		gap: 16px;
+	}
+
+	.profile-edit-avatar-preview {
+		flex-shrink: 0;
+		width: 64px;
+		height: 64px;
+		border-radius: 50%;
+		overflow: hidden;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.profile-edit-avatar-img {
+		width: 64px;
+		height: 64px;
+		border-radius: 50%;
+		object-fit: cover;
+	}
+
+	.profile-edit-avatar-actions {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.hidden-file-input {
+		display: none;
+	}
+
+	.settings-textarea {
+		width: 100%;
+		padding: 8px 12px;
+		background: var(--surface-lowest);
+		color: var(--text-primary);
+		border: 1px solid var(--surface-highest);
+		border-radius: 4px;
+		font-size: var(--font-base);
+		font-family: var(--font-primary);
+		outline: none;
+		resize: vertical;
+		min-height: 60px;
+	}
+
+	.settings-textarea:focus {
+		border-color: var(--accent-primary);
 	}
 
 	/* ---- Responsive ---- */

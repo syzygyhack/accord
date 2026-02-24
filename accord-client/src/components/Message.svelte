@@ -12,6 +12,7 @@
 	import { getMember } from '$lib/state/members.svelte';
 	import { getRoleColor } from '$lib/state/serverConfig.svelte';
 	import type { Message } from '$lib/state/messages.svelte';
+	import Avatar from './Avatar.svelte';
 
 	/** Module-level cached mention regex — shared across all Message instances. */
 	let _cachedMentionRegex: RegExp | null = null;
@@ -654,8 +655,8 @@
 		{/if}
 
 		<div class="message-header">
-			<div class="avatar" style="background-color: {color}">
-				{initial}
+			<div class="avatar">
+				<Avatar account={message.account} nick={message.nick} channel={message.target} size="lg" />
 			</div>
 			<div class="message-body">
 				<div class="message-meta">
@@ -934,13 +935,9 @@
 		flex-shrink: 0;
 		width: 40px;
 		height: 40px;
-		border-radius: 50%;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-weight: var(--weight-semibold);
-		font-size: var(--font-md);
-		color: var(--text-inverse);
 		margin-left: -56px;
 	}
 

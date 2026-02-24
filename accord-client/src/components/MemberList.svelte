@@ -9,6 +9,7 @@
 	import { DEFAULT_ROLES, MODE_ORDER } from '$lib/constants';
 	import type { IRCConnection } from '$lib/irc/connection';
 	import UserProfilePopout from './UserProfilePopout.svelte';
+	import Avatar from './Avatar.svelte';
 	import { handleMenuKeydown, focusFirst } from '$lib/utils/a11y';
 
 	/** Estimated height per member row (px) — used for virtual scroll spacers. */
@@ -422,7 +423,10 @@
 								onmouseenter={(e) => handleMemberMouseEnter(e, member)}
 								onmouseleave={handleMemberMouseLeave}
 							>
-								<span class="presence-dot {presence.className}" aria-hidden="true">{presence.dot}</span>
+								<div class="member-avatar-wrapper">
+									<Avatar account={member.account} nick={member.nick} channel={channelUIState.activeChannel ?? ''} size="sm" />
+									<span class="member-presence-indicator {presence.className}"></span>
+								</div>
 								<span class="sr-only">{presence.className}</span>
 								<span class="member-nick" style="color: {color}">{member.nick}</span>
 							</div>
@@ -609,7 +613,41 @@
 		background: var(--surface-high);
 	}
 
-	/* Presence dots */
+	/* Member avatar with presence indicator */
+	.member-avatar-wrapper {
+		position: relative;
+		flex-shrink: 0;
+		width: 24px;
+		height: 24px;
+	}
+
+	.member-presence-indicator {
+		position: absolute;
+		bottom: -1px;
+		right: -1px;
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		border: 2px solid var(--surface-base);
+	}
+
+	.member-presence-indicator.presence-online {
+		background: var(--status-online);
+	}
+
+	.member-presence-indicator.presence-idle {
+		background: var(--status-idle);
+	}
+
+	.member-presence-indicator.presence-dnd {
+		background: var(--status-dnd);
+	}
+
+	.member-presence-indicator.presence-offline {
+		background: var(--status-offline);
+	}
+
+	/* Presence dots (used in hover card) */
 	.presence-dot {
 		flex-shrink: 0;
 		font-size: var(--font-xs);

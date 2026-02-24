@@ -33,6 +33,7 @@ import { applyServerTheme, parseServerTheme } from '$lib/state/theme.svelte';
 import { setServerConfig, getCachedConfig, setCachedConfig } from '$lib/state/serverConfig.svelte';
 import type { AccordConfig } from '$lib/state/serverConfig.svelte';
 import { setCustomEmoji } from '$lib/emoji';
+import { fetchAllProfiles } from '$lib/state/profiles.svelte';
 
 // ---- Types ----------------------------------------------------------------
 
@@ -263,6 +264,11 @@ export async function initConnection(callbacks: LifecycleCallbacks): Promise<voi
 		const config = filesUrl ? await fetchAccordConfig(filesUrl) : null;
 		const { firstChannel } = applyConfig(conn, config, serverUrl, filesUrl, callbacks);
 
+		// 5a. Fetch all user profiles (non-blocking)
+		if (filesUrl) {
+			fetchAllProfiles().catch(() => {});
+		}
+
 		// 5b. Restore persisted DM conversations and MONITOR their nicks
 		restoreDMConversations();
 		const dmNicks = channelUIState.dmConversations.map((dm) => dm.nick);
@@ -338,6 +344,11 @@ async function handleReconnect(
 			} catch {
 				// Non-fatal
 			}
+		}
+
+		// 4a. Refresh profiles on reconnect (non-blocking)
+		if (filesUrl) {
+			fetchAllProfiles().catch(() => {});
 		}
 
 		// 5. Re-join all previously joined channels (suppress self-JOIN system messages)

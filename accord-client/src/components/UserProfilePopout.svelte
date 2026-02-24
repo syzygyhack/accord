@@ -8,6 +8,9 @@
 	import { themeState } from '$lib/state/theme.svelte';
 	import { getRoleColor } from '$lib/state/serverConfig.svelte';
 	import { DEFAULT_ROLES } from '$lib/constants';
+	import { getProfile, fetchProfile, resolveAvatarUrl } from '$lib/state/profiles.svelte';
+	import { userState } from '$lib/state/user.svelte';
+	import Avatar from './Avatar.svelte';
 
 	interface Props {
 		nick: string;
@@ -16,12 +19,14 @@
 		channel?: string;
 		/** Anchor position (click point). */
 		position: { x: number; y: number };
-		/** Optional avatar URL (from draft/metadata-2 if available). */
+		/** Optional avatar URL override (from draft/metadata-2 if available). */
 		avatarUrl?: string | null;
-		/** Optional bio text (from draft/metadata-2 if available). */
+		/** Optional bio text override (from draft/metadata-2 if available). */
 		bio?: string | null;
 		/** Callback when the popout should close. */
 		onclose: () => void;
+		/** Callback to open profile editor (for own profile). */
+		oneditprofile?: () => void;
 	}
 
 	let {
@@ -32,6 +37,7 @@
 		avatarUrl = null,
 		bio = null,
 		onclose,
+		oneditprofile,
 	}: Props = $props();
 
 	let popoutEl: HTMLDivElement | undefined = $state();
@@ -45,11 +51,23 @@
 	/** Look up member data from state. */
 	let member = $derived(getMember(resolvedChannel, nick));
 
+	/** Profile from store. */
+	let profile = $derived(getProfile(account));
+
+	/** Resolved display name: profile displayName > nick. */
+	let displayName = $derived(profile?.displayName || nick);
+
+	/** Resolved bio: prop override > profile bio. */
+	let resolvedBio = $derived(bio || profile?.bio || null);
+
+	/** Resolved avatar URL: prop override > profile avatar. */
+	let resolvedAvatarUrl = $derived(avatarUrl || resolveAvatarUrl(profile?.avatar) || null);
+
+	/** Whether this is the current user's own profile. */
+	let isOwnProfile = $derived(account === userState.account);
+
 	/** Nick color based on account hash. */
 	let color = $derived(nickColor(account, themeState.current));
-
-	/** First letter for the letter avatar. */
-	let initial = $derived(nick.charAt(0).toUpperCase());
 
 	/** Presence info. */
 	let presence = $derived.by((): { label: string; className: string } => {
@@ -141,6 +159,19 @@
 			}
 		});
 	});
+
+	/** Fetch profile if not already cached. */
+	$effect(() => {
+		if (!account) return;
+		if (!getProfile(account)) {
+			fetchProfile(account);
+		}
+	});
+
+	function handleEditProfile() {
+		oneditprofile?.();
+		onclose();
+	}
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -154,11 +185,11 @@
 >
 	<!-- Avatar -->
 	<div class="profile-avatar-section">
-		{#if avatarUrl}
-			<img class="profile-avatar" src={avatarUrl} alt="{nick}'s avatar" />
+		{#if resolvedAvatarUrl}
+			<img class="profile-avatar" src={resolvedAvatarUrl} alt="{nick}'s avatar" />
 		{:else}
 			<div class="profile-avatar-letter" style="background-color: {color}">
-				{initial}
+				{(nick).charAt(0).toUpperCase()}
 			</div>
 		{/if}
 		<span class="presence-badge {presence.className}" title={presence.label}></span>
@@ -166,7 +197,10 @@
 
 	<!-- Name -->
 	<div class="profile-name-section">
-		<span class="profile-display-name" style="color: {color}">{nick}</span>
+		<span class="profile-display-name" style="color: {color}">{displayName}</span>
+		{#if account && displayName !== nick}
+			<span class="profile-nick">{nick}</span>
+		{/if}
 		{#if account}
 			<span class="profile-account">@{account}</span>
 		{/if}
@@ -175,10 +209,10 @@
 	<div class="profile-divider"></div>
 
 	<!-- Bio (when available) -->
-	{#if bio}
+	{#if resolvedBio}
 		<div class="profile-section">
 			<div class="profile-section-label">About</div>
-			<div class="profile-bio">{bio}</div>
+			<div class="profile-bio">{resolvedBio}</div>
 		</div>
 		<div class="profile-divider"></div>
 	{/if}
@@ -210,9 +244,15 @@
 
 	<!-- Actions -->
 	<div class="profile-actions">
-		<button class="profile-send-message" onclick={handleSendMessage}>
-			Send Message
-		</button>
+		{#if isOwnProfile && oneditprofile}
+			<button class="profile-edit-btn" onclick={handleEditProfile}>
+				Edit Profile
+			</button>
+		{:else}
+			<button class="profile-send-message" onclick={handleSendMessage}>
+				Send Message
+			</button>
+		{/if}
 	</div>
 </div>
 
@@ -291,6 +331,12 @@
 	.profile-display-name {
 		font-size: var(--font-lg);
 		font-weight: var(--weight-semibold);
+	}
+
+	.profile-nick {
+		font-size: var(--font-sm);
+		color: var(--text-secondary);
+		margin-top: 1px;
 	}
 
 	.profile-account {
@@ -383,5 +429,24 @@
 
 	.profile-send-message:active {
 		filter: brightness(0.95);
+	}
+
+	.profile-edit-btn {
+		width: 100%;
+		padding: 8px 16px;
+		border: 1px solid var(--surface-highest);
+		border-radius: 4px;
+		background: var(--surface-low);
+		color: var(--text-primary);
+		font-family: var(--font-primary);
+		font-size: var(--font-sm);
+		font-weight: var(--weight-medium);
+		cursor: pointer;
+		transition: background var(--duration-channel), border-color var(--duration-channel);
+	}
+
+	.profile-edit-btn:hover {
+		background: var(--surface-high);
+		border-color: var(--text-muted);
 	}
 </style>
