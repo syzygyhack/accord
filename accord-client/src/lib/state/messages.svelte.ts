@@ -35,6 +35,7 @@ export interface Message {
 	time: Date;
 	tags: Record<string, string>;
 	replyTo?: string; // msgid of parent
+	threadId?: string; // computed: the root message's msgid for this thread
 	reactions: Map<string, Set<string>>; // emoji -> set of accounts
 	isRedacted: boolean;
 	isEdited?: boolean; // true when message has been updated via +accord/edit
@@ -137,6 +138,11 @@ export function generateLocalMsgid(): string {
 
 /** Add a message to a channel buffer, evicting the oldest if over capacity. */
 export function addMessage(target: string, msg: Message): void {
+	// Compute threadId from reply chain if this message is a reply
+	if (msg.replyTo && !msg.threadId) {
+		msg.threadId = getThreadRoot(target, msg.replyTo);
+	}
+
 	const key = normalizeTarget(target);
 	ensureChannel(key);
 	const msgs = channelMessages.get(key)!;
@@ -475,6 +481,84 @@ export function searchMessages(defaultChannel: string, query: string): Message[]
 		if (afterDate && m.time <= afterDate) return false;
 		return true;
 	});
+}
+
+// ---------------------------------------------------------------------------
+// Thread functions — group messages by reply chains
+// ---------------------------------------------------------------------------
+
+/**
+ * Walk up the reply chain to find the root message id.
+ * If the message has no replyTo or its parent doesn't exist in the buffer,
+ * returns the given msgid itself (it is the root).
+ */
+export function getThreadRoot(target: string, msgid: string): string {
+	// Touch _version so Svelte tracks this as a reactive dependency
+	void _version;
+	const msgs = channelMessages.get(normalizeTarget(target));
+	if (!msgs) return msgid;
+
+	let current = msgid;
+	const visited = new Set<string>();
+	for (let i = 0; i < 100; i++) {
+		if (visited.has(current)) break; // cycle guard
+		visited.add(current);
+		const msg = msgs.find((m) => m.msgid === current);
+		if (!msg || !msg.replyTo) break;
+		current = msg.replyTo;
+	}
+	return current;
+}
+
+/**
+ * Collect all messages in a thread rooted at the given message id.
+ * Returns the root message first, followed by all replies (direct and indirect)
+ * in chronological order.
+ */
+export function getThread(target: string, rootMsgId: string): Message[] {
+	// Touch _version so Svelte tracks this as a reactive dependency
+	void _version;
+	const msgs = channelMessages.get(normalizeTarget(target));
+	if (!msgs) return [];
+
+	// Build a set of all msgids that belong to this thread
+	const threadMsgIds = new Set<string>();
+	threadMsgIds.add(rootMsgId);
+
+	// Multi-pass: keep scanning until no new messages are added
+	let changed = true;
+	while (changed) {
+		changed = false;
+		for (const m of msgs) {
+			if (threadMsgIds.has(m.msgid)) continue;
+			if (m.replyTo && threadMsgIds.has(m.replyTo)) {
+				threadMsgIds.add(m.msgid);
+				changed = true;
+			}
+		}
+	}
+
+	// Return messages in buffer order (chronological)
+	return msgs.filter((m) => threadMsgIds.has(m.msgid));
+}
+
+/**
+ * Count the number of replies in a thread (excludes the root message itself).
+ */
+export function getThreadCount(target: string, rootMsgId: string): number {
+	const thread = getThread(target, rootMsgId);
+	// Subtract the root message
+	return Math.max(0, thread.length - 1);
+}
+
+/**
+ * Check if a message has any replies (is a thread root or part of a thread).
+ */
+export function hasThread(target: string, msgid: string): boolean {
+	void _version;
+	const msgs = channelMessages.get(normalizeTarget(target));
+	if (!msgs) return false;
+	return msgs.some((m) => m.replyTo === msgid);
 }
 
 /** Reset all message state. */

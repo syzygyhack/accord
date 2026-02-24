@@ -22,6 +22,7 @@
 		ontogglereaction?: (msgid: string, emoji: string) => void;
 		onretry?: (msgid: string) => void;
 		onnickclick?: (nick: string, account: string, event: MouseEvent) => void;
+		onviewthread?: (rootMsgId: string) => void;
 		isOp?: boolean;
 	}
 
@@ -38,6 +39,7 @@
 		ontogglereaction,
 		onretry,
 		onnickclick,
+		onviewthread,
 		isOp = false,
 	}: Props = $props();
 
@@ -720,6 +722,7 @@
 							{ontogglereaction}
 							{onretry}
 							{onnickclick}
+							{onviewthread}
 							onscrolltomessage={handleScrollToMessage}
 						/>
 					</div>

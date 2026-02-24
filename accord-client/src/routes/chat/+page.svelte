@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import type { IRCConnection } from '$lib/irc/connection';
-	import { join, chathistory, topic } from '$lib/irc/commands';
+	import { join, chathistory, topic, escapeTagValue } from '$lib/irc/commands';
 	import { updateMonitorForChannel, clearMonitoredNicks, addMonitoredNicks } from '$lib/channelMonitor';
 	import { stopTokenRefresh, clearCredentials, clearToken, getToken } from '$lib/api/auth';
 	import { disconnectVoice } from '$lib/voice/room';
@@ -50,6 +50,7 @@
 	import ServerList from '../../components/ServerList.svelte';
 	import RawIrcPanel from '../../components/RawIrcPanel.svelte';
 	import SearchPanel from '../../components/SearchPanel.svelte';
+	import ThreadView from '../../components/ThreadView.svelte';
 	import UserProfilePopout from '../../components/UserProfilePopout.svelte';
 	import ResizeHandle from '../../components/ResizeHandle.svelte';
 	import DeleteConfirmDialog from '../../components/DeleteConfirmDialog.svelte';
@@ -91,6 +92,9 @@
 	// Search panel state
 	let showSearch = $state(false);
 	let searchPanelRef: SearchPanel | undefined = $state(undefined);
+
+	// Thread panel state
+	let activeThreadId: string | null = $state(null);
 
 	// Settings modal state
 	let showSettings = $state(false);
@@ -154,6 +158,7 @@
 			emojiPickerPosition = null;
 			deleteTarget = null;
 			profilePopout = null;
+			activeThreadId = null;
 		},
 	});
 
@@ -334,6 +339,18 @@
 		profilePopout = null;
 	}
 
+	/** Open thread panel for a given root message id. */
+	function handleViewThread(rootMsgId: string): void {
+		activeThreadId = rootMsgId;
+	}
+
+	/** Send a reply within the thread panel (auto-targets the thread root). */
+	function handleThreadReply(rootMsgId: string, text: string): void {
+		if (!conn || !channelUIState.activeChannel) return;
+		const tags = `@+draft/reply=${escapeTagValue(rootMsgId)}`;
+		conn.send(`${tags} PRIVMSG ${channelUIState.activeChannel} :${text}`);
+	}
+
 	/** Dismiss the welcome modal and persist in localStorage. */
 	function dismissWelcome(): void {
 		if (hasLocalStorage()) {
@@ -402,6 +419,11 @@
 			closeSearch: () => {
 				if (!showSearch) return false;
 				showSearch = false;
+				return true;
+			},
+			closeThread: () => {
+				if (!activeThreadId) return false;
+				activeThreadId = null;
 				return true;
 			},
 			closeDeleteTarget: () => {
@@ -601,6 +623,7 @@
 						ontogglereaction={actions.handleToggleReaction}
 						onretry={actions.handleRetry}
 						onnickclick={handleNickClick}
+						onviewthread={handleViewThread}
 						{isOp}
 					/>
 				{/if}
@@ -615,6 +638,27 @@
 					bind:this={searchPanelRef}
 					onclose={() => (showSearch = false)}
 					onscrolltomessage={handleScrollToMessage}
+				/>
+			{/if}
+
+			{#if activeThreadId && channelUIState.activeChannel}
+				<ThreadView
+					rootMsgId={activeThreadId}
+					target={channelUIState.activeChannel}
+					onclose={() => (activeThreadId = null)}
+					onreply={actions.handleReply}
+					onreact={actions.handleReact}
+					onmore={actions.handleMore}
+					onpin={actions.handlePin}
+					onedit={actions.handleEditMessage}
+					oncopytext={actions.handleCopyText}
+					oncopylink={actions.handleCopyLink}
+					onmarkunread={actions.handleMarkUnread}
+					ontogglereaction={actions.handleToggleReaction}
+					onretry={actions.handleRetry}
+					onnickclick={handleNickClick}
+					onsendreply={handleThreadReply}
+					{isOp}
 				/>
 			{/if}
 		</div>

@@ -20,6 +20,10 @@ import {
 	getPinnedMessages,
 	isPinned,
 	searchMessages,
+	getThread,
+	getThreadRoot,
+	getThreadCount,
+	hasThread,
 	type Message,
 } from './messages.svelte';
 
@@ -759,6 +763,159 @@ describe('message state', () => {
 			const results = searchMessages('#test', 'has:image sunset');
 			expect(results).toHaveLength(1);
 			expect(results[0].msgid).toBe('s1');
+		});
+	});
+
+	describe('threads', () => {
+		describe('getThreadRoot', () => {
+			it('returns the msgid itself when message has no replyTo', () => {
+				addMessage('#test', makeMessage({ msgid: 'root-1', text: 'root message' }));
+				expect(getThreadRoot('#test', 'root-1')).toBe('root-1');
+			});
+
+			it('returns the parent msgid for a direct reply', () => {
+				addMessage('#test', makeMessage({ msgid: 'root-1', text: 'root' }));
+				addMessage('#test', makeMessage({ msgid: 'reply-1', text: 'reply', replyTo: 'root-1' }));
+				expect(getThreadRoot('#test', 'reply-1')).toBe('root-1');
+			});
+
+			it('walks up a chain of replies to find the root', () => {
+				addMessage('#test', makeMessage({ msgid: 'root-1', text: 'root' }));
+				addMessage('#test', makeMessage({ msgid: 'reply-1', text: 'r1', replyTo: 'root-1' }));
+				addMessage('#test', makeMessage({ msgid: 'reply-2', text: 'r2', replyTo: 'reply-1' }));
+				addMessage('#test', makeMessage({ msgid: 'reply-3', text: 'r3', replyTo: 'reply-2' }));
+				expect(getThreadRoot('#test', 'reply-3')).toBe('root-1');
+			});
+
+			it('returns msgid for unknown channel', () => {
+				expect(getThreadRoot('#nope', 'any-id')).toBe('any-id');
+			});
+
+			it('returns msgid when parent is not in the buffer', () => {
+				addMessage('#test', makeMessage({ msgid: 'reply-1', text: 'orphan', replyTo: 'missing-parent' }));
+				// Parent is not in buffer, so reply-1's replyTo walks to missing-parent
+				// but missing-parent is not found, so it stops there
+				expect(getThreadRoot('#test', 'reply-1')).toBe('missing-parent');
+			});
+		});
+
+		describe('getThread', () => {
+			it('returns the root message and its direct reply', () => {
+				addMessage('#test', makeMessage({ msgid: 'root-1', text: 'root' }));
+				addMessage('#test', makeMessage({ msgid: 'reply-1', text: 'reply', replyTo: 'root-1' }));
+				const thread = getThread('#test', 'root-1');
+				expect(thread).toHaveLength(2);
+				expect(thread[0].msgid).toBe('root-1');
+				expect(thread[1].msgid).toBe('reply-1');
+			});
+
+			it('collects a chain of nested replies under the root', () => {
+				addMessage('#test', makeMessage({ msgid: 'root-1', text: 'root' }));
+				addMessage('#test', makeMessage({ msgid: 'reply-1', text: 'r1', replyTo: 'root-1' }));
+				addMessage('#test', makeMessage({ msgid: 'reply-2', text: 'r2', replyTo: 'reply-1' }));
+				addMessage('#test', makeMessage({ msgid: 'reply-3', text: 'r3', replyTo: 'reply-2' }));
+				const thread = getThread('#test', 'root-1');
+				expect(thread).toHaveLength(4);
+				expect(thread.map(m => m.msgid)).toEqual(['root-1', 'reply-1', 'reply-2', 'reply-3']);
+			});
+
+			it('groups multiple separate threads independently', () => {
+				addMessage('#test', makeMessage({ msgid: 'rootA', text: 'thread A' }));
+				addMessage('#test', makeMessage({ msgid: 'rootB', text: 'thread B' }));
+				addMessage('#test', makeMessage({ msgid: 'replyA1', text: 'reply to A', replyTo: 'rootA' }));
+				addMessage('#test', makeMessage({ msgid: 'replyB1', text: 'reply to B', replyTo: 'rootB' }));
+				addMessage('#test', makeMessage({ msgid: 'replyA2', text: 'second reply to A', replyTo: 'rootA' }));
+
+				const threadA = getThread('#test', 'rootA');
+				expect(threadA).toHaveLength(3);
+				expect(threadA.map(m => m.msgid)).toEqual(['rootA', 'replyA1', 'replyA2']);
+
+				const threadB = getThread('#test', 'rootB');
+				expect(threadB).toHaveLength(2);
+				expect(threadB.map(m => m.msgid)).toEqual(['rootB', 'replyB1']);
+			});
+
+			it('returns only the root when there are no replies', () => {
+				addMessage('#test', makeMessage({ msgid: 'lonely', text: 'no replies' }));
+				const thread = getThread('#test', 'lonely');
+				expect(thread).toHaveLength(1);
+				expect(thread[0].msgid).toBe('lonely');
+			});
+
+			it('returns empty array for unknown channel', () => {
+				expect(getThread('#nope', 'any-id')).toEqual([]);
+			});
+
+			it('returns empty array when root msgid does not exist in buffer', () => {
+				addMessage('#test', makeMessage({ msgid: 'other', text: 'unrelated' }));
+				const thread = getThread('#test', 'nonexistent');
+				expect(thread).toHaveLength(0);
+			});
+		});
+
+		describe('getThreadCount', () => {
+			it('returns 0 for a message with no replies', () => {
+				addMessage('#test', makeMessage({ msgid: 'root-1', text: 'root' }));
+				expect(getThreadCount('#test', 'root-1')).toBe(0);
+			});
+
+			it('returns 1 for a single reply', () => {
+				addMessage('#test', makeMessage({ msgid: 'root-1', text: 'root' }));
+				addMessage('#test', makeMessage({ msgid: 'reply-1', text: 'reply', replyTo: 'root-1' }));
+				expect(getThreadCount('#test', 'root-1')).toBe(1);
+			});
+
+			it('counts all replies in a nested chain', () => {
+				addMessage('#test', makeMessage({ msgid: 'root-1', text: 'root' }));
+				addMessage('#test', makeMessage({ msgid: 'r1', text: 'r1', replyTo: 'root-1' }));
+				addMessage('#test', makeMessage({ msgid: 'r2', text: 'r2', replyTo: 'r1' }));
+				addMessage('#test', makeMessage({ msgid: 'r3', text: 'r3', replyTo: 'r2' }));
+				expect(getThreadCount('#test', 'root-1')).toBe(3);
+			});
+
+			it('returns 0 for unknown channel', () => {
+				expect(getThreadCount('#nope', 'any-id')).toBe(0);
+			});
+		});
+
+		describe('hasThread', () => {
+			it('returns true when a message has replies', () => {
+				addMessage('#test', makeMessage({ msgid: 'root-1', text: 'root' }));
+				addMessage('#test', makeMessage({ msgid: 'reply-1', text: 'reply', replyTo: 'root-1' }));
+				expect(hasThread('#test', 'root-1')).toBe(true);
+			});
+
+			it('returns false when a message has no replies', () => {
+				addMessage('#test', makeMessage({ msgid: 'lonely', text: 'no replies' }));
+				expect(hasThread('#test', 'lonely')).toBe(false);
+			});
+
+			it('returns false for unknown channel', () => {
+				expect(hasThread('#nope', 'any-id')).toBe(false);
+			});
+		});
+
+		describe('threadId computation in addMessage', () => {
+			it('sets threadId on a reply to the root message id', () => {
+				addMessage('#test', makeMessage({ msgid: 'root-1', text: 'root' }));
+				addMessage('#test', makeMessage({ msgid: 'reply-1', text: 'reply', replyTo: 'root-1' }));
+				const msg = getMessage('#test', 'reply-1');
+				expect(msg!.threadId).toBe('root-1');
+			});
+
+			it('sets threadId to the ultimate root for nested replies', () => {
+				addMessage('#test', makeMessage({ msgid: 'root-1', text: 'root' }));
+				addMessage('#test', makeMessage({ msgid: 'r1', text: 'r1', replyTo: 'root-1' }));
+				addMessage('#test', makeMessage({ msgid: 'r2', text: 'r2', replyTo: 'r1' }));
+				const msg = getMessage('#test', 'r2');
+				expect(msg!.threadId).toBe('root-1');
+			});
+
+			it('does not set threadId on messages without replyTo', () => {
+				addMessage('#test', makeMessage({ msgid: 'standalone', text: 'no reply' }));
+				const msg = getMessage('#test', 'standalone');
+				expect(msg!.threadId).toBeUndefined();
+			});
 		});
 	});
 });

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { renderMessage, nickColor } from '$lib/irc/format';
 	import { handleMenuKeydown, focusFirst } from '$lib/utils/a11y';
-	import { getMessage, isPinned } from '$lib/state/messages.svelte';
+	import { getMessage, isPinned, hasThread } from '$lib/state/messages.svelte';
 	import { userState } from '$lib/state/user.svelte';
 	import { appSettings } from '$lib/state/appSettings.svelte';
 	import { themeState } from '$lib/state/theme.svelte';
@@ -44,6 +44,7 @@
 		onscrolltomessage?: (msgid: string) => void;
 		onretry?: (msgid: string) => void;
 		onnickclick?: (nick: string, account: string, event: MouseEvent) => void;
+		onviewthread?: (rootMsgId: string) => void;
 	}
 
 	let {
@@ -64,6 +65,7 @@
 		onscrolltomessage,
 		onretry,
 		onnickclick,
+		onviewthread,
 	}: Props = $props();
 
 	let isFailed = $derived(message.sendState === 'failed');
@@ -73,6 +75,9 @@
 	/** Whether this message was sent by the current user. */
 	let isOwnMessage = $derived(message.account === (userState.account ?? ''));
 	let devTooltip = $derived(appSettings.developerMode ? `msgid: ${message.msgid}` : undefined);
+
+	/** Whether this message is part of a thread (has replies or is a reply). */
+	let isThreadable = $derived(hasThread(message.target, message.msgid) || !!message.replyTo);
 
 	function handleRetry() {
 		onretry?.(message.msgid);
@@ -310,6 +315,15 @@
 		moreMenuOpen = false;
 	}
 
+	function handleViewThread() {
+		// If this is a reply, open the thread from its root; otherwise open from this message
+		const rootId = message.replyTo
+			? (message.threadId ?? message.replyTo)
+			: message.msgid;
+		onviewthread?.(rootId);
+		moreMenuOpen = false;
+	}
+
 	/** Toggle spoiler reveal when clicking a .spoiler element inside message text. */
 	function handleMessageTextClick(event: MouseEvent) {
 		const target = event.target as HTMLElement;
@@ -370,6 +384,11 @@
 						<button class="more-menu-item" role="menuitem" onclick={handleMarkUnread}>
 							Mark Unread
 						</button>
+						{#if isThreadable}
+							<button class="more-menu-item" role="menuitem" onclick={handleViewThread}>
+								View Thread
+							</button>
+						{/if}
 						{#if isOp}
 							<button class="more-menu-item" role="menuitem" onclick={handlePin}>
 								{pinned ? 'Unpin Message' : 'Pin Message'}

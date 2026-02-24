@@ -35,6 +35,7 @@ export interface ShortcutCallbacks {
 	closeAdminPanel(): boolean;
 	closeQuickSwitcher(): boolean;
 	closeSearch(): boolean;
+	closeThread(): boolean;
 	closeDeleteTarget(): boolean;
 	closeEmojiPicker(): boolean;
 	cancelReply(): boolean;
@@ -153,6 +154,7 @@ export function setupShortcuts(callbacks: ShortcutCallbacks): ShortcutHandle {
 				if (callbacks.closeAdminPanel()) return true;
 				if (callbacks.closeQuickSwitcher()) return true;
 				if (callbacks.closeSearch()) return true;
+				if (callbacks.closeThread()) return true;
 				if (callbacks.closeDeleteTarget()) return true;
 				if (callbacks.closeEmojiPicker()) return true;
 				if (callbacks.cancelReply()) return true;
