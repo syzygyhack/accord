@@ -183,4 +183,9 @@ export const env = {
   get RATE_LIMIT_WINDOW() {
     return optionalInt("RATE_LIMIT_WINDOW", 60000);
   },
+  /** Comma-separated list of admin account names. */
+  get ADMIN_ACCOUNTS(): string[] {
+    const raw = optional("ADMIN_ACCOUNTS", "");
+    return raw.split(",").map((v) => v.trim()).filter(Boolean);
+  },
 } as const;

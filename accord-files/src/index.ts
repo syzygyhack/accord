@@ -11,6 +11,7 @@ import { createInviteRouter } from "./routes/invite.js";
 import { accountInfo } from "./routes/accountInfo.js";
 import { account } from "./routes/account.js";
 import { profile } from "./routes/profile.js";
+import { admin } from "./routes/admin.js";
 import { env } from "./env.js";
 
 const app = new Hono();
@@ -41,6 +42,8 @@ app.use("/api/profile/*", rateLimit({ max: env.RATE_LIMIT_PREVIEW_MAX, windowMs:
 app.use("/api/profiles", rateLimit({ max: env.RATE_LIMIT_PREVIEW_MAX, windowMs: env.RATE_LIMIT_WINDOW }));
 // File downloads: generous limit to allow page loads with many embeds
 app.use("/api/files/*", rateLimit({ max: 100, windowMs: env.RATE_LIMIT_WINDOW }));
+// Admin endpoints
+app.use("/api/admin/*", rateLimit({ max: env.RATE_LIMIT_AUTH_MAX, windowMs: env.RATE_LIMIT_AUTH_WINDOW }));
 
 // Global error handler — prevents stack trace leaks to clients (CR-027)
 app.onError((err, c) => {
@@ -58,6 +61,7 @@ app.route("/", invite);
 app.route("/", accountInfo);
 app.route("/", account);
 app.route("/", profile);
+app.route("/", admin);
 
 // Health check
 app.get("/health", (c) => c.json({ status: "ok" }));
