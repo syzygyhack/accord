@@ -32,6 +32,7 @@ export interface ShortcutCallbacks {
 	closeVoiceOverlay(): boolean;
 	closeSettings(): boolean;
 	closeServerSettings(): boolean;
+	closeAdminPanel(): boolean;
 	closeQuickSwitcher(): boolean;
 	closeSearch(): boolean;
 	closeDeleteTarget(): boolean;
@@ -149,6 +150,7 @@ export function setupShortcuts(callbacks: ShortcutCallbacks): ShortcutHandle {
 				if (callbacks.closeVoiceOverlay()) return true;
 				if (callbacks.closeSettings()) return true;
 				if (callbacks.closeServerSettings()) return true;
+				if (callbacks.closeAdminPanel()) return true;
 				if (callbacks.closeQuickSwitcher()) return true;
 				if (callbacks.closeSearch()) return true;
 				if (callbacks.closeDeleteTarget()) return true;

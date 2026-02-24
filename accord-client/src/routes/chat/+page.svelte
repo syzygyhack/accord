@@ -3,7 +3,7 @@
 	import type { IRCConnection } from '$lib/irc/connection';
 	import { join, chathistory, topic } from '$lib/irc/commands';
 	import { updateMonitorForChannel, clearMonitoredNicks, addMonitoredNicks } from '$lib/channelMonitor';
-	import { stopTokenRefresh, clearCredentials, clearToken } from '$lib/api/auth';
+	import { stopTokenRefresh, clearCredentials, clearToken, getToken } from '$lib/api/auth';
 	import { disconnectVoice } from '$lib/voice/room';
 	import {
 		handleVoiceChannelClick as voiceChannelClick,
@@ -53,7 +53,9 @@
 	import UserProfilePopout from '../../components/UserProfilePopout.svelte';
 	import ResizeHandle from '../../components/ResizeHandle.svelte';
 	import DeleteConfirmDialog from '../../components/DeleteConfirmDialog.svelte';
+	import AdminPanel from '../../components/AdminPanel.svelte';
 	import WelcomeModal from '../../components/WelcomeModal.svelte';
+	import { checkAdmin } from '$lib/api/admin';
 	import { appSettings, SIDEBAR_MIN, SIDEBAR_MAX, MEMBER_MIN, MEMBER_MAX } from '$lib/state/appSettings.svelte';
 	import { clearServerTheme } from '$lib/state/theme.svelte';
 	import { resetServerConfig } from '$lib/state/serverConfig.svelte';
@@ -108,6 +110,10 @@
 
 	// Welcome modal state
 	let welcomeConfig: { serverName: string; message: string; suggestedChannels: string[] } | null = $state(null);
+
+	// Admin panel state
+	let showAdminPanel = $state(false);
+	let isAdmin = $state(false);
 
 	// Rate limit state
 	let rateLimitSeconds = $state(0);
@@ -264,6 +270,12 @@
 			},
 			onInitDone() {
 				initializing = false;
+				// Check if current user has admin privileges
+				const filesUrl = getActiveServer()?.filesUrl;
+				const token = getToken();
+				if (filesUrl && token) {
+					checkAdmin(filesUrl, token).then((result) => { isAdmin = result; }).catch(() => { isAdmin = false; });
+				}
 			},
 			onAuthExpired() {
 				authExpired = true;
@@ -375,6 +387,11 @@
 			closeServerSettings: () => {
 				if (!showServerSettings) return false;
 				showServerSettings = false;
+				return true;
+			},
+			closeAdminPanel: () => {
+				if (!showAdminPanel) return false;
+				showAdminPanel = false;
 				return true;
 			},
 			closeQuickSwitcher: () => {
@@ -529,7 +546,7 @@
 
 	<!-- Left column: Channel sidebar (ChannelSidebar is already an <aside> landmark) -->
 	<div class="left-panel" class:overlay={sidebarIsOverlay} class:visible={sidebarIsOverlay && showSidebar} style="width: {appSettings.sidebarWidth}px;">
-		<ChannelSidebar onvoicechannelclick={handleVoiceChannelClick} {voiceRoom} onsettingsclick={() => { showSettings = true; }} onserversettingsclick={() => { serverSettingsInitialTab = 'overview'; showServerSettings = true; }} oncreatechannel={(ch) => { if (conn) { join(conn, [ch]); setActiveChannel(ch); chathistory(conn, 'LATEST', ch, '*', '50'); } }} onvoiceexpand={() => (showVoiceOverlay = true)} onvoicedisconnect={() => { onVoiceDisconnected(null); voiceRoom = null; }} />
+		<ChannelSidebar onvoicechannelclick={handleVoiceChannelClick} {voiceRoom} onsettingsclick={() => { showSettings = true; }} onserversettingsclick={() => { serverSettingsInitialTab = 'overview'; showServerSettings = true; }} onadminpanelclick={() => { showAdminPanel = true; }} {isAdmin} oncreatechannel={(ch) => { if (conn) { join(conn, [ch]); setActiveChannel(ch); chathistory(conn, 'LATEST', ch, '*', '50'); } }} onvoiceexpand={() => (showVoiceOverlay = true)} onvoicedisconnect={() => { onVoiceDisconnected(null); voiceRoom = null; }} />
 		{#if !sidebarIsOverlay}
 			<ResizeHandle side="left" min={SIDEBAR_MIN} max={SIDEBAR_MAX} width={appSettings.sidebarWidth} onresize={(w) => { appSettings.sidebarWidth = w; }} />
 		{/if}
@@ -687,6 +704,11 @@
 
 {#if showServerSettings}
 	<ServerSettings onclose={() => (showServerSettings = false)} connection={conn} initialTab={serverSettingsInitialTab} />
+{/if}
+
+<!-- Admin Panel modal -->
+{#if showAdminPanel}
+	<AdminPanel onclose={() => (showAdminPanel = false)} />
 {/if}
 
 <!-- Voice overlay (expanded view with video grid + participants) -->

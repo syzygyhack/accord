@@ -30,12 +30,14 @@
 		voiceRoom?: Room | null;
 		onsettingsclick?: () => void;
 		onserversettingsclick?: () => void;
+		onadminpanelclick?: () => void;
 		oncreatechannel?: (channel: string) => void;
 		onvoiceexpand?: () => void;
 		onvoicedisconnect?: () => void;
+		isAdmin?: boolean;
 	}
 
-	let { onvoicechannelclick, voiceRoom = null, onsettingsclick, onserversettingsclick, oncreatechannel, onvoiceexpand, onvoicedisconnect }: Props = $props();
+	let { onvoicechannelclick, voiceRoom = null, onsettingsclick, onserversettingsclick, onadminpanelclick, oncreatechannel, onvoiceexpand, onvoicedisconnect, isAdmin = false }: Props = $props();
 
 	/** Dropdown state for server name header. */
 	let serverDropdownOpen = $state(false);
@@ -51,6 +53,11 @@
 	function handleServerSettings(): void {
 		serverDropdownOpen = false;
 		onserversettingsclick?.();
+	}
+
+	function handleAdminPanel(): void {
+		serverDropdownOpen = false;
+		onadminpanelclick?.();
 	}
 
 	/**
@@ -265,6 +272,16 @@
 					</svg>
 					Server Settings
 				</button>
+				{#if isAdmin}
+					<button class="server-dropdown-item" role="menuitem" onclick={handleAdminPanel}>
+						<svg width="14" height="14" viewBox="0 0 24 24">
+							<path d="M12 2L2 7l10 5 10-5-10-5z" stroke="currentColor" stroke-width="2" fill="none" />
+							<path d="M2 17l10 5 10-5" stroke="currentColor" stroke-width="2" fill="none" />
+							<path d="M2 12l10 5 10-5" stroke="currentColor" stroke-width="2" fill="none" />
+						</svg>
+						Admin Panel
+					</button>
+				{/if}
 			</div>
 		{/if}
 	</div>

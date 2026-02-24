@@ -14,6 +14,13 @@ const serverStartTime = Date.now();
 // All admin routes require auth + admin check
 admin.use("/api/admin/*", authMiddleware, adminMiddleware);
 
+// --- GET /api/admin/check ---
+// Simple endpoint that returns 200 if the user is admin (auth + admin middleware already applied).
+
+admin.get("/api/admin/check", (c) => {
+  return c.json({ admin: true });
+});
+
 // --- GET /api/admin/stats ---
 
 admin.get("/api/admin/stats", async (c) => {

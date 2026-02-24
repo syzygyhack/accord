@@ -114,6 +114,26 @@ describe("Admin middleware", () => {
 });
 
 // =============================================================================
+// GET /api/admin/check
+// =============================================================================
+
+describe("GET /api/admin/check", () => {
+  test("returns 200 with admin:true for admin user", async () => {
+    const r = await adminReq("/api/admin/check");
+    const res = await admin.fetch(r);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { admin: boolean };
+    expect(body.admin).toBe(true);
+  });
+
+  test("returns 403 for non-admin user", async () => {
+    const r = await userReq("/api/admin/check");
+    const res = await admin.fetch(r);
+    expect(res.status).toBe(403);
+  });
+});
+
+// =============================================================================
 // GET /api/admin/stats
 // =============================================================================
 
