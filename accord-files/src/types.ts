@@ -5,3 +5,12 @@ export type AppEnv = {
     user: JwtPayload;
   };
 };
+
+export interface UserProfile {
+  account: string;
+  displayName?: string;
+  bio?: string;
+  avatar?: string;  // URL path to uploaded avatar
+  status?: string;
+  updatedAt: number;
+}

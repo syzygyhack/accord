@@ -18,7 +18,10 @@ export type SecurityEvent =
   | "invite.redeem"
   | "invite.revoke"
   | "account.password_change"
-  | "account.email_change";
+  | "account.email_change"
+  | "profile.update"
+  | "profile.delete"
+  | "profile.avatar";
 
 interface SecurityLogEntry {
   ts: string;

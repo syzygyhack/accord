@@ -10,6 +10,7 @@ import { preview } from "./routes/preview.js";
 import { createInviteRouter } from "./routes/invite.js";
 import { accountInfo } from "./routes/accountInfo.js";
 import { account } from "./routes/account.js";
+import { profile } from "./routes/profile.js";
 import { env } from "./env.js";
 
 const app = new Hono();
@@ -35,6 +36,9 @@ app.use("/api/invite", rateLimit({ max: env.RATE_LIMIT_INVITE_MAX, windowMs: env
 app.use("/api/account-info", rateLimit({ max: env.RATE_LIMIT_PREVIEW_MAX, windowMs: env.RATE_LIMIT_WINDOW }));
 app.use("/api/account/*", rateLimit({ max: env.RATE_LIMIT_AUTH_MAX, windowMs: env.RATE_LIMIT_AUTH_WINDOW }));
 app.use("/api/livekit/*", rateLimit({ max: 20, windowMs: env.RATE_LIMIT_WINDOW }));
+// Profile endpoints
+app.use("/api/profile/*", rateLimit({ max: env.RATE_LIMIT_PREVIEW_MAX, windowMs: env.RATE_LIMIT_WINDOW }));
+app.use("/api/profiles", rateLimit({ max: env.RATE_LIMIT_PREVIEW_MAX, windowMs: env.RATE_LIMIT_WINDOW }));
 // File downloads: generous limit to allow page loads with many embeds
 app.use("/api/files/*", rateLimit({ max: 100, windowMs: env.RATE_LIMIT_WINDOW }));
 
@@ -53,6 +57,7 @@ app.route("/", preview);
 app.route("/", invite);
 app.route("/", accountInfo);
 app.route("/", account);
+app.route("/", profile);
 
 // Health check
 app.get("/health", (c) => c.json({ status: "ok" }));
