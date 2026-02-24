@@ -664,5 +664,101 @@ describe('message state', () => {
 			const results = searchMessages('#test', 'from:alice');
 			expect(results).toHaveLength(1);
 		});
+
+		it('filters by has:image for jpg URLs', () => {
+			addMessage('#test', makeMessage({ msgid: 's1', text: 'check this https://example.com/photo.jpg' }));
+			addMessage('#test', makeMessage({ msgid: 's2', text: 'no image here' }));
+			const results = searchMessages('#test', 'has:image');
+			expect(results).toHaveLength(1);
+			expect(results[0].msgid).toBe('s1');
+		});
+
+		it('filters by has:image for png and webp URLs', () => {
+			addMessage('#test', makeMessage({ msgid: 's1', text: 'https://cdn.example.com/a.png' }));
+			addMessage('#test', makeMessage({ msgid: 's2', text: 'https://cdn.example.com/b.webp' }));
+			addMessage('#test', makeMessage({ msgid: 's3', text: 'https://cdn.example.com/c.pdf' }));
+			const results = searchMessages('#test', 'has:image');
+			expect(results).toHaveLength(2);
+			expect(results.map((m) => m.msgid)).toEqual(['s1', 's2']);
+		});
+
+		it('has:image matches gif URLs with query strings', () => {
+			addMessage('#test', makeMessage({ msgid: 's1', text: 'https://example.com/anim.gif?v=2' }));
+			const results = searchMessages('#test', 'has:image');
+			expect(results).toHaveLength(1);
+		});
+
+		it('has:image does not match non-image URLs', () => {
+			addMessage('#test', makeMessage({ msgid: 's1', text: 'https://example.com/file.txt' }));
+			addMessage('#test', makeMessage({ msgid: 's2', text: 'just some text with .jpg in it' }));
+			const results = searchMessages('#test', 'has:image');
+			expect(results).toHaveLength(0);
+		});
+
+		it('filters by has:link for URLs', () => {
+			addMessage('#test', makeMessage({ msgid: 's1', text: 'visit https://example.com' }));
+			addMessage('#test', makeMessage({ msgid: 's2', text: 'no link here' }));
+			addMessage('#test', makeMessage({ msgid: 's3', text: 'try http://old.example.com/page' }));
+			const results = searchMessages('#test', 'has:link');
+			expect(results).toHaveLength(2);
+			expect(results.map((m) => m.msgid)).toEqual(['s1', 's3']);
+		});
+
+		it('has:link does not match text without URLs', () => {
+			addMessage('#test', makeMessage({ msgid: 's1', text: 'example.com is a domain' }));
+			addMessage('#test', makeMessage({ msgid: 's2', text: 'ftp://not-http.example.com' }));
+			const results = searchMessages('#test', 'has:link');
+			expect(results).toHaveLength(0);
+		});
+
+		it('filters by before:date', () => {
+			addMessage('#test', makeMessage({ msgid: 's1', text: 'old', time: new Date('2025-01-10') }));
+			addMessage('#test', makeMessage({ msgid: 's2', text: 'new', time: new Date('2025-03-15') }));
+			const results = searchMessages('#test', 'before:2025-02-01');
+			expect(results).toHaveLength(1);
+			expect(results[0].msgid).toBe('s1');
+		});
+
+		it('filters by after:date', () => {
+			addMessage('#test', makeMessage({ msgid: 's1', text: 'old', time: new Date('2025-01-10') }));
+			addMessage('#test', makeMessage({ msgid: 's2', text: 'new', time: new Date('2025-03-15') }));
+			const results = searchMessages('#test', 'after:2025-02-01');
+			expect(results).toHaveLength(1);
+			expect(results[0].msgid).toBe('s2');
+		});
+
+		it('before: and after: can be combined for date range', () => {
+			addMessage('#test', makeMessage({ msgid: 's1', text: 'jan', time: new Date('2025-01-15') }));
+			addMessage('#test', makeMessage({ msgid: 's2', text: 'feb', time: new Date('2025-02-15') }));
+			addMessage('#test', makeMessage({ msgid: 's3', text: 'apr', time: new Date('2025-04-15') }));
+			const results = searchMessages('#test', 'after:2025-01-31 before:2025-03-01');
+			expect(results).toHaveLength(1);
+			expect(results[0].msgid).toBe('s2');
+		});
+
+		it('ignores invalid before: date value', () => {
+			addMessage('#test', makeMessage({ msgid: 's1', text: 'hello' }));
+			const results = searchMessages('#test', 'before:not-a-date hello');
+			// Invalid date is ignored, text search still works
+			expect(results).toHaveLength(1);
+		});
+
+		it('combines has:link with from: filter', () => {
+			addMessage('#test', makeMessage({ msgid: 's1', nick: 'alice', text: 'https://example.com' }));
+			addMessage('#test', makeMessage({ msgid: 's2', nick: 'bob', text: 'https://other.com' }));
+			addMessage('#test', makeMessage({ msgid: 's3', nick: 'alice', text: 'no link' }));
+			const results = searchMessages('#test', 'from:alice has:link');
+			expect(results).toHaveLength(1);
+			expect(results[0].msgid).toBe('s1');
+		});
+
+		it('has:image combined with text search', () => {
+			addMessage('#test', makeMessage({ msgid: 's1', text: 'sunset https://example.com/sunset.jpg' }));
+			addMessage('#test', makeMessage({ msgid: 's2', text: 'cat https://example.com/cat.jpg' }));
+			addMessage('#test', makeMessage({ msgid: 's3', text: 'sunset without image' }));
+			const results = searchMessages('#test', 'has:image sunset');
+			expect(results).toHaveLength(1);
+			expect(results[0].msgid).toBe('s1');
+		});
 	});
 });

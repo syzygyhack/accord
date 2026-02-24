@@ -30,7 +30,7 @@ import {
 import { addServer } from '$lib/state/servers.svelte';
 import { getCursors } from '$lib/state/messages.svelte';
 import { applyServerTheme, parseServerTheme } from '$lib/state/theme.svelte';
-import { setServerConfig } from '$lib/state/serverConfig.svelte';
+import { setServerConfig, getCachedConfig, setCachedConfig } from '$lib/state/serverConfig.svelte';
 import type { AccordConfig } from '$lib/state/serverConfig.svelte';
 import { setCustomEmoji } from '$lib/emoji';
 
@@ -64,6 +64,8 @@ export interface LifecycleCallbacks {
 
 /**
  * Fetch accord.json from the files server.
+ * Sends If-None-Match with cached ETag when available.
+ * On 304 Not Modified, returns the cached config from localStorage.
  * Returns parsed config or null on failure.
  */
 async function fetchAccordConfig(filesUrl: string): Promise<AccordConfig | null> {
@@ -73,9 +75,31 @@ async function fetchAccordConfig(filesUrl: string): Promise<AccordConfig | null>
 		if (token) {
 			headers['Authorization'] = `Bearer ${token}`;
 		}
+
+		// Send cached ETag for conditional request
+		const cached = getCachedConfig();
+		if (cached) {
+			headers['If-None-Match'] = cached.etag;
+		}
+
 		const res = await fetch(`${filesUrl}/.well-known/accord.json`, { headers });
+
+		// 304 Not Modified — use cached config
+		if (res.status === 304 && cached) {
+			return cached.config;
+		}
+
 		if (!res.ok) return null;
-		return (await res.json()) as AccordConfig;
+
+		const config = (await res.json()) as AccordConfig;
+
+		// Store ETag and config in cache for future conditional requests
+		const etag = res.headers.get('ETag');
+		if (etag) {
+			setCachedConfig(config, etag);
+		}
+
+		return config;
 	} catch {
 		return null;
 	}

@@ -1,11 +1,28 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
 	serverConfig,
 	setServerConfig,
 	resetServerConfig,
 	getRoleColor,
+	getCachedConfig,
+	setCachedConfig,
 	type AccordConfig,
 } from './serverConfig.svelte';
+
+/**
+ * Minimal localStorage mock for Node-based vitest.
+ */
+function createStorageMock() {
+	const store = new Map<string, string>();
+	return {
+		getItem: (key: string) => store.get(key) ?? null,
+		setItem: (key: string, value: string) => store.set(key, value),
+		removeItem: (key: string) => store.delete(key),
+		clear: () => store.clear(),
+		get length() { return store.size; },
+		key: (_index: number) => null,
+	} as Storage;
+}
 
 describe('serverConfig state', () => {
 	beforeEach(() => {
@@ -224,5 +241,62 @@ describe('getRoleColor', () => {
 		expect(getRoleColor('~')).toBe('#ff0000');
 		resetServerConfig();
 		expect(getRoleColor('~')).toBe('#e0a040');
+	});
+});
+
+describe('ETag caching', () => {
+	beforeEach(() => {
+		vi.stubGlobal('localStorage', createStorageMock());
+		resetServerConfig();
+	});
+
+	it('getCachedConfig returns null when nothing is cached', () => {
+		expect(getCachedConfig()).toBeNull();
+	});
+
+	it('setCachedConfig stores config and etag in localStorage', () => {
+		const config: AccordConfig = { name: 'Cached Server' };
+		setCachedConfig(config, '"abc123"');
+		expect(localStorage.getItem('accord:config-etag')).toBe('"abc123"');
+		expect(localStorage.getItem('accord:config-cache')).toBe(JSON.stringify(config));
+	});
+
+	it('getCachedConfig retrieves stored config and etag', () => {
+		const config: AccordConfig = { name: 'Cached Server', description: 'test' };
+		setCachedConfig(config, '"etag-1"');
+		const cached = getCachedConfig();
+		expect(cached).not.toBeNull();
+		expect(cached!.etag).toBe('"etag-1"');
+		expect(cached!.config.name).toBe('Cached Server');
+		expect(cached!.config.description).toBe('test');
+	});
+
+	it('setCachedConfig updates the cachedETag field on the store', () => {
+		expect(serverConfig.cachedETag).toBeNull();
+		setCachedConfig({ name: 'Test' }, '"etag-2"');
+		expect(serverConfig.cachedETag).toBe('"etag-2"');
+	});
+
+	it('resetServerConfig clears cachedETag', () => {
+		setCachedConfig({ name: 'Test' }, '"etag-3"');
+		expect(serverConfig.cachedETag).toBe('"etag-3"');
+		resetServerConfig();
+		expect(serverConfig.cachedETag).toBeNull();
+	});
+
+	it('getCachedConfig returns null if only etag is set (no config)', () => {
+		localStorage.setItem('accord:config-etag', '"partial"');
+		expect(getCachedConfig()).toBeNull();
+	});
+
+	it('getCachedConfig returns null if only config is set (no etag)', () => {
+		localStorage.setItem('accord:config-cache', '{"name":"Partial"}');
+		expect(getCachedConfig()).toBeNull();
+	});
+
+	it('getCachedConfig returns null for corrupted JSON in localStorage', () => {
+		localStorage.setItem('accord:config-etag', '"corrupt"');
+		localStorage.setItem('accord:config-cache', '{not valid json');
+		expect(getCachedConfig()).toBeNull();
 	});
 });

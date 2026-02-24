@@ -113,7 +113,7 @@
 			bind:value={query}
 			class="search-input"
 			type="text"
-			placeholder="Search messages... (from:user, in:#channel)"
+			placeholder="Search messages... (from: in: has:image has:link before: after:)"
 			autofocus
 			onkeydown={handleKeydown}
 		/>
@@ -122,6 +122,15 @@
 				<path d="M4.11 3.05a.75.75 0 0 0-1.06 1.06L6.94 8l-3.89 3.89a.75.75 0 1 0 1.06 1.06L8 9.06l3.89 3.89a.75.75 0 1 0 1.06-1.06L9.06 8l3.89-3.89a.75.75 0 0 0-1.06-1.06L8 6.94 4.11 3.05z" />
 			</svg>
 		</button>
+	</div>
+
+	<div class="search-filters-hint">
+		<span class="filter-pill">from:user</span>
+		<span class="filter-pill">in:#channel</span>
+		<span class="filter-pill">has:image</span>
+		<span class="filter-pill">has:link</span>
+		<span class="filter-pill">before:YYYY-MM-DD</span>
+		<span class="filter-pill">after:YYYY-MM-DD</span>
 	</div>
 
 	<div class="search-results" role="listbox">
@@ -209,6 +218,24 @@
 	.search-close:hover {
 		color: var(--text-primary);
 		background: var(--surface-high);
+	}
+
+	.search-filters-hint {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px;
+		padding: 6px 16px;
+		border-bottom: 1px solid var(--surface-highest);
+		flex-shrink: 0;
+	}
+
+	.filter-pill {
+		font-size: var(--font-xs);
+		color: var(--text-muted);
+		background: var(--surface-high);
+		padding: 2px 8px;
+		border-radius: 10px;
+		white-space: nowrap;
 	}
 
 	.search-results {

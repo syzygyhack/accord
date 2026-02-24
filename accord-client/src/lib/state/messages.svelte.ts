@@ -405,11 +405,21 @@ export function isPinned(target: string, msgid: string): boolean {
 	return pinnedMessages.get(normalizeTarget(target))?.has(msgid) ?? false;
 }
 
+/** Regex for detecting URLs in message text. */
+const URL_RE = /https?:\/\/[^\s<>)"']+/i;
+
+/** Regex for detecting image URLs by file extension. */
+const IMAGE_URL_RE = /https?:\/\/[^\s<>)"']+\.(?:jpg|jpeg|png|gif|webp)(?:\?[^\s<>)"']*)?/i;
+
 /**
  * Search messages in a channel buffer by text content.
  * Supports filters:
- *   from:username — filter by nick (case-insensitive)
- *   in:#channel   — search in a different channel instead
+ *   from:username     — filter by nick (case-insensitive)
+ *   in:#channel       — search in a different channel instead
+ *   has:image         — filter to messages containing image URLs
+ *   has:link          — filter to messages containing URLs
+ *   before:YYYY-MM-DD — filter to messages before a date
+ *   after:YYYY-MM-DD  — filter to messages after a date
  *
  * Only searches privmsg type messages and excludes redacted messages.
  * Returns matching messages in buffer order.
@@ -422,14 +432,29 @@ export function searchMessages(defaultChannel: string, query: string): Message[]
 
 	let channel = defaultChannel;
 	let fromFilter: string | null = null;
+	let hasImage = false;
+	let hasLink = false;
+	let beforeDate: Date | null = null;
+	let afterDate: Date | null = null;
 	const textParts: string[] = [];
 
 	// Parse filters from query tokens
 	for (const token of trimmed.split(/\s+/)) {
-		if (token.toLowerCase().startsWith('in:')) {
+		const lower = token.toLowerCase();
+		if (lower.startsWith('in:')) {
 			channel = token.slice(3);
-		} else if (token.toLowerCase().startsWith('from:')) {
+		} else if (lower.startsWith('from:')) {
 			fromFilter = token.slice(5).toLowerCase();
+		} else if (lower === 'has:image') {
+			hasImage = true;
+		} else if (lower === 'has:link') {
+			hasLink = true;
+		} else if (lower.startsWith('before:')) {
+			const d = new Date(token.slice(7));
+			if (!isNaN(d.getTime())) beforeDate = d;
+		} else if (lower.startsWith('after:')) {
+			const d = new Date(token.slice(6));
+			if (!isNaN(d.getTime())) afterDate = d;
 		} else {
 			textParts.push(token);
 		}
@@ -444,6 +469,10 @@ export function searchMessages(defaultChannel: string, query: string): Message[]
 		if (m.isRedacted) return false;
 		if (fromFilter && m.nick.toLowerCase() !== fromFilter) return false;
 		if (textQuery && !m.text.toLowerCase().includes(textQuery)) return false;
+		if (hasImage && !IMAGE_URL_RE.test(m.text)) return false;
+		if (hasLink && !URL_RE.test(m.text)) return false;
+		if (beforeDate && m.time >= beforeDate) return false;
+		if (afterDate && m.time <= afterDate) return false;
 		return true;
 	});
 }

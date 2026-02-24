@@ -7,6 +7,10 @@
  */
 
 import { DEFAULT_ROLES } from '$lib/constants';
+import { hasLocalStorage } from '$lib/utils/storage';
+
+const ETAG_STORAGE_KEY = 'accord:config-etag';
+const CONFIG_CACHE_KEY = 'accord:config-cache';
 
 export interface AccordConfig {
 	name?: string;
@@ -35,11 +39,13 @@ export interface AccordConfig {
 
 interface ServerConfigStore {
 	config: AccordConfig | null;
+	cachedETag: string | null;
 }
 
 /** Reactive server config — components read this directly. */
 export const serverConfig: ServerConfigStore = $state({
 	config: null,
+	cachedETag: null,
 });
 
 /** Store the fetched accord.json config. */
@@ -50,6 +56,38 @@ export function setServerConfig(config: AccordConfig): void {
 /** Reset config (e.g. on disconnect). */
 export function resetServerConfig(): void {
 	serverConfig.config = null;
+	serverConfig.cachedETag = null;
+}
+
+/**
+ * Get cached config and ETag from localStorage.
+ * Returns null if no cache exists or data is corrupted.
+ */
+export function getCachedConfig(): { config: AccordConfig; etag: string } | null {
+	if (!hasLocalStorage()) return null;
+	try {
+		const etag = localStorage.getItem(ETAG_STORAGE_KEY);
+		const raw = localStorage.getItem(CONFIG_CACHE_KEY);
+		if (!etag || !raw) return null;
+		const config = JSON.parse(raw) as AccordConfig;
+		return { config, etag };
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Cache config and ETag in localStorage for conditional requests.
+ */
+export function setCachedConfig(config: AccordConfig, etag: string): void {
+	serverConfig.cachedETag = etag;
+	if (!hasLocalStorage()) return;
+	try {
+		localStorage.setItem(ETAG_STORAGE_KEY, etag);
+		localStorage.setItem(CONFIG_CACHE_KEY, JSON.stringify(config));
+	} catch {
+		// Storage full or unavailable — ignore
+	}
 }
 
 /**
