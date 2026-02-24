@@ -350,6 +350,58 @@ describe('message state', () => {
 		});
 	});
 
+	describe('edit history', () => {
+		it('preserves original text in editHistory on first edit', () => {
+			addMessage('#test', makeMessage({ msgid: 'EH1', text: 'original text' }));
+			updateMessageText('#test', 'EH1', 'edited text', 'EDIT_EH1');
+			const msg = getMessage('#test', 'EH1')!;
+			expect(msg.editHistory).toEqual(['original text']);
+			expect(msg.text).toBe('edited text');
+		});
+
+		it('accumulates multiple edits in editHistory', () => {
+			addMessage('#test', makeMessage({ msgid: 'EH2', text: 'v1' }));
+			updateMessageText('#test', 'EH2', 'v2', 'EDIT_EH2a');
+			updateMessageText('#test', 'EH2', 'v3', 'EDIT_EH2b');
+			updateMessageText('#test', 'EH2', 'v4', 'EDIT_EH2c');
+			const msg = getMessage('#test', 'EH2')!;
+			expect(msg.editHistory).toEqual(['v1', 'v2', 'v3']);
+			expect(msg.text).toBe('v4');
+		});
+
+		it('editHistory is undefined for messages that were never edited', () => {
+			addMessage('#test', makeMessage({ msgid: 'EH3', text: 'no edits' }));
+			const msg = getMessage('#test', 'EH3')!;
+			expect(msg.editHistory).toBeUndefined();
+		});
+
+		it('editHistory is initialized as empty array then populated on first edit', () => {
+			addMessage('#test', makeMessage({ msgid: 'EH4', text: 'start' }));
+			expect(getMessage('#test', 'EH4')!.editHistory).toBeUndefined();
+			updateMessageText('#test', 'EH4', 'after edit', 'EDIT_EH4');
+			const msg = getMessage('#test', 'EH4')!;
+			expect(Array.isArray(msg.editHistory)).toBe(true);
+			expect(msg.editHistory).toHaveLength(1);
+		});
+
+		it('editHistory preserves each intermediate version in order', () => {
+			addMessage('#test', makeMessage({ msgid: 'EH5', text: 'alpha' }));
+			updateMessageText('#test', 'EH5', 'beta', 'EDIT_EH5a');
+			updateMessageText('#test', 'EH5', 'gamma', 'EDIT_EH5b');
+			const msg = getMessage('#test', 'EH5')!;
+			// History should contain all previous values in chronological order
+			expect(msg.editHistory![0]).toBe('alpha');
+			expect(msg.editHistory![1]).toBe('beta');
+			expect(msg.text).toBe('gamma');
+		});
+
+		it('returns false and does not create editHistory for unknown message', () => {
+			const result = updateMessageText('#test', 'nonexistent', 'text', 'EDIT_NONE');
+			expect(result).toBe(false);
+			// No message to check — just verify no error thrown
+		});
+	});
+
 	describe('resolveEditChain', () => {
 		it('stores edit mapping and resolves original->new msgid', () => {
 			addMessage('#test', makeMessage({ msgid: 'ORIG1', text: 'original' }));

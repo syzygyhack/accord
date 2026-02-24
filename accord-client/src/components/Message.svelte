@@ -79,6 +79,7 @@
 
 	let hovered = $state(false);
 	let moreMenuOpen = $state(false);
+	let editHistoryOpen = $state(false);
 
 	let pinned = $derived(isPinned(message.target, message.msgid));
 
@@ -559,6 +560,32 @@
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<span class="message-text" onclick={handleMessageTextClick}>{@html renderedText}</span>
 			{/if}
+			{#if message.isEdited}
+				<span class="edited-label-wrapper">
+					<button
+						class="edited-label"
+						title="This message was edited"
+						onclick={() => (editHistoryOpen = !editHistoryOpen)}
+					>
+						(edited)
+					</button>
+					{#if editHistoryOpen && message.editHistory && message.editHistory.length > 0}
+						<div class="edit-history-popover">
+							<div class="edit-history-title">Edit History</div>
+							{#each message.editHistory as oldText, i}
+								<div class="edit-history-entry">
+									<span class="edit-history-version">v{i + 1}</span>
+									<span class="edit-history-text">{oldText}</span>
+								</div>
+							{/each}
+							<div class="edit-history-entry edit-history-current">
+								<span class="edit-history-version">current</span>
+								<span class="edit-history-text">{message.text}</span>
+							</div>
+						</div>
+					{/if}
+				</span>
+			{/if}
 		</div>
 	</div>
 
@@ -634,6 +661,32 @@
 				<div class="message-meta">
 					<span class="nick" style="color: {color}" role="button" tabindex="0" onclick={handleNickClick} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); handleNickClick(new MouseEvent('click', { clientX: rect.left, clientY: rect.bottom })); } }}>{message.nick}</span>
 					<span class="timestamp">{timestamp}</span>
+					{#if message.isEdited}
+						<span class="edited-label-wrapper">
+							<button
+								class="edited-label"
+								title="This message was edited"
+								onclick={() => (editHistoryOpen = !editHistoryOpen)}
+							>
+								(edited)
+							</button>
+							{#if editHistoryOpen && message.editHistory && message.editHistory.length > 0}
+								<div class="edit-history-popover">
+									<div class="edit-history-title">Edit History</div>
+									{#each message.editHistory as oldText, i}
+										<div class="edit-history-entry">
+											<span class="edit-history-version">v{i + 1}</span>
+											<span class="edit-history-text">{oldText}</span>
+										</div>
+									{/each}
+									<div class="edit-history-entry edit-history-current">
+										<span class="edit-history-version">current</span>
+										<span class="edit-history-text">{message.text}</span>
+									</div>
+								</div>
+							{/if}
+						</span>
+					{/if}
 				</div>
 				{@render messageContent()}
 			</div>
@@ -677,6 +730,7 @@
 		padding: 2px 48px 2px 72px;
 		min-height: 1.375rem;
 		transition: background var(--duration-message) ease;
+		animation: message-fade-in var(--duration-message) ease-out;
 	}
 
 	.message:hover {
@@ -1239,6 +1293,7 @@
 		cursor: pointer;
 		font-size: var(--font-sm);
 		color: var(--text-secondary);
+		animation: reaction-scale-pop var(--duration-reaction) ease;
 		transition:
 			background var(--duration-reaction) ease,
 			border-color var(--duration-reaction) ease;
@@ -1252,6 +1307,7 @@
 	.reaction-self {
 		border-color: var(--accent-primary);
 		background: var(--accent-bg);
+		animation: reaction-scale-pop var(--duration-reaction) ease;
 	}
 
 	.reaction-emoji {
@@ -1399,5 +1455,85 @@
 	@keyframes link-preview-pulse {
 		0%, 100% { opacity: 0.4; }
 		50% { opacity: 0.8; }
+	}
+
+	/* Edited label & edit history popover */
+	.edited-label-wrapper {
+		position: relative;
+		display: inline;
+	}
+
+	.edited-label {
+		background: none;
+		border: none;
+		padding: 0;
+		font-family: inherit;
+		font-size: var(--font-xs);
+		color: var(--text-muted);
+		cursor: pointer;
+	}
+
+	.edited-label:hover {
+		color: var(--text-secondary);
+		text-decoration: underline;
+	}
+
+	.edit-history-popover {
+		position: absolute;
+		top: 100%;
+		left: 0;
+		z-index: var(--z-popover);
+		min-width: 220px;
+		max-width: 360px;
+		max-height: 240px;
+		overflow-y: auto;
+		background: var(--surface-low);
+		border: 1px solid var(--surface-highest);
+		border-radius: 4px;
+		box-shadow: var(--shadow-md);
+		padding: 8px;
+		margin-top: 4px;
+	}
+
+	.edit-history-title {
+		font-size: var(--font-xs);
+		font-weight: var(--weight-semibold);
+		color: var(--text-secondary);
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		margin-bottom: 6px;
+	}
+
+	.edit-history-entry {
+		display: flex;
+		gap: 8px;
+		padding: 4px 0;
+		border-bottom: 1px solid var(--surface-highest);
+		font-size: var(--font-sm);
+	}
+
+	.edit-history-entry:last-child {
+		border-bottom: none;
+	}
+
+	.edit-history-current {
+		color: var(--text-primary);
+	}
+
+	.edit-history-version {
+		flex-shrink: 0;
+		font-size: var(--font-xs);
+		color: var(--text-muted);
+		font-weight: var(--weight-medium);
+		min-width: 4ch;
+	}
+
+	.edit-history-text {
+		color: var(--text-secondary);
+		word-break: break-word;
+	}
+
+	.edit-history-current .edit-history-text {
+		color: var(--text-primary);
 	}
 </style>

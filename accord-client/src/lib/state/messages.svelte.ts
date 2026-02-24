@@ -38,6 +38,7 @@ export interface Message {
 	reactions: Map<string, Set<string>>; // emoji -> set of accounts
 	isRedacted: boolean;
 	isEdited?: boolean; // true when message has been updated via +accord/edit
+	editHistory?: string[]; // previous text values, newest last
 	type: MessageType;
 	sendState?: SendState; // only set for locally-sent messages
 }
@@ -216,6 +217,12 @@ export function redactMessage(target: string, msgid: string): void {
 export function updateMessageText(target: string, originalMsgid: string, newText: string, newMsgid: string): boolean {
 	const msg = getMessage(target, originalMsgid);
 	if (!msg) return false;
+
+	// Preserve previous text in edit history before overwriting
+	if (!msg.editHistory) {
+		msg.editHistory = [];
+	}
+	msg.editHistory.push(msg.text);
 
 	msg.text = newText;
 	msg.isEdited = true;

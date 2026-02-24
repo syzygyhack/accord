@@ -667,7 +667,9 @@
 		<div class="virtual-spacer" style="height:{topSpacerHeight}px"></div>
 
 		<!-- Rendered window: only ~VIRTUAL_WINDOW_SIZE entries in the DOM at a time -->
-		<div bind:this={itemsContainer}>
+		<!-- Channel crossfade: #key re-creates the container when channel changes, triggering animation -->
+		{#key channelUIState.activeChannel}
+		<div class="channel-content" bind:this={itemsContainer}>
 			{#each visibleEntries as entry (entry.kind === 'collapsed' ? entry.key : entry.message.msgid)}
 				{#if entry.kind === 'collapsed'}
 					{#if expandedGroups.has(entry.key)}
@@ -724,6 +726,7 @@
 				{/if}
 			{/each}
 		</div>
+		{/key}
 
 		<!-- Virtual scrolling: bottom spacer maintains scroll height for entries below the window -->
 		<div class="virtual-spacer" style="height:{bottomSpacerHeight}px"></div>
@@ -759,6 +762,11 @@
 	/* Virtual scrolling spacers — invisible blocks that maintain correct scroll height. */
 	.virtual-spacer {
 		flex-shrink: 0;
+	}
+
+	/* Channel crossfade animation — triggers when #key block remounts on channel switch */
+	.channel-content {
+		animation: channel-crossfade var(--duration-channel) ease-out;
 	}
 
 	/* Skeleton loading for history fetch */
