@@ -97,8 +97,8 @@
 
 	// Voice overlay state
 	let showVoiceOverlay = $state(false);
-	/** Set when user explicitly closes overlay — suppresses auto-open until next connect. */
-	let overlayDismissed = $state(false);
+	/** Track count when overlay last auto-opened — prevents re-opening after user closes. */
+	let lastAutoOpenTrackCount = $state(0);
 
 	// User profile popout state
 	let profilePopout: { nick: string; account: string; x: number; y: number } | null = $state(null);
@@ -365,7 +365,6 @@
 			closeVoiceOverlay: () => {
 				if (!showVoiceOverlay) return false;
 				showVoiceOverlay = false;
-				overlayDismissed = true;
 				return true;
 			},
 			closeSettings: () => {
@@ -432,14 +431,40 @@
 		}
 	});
 
-	// Switch audio/video devices when changed in settings while connected.
-	$effect(() => { const d = audioSettings.inputDeviceId; if (voiceRoom) voiceRoom.switchActiveDevice('audioinput', d).catch(() => {}); });
-	$effect(() => { const d = audioSettings.outputDeviceId; if (voiceRoom) voiceRoom.switchActiveDevice('audiooutput', d).catch(() => {}); });
-	$effect(() => { const d = audioSettings.videoDeviceId; if (voiceRoom && voiceState.localVideoEnabled) voiceRoom.switchActiveDevice('videoinput', d).catch(() => {}); });
+	// Switch audio/video devices when the device ID *actually changes* in settings.
+	// We track previous values to avoid spurious switchActiveDevice calls when
+	// unrelated reactive state (like localVideoEnabled) changes — LiveKit's
+	// switchActiveDevice stops the current track before reacquiring, which would
+	// kill a camera that was just enabled.
+	let prevInputDevice = audioSettings.inputDeviceId;
+	let prevOutputDevice = audioSettings.outputDeviceId;
+	let prevVideoDevice = audioSettings.videoDeviceId;
+	$effect(() => {
+		const d = audioSettings.inputDeviceId;
+		if (d !== prevInputDevice) { prevInputDevice = d; if (voiceRoom) voiceRoom.switchActiveDevice('audioinput', d).catch(() => {}); }
+	});
+	$effect(() => {
+		const d = audioSettings.outputDeviceId;
+		if (d !== prevOutputDevice) { prevOutputDevice = d; if (voiceRoom) voiceRoom.switchActiveDevice('audiooutput', d).catch(() => {}); }
+	});
+	$effect(() => {
+		const d = audioSettings.videoDeviceId;
+		if (d !== prevVideoDevice) { prevVideoDevice = d; if (voiceRoom && voiceState.localVideoEnabled) voiceRoom.switchActiveDevice('videoinput', d).catch(() => {}); }
+	});
 
-	// Auto-open voice overlay when video tracks appear; auto-close on disconnect.
-	$effect(() => { if (voiceState.videoTracks.length > 0 && voiceState.isConnected && !overlayDismissed) showVoiceOverlay = true; });
-	$effect(() => { if (!voiceState.isConnected) { showVoiceOverlay = false; overlayDismissed = false; } });
+	// Auto-open voice overlay when a new video track appears (e.g. user toggles
+	// camera or someone starts sharing screen). Reset the track counter when all
+	// tracks are removed so the overlay reopens on the next camera toggle.
+	$effect(() => {
+		const count = voiceState.videoTracks.length;
+		if (count === 0) {
+			lastAutoOpenTrackCount = 0;
+		} else if (count > lastAutoOpenTrackCount && voiceState.isConnected) {
+			showVoiceOverlay = true;
+			lastAutoOpenTrackCount = count;
+		}
+	});
+	$effect(() => { if (!voiceState.isConnected) { showVoiceOverlay = false; lastAutoOpenTrackCount = 0; } });
 
 	/** Emergency logout — works even during connecting/error state. */
 	function forceLogout(): void {
@@ -504,7 +529,7 @@
 
 	<!-- Left column: Channel sidebar (ChannelSidebar is already an <aside> landmark) -->
 	<div class="left-panel" class:overlay={sidebarIsOverlay} class:visible={sidebarIsOverlay && showSidebar} style="width: {appSettings.sidebarWidth}px;">
-		<ChannelSidebar onvoicechannelclick={handleVoiceChannelClick} {voiceRoom} onsettingsclick={() => (showSettings = true)} onserversettingsclick={() => { serverSettingsInitialTab = 'overview'; showServerSettings = true; }} oncreatechannel={(ch) => { if (conn) { join(conn, [ch]); setActiveChannel(ch); chathistory(conn, 'LATEST', ch, '*', '50'); } }} onvoiceexpand={() => (showVoiceOverlay = true)} onvoicedisconnect={() => { onVoiceDisconnected(null); voiceRoom = null; }} />
+		<ChannelSidebar onvoicechannelclick={handleVoiceChannelClick} {voiceRoom} onsettingsclick={() => { showSettings = true; }} onserversettingsclick={() => { serverSettingsInitialTab = 'overview'; showServerSettings = true; }} oncreatechannel={(ch) => { if (conn) { join(conn, [ch]); setActiveChannel(ch); chathistory(conn, 'LATEST', ch, '*', '50'); } }} onvoiceexpand={() => (showVoiceOverlay = true)} onvoicedisconnect={() => { onVoiceDisconnected(null); voiceRoom = null; }} />
 		{#if !sidebarIsOverlay}
 			<ResizeHandle side="left" min={SIDEBAR_MIN} max={SIDEBAR_MAX} width={appSettings.sidebarWidth} onresize={(w) => { appSettings.sidebarWidth = w; }} />
 		{/if}
@@ -528,7 +553,6 @@
 			onscrolltomessage={handleScrollToMessage}
 			ontogglesearch={toggleSearch}
 			searchVisible={showSearch}
-			onopenserversettings={() => { serverSettingsInitialTab = 'channels'; showServerSettings = true; }}
 		/>
 
 		<div class="message-area">
@@ -667,7 +691,7 @@
 
 <!-- Voice overlay (expanded view with video grid + participants) -->
 {#if showVoiceOverlay && voiceState.isConnected && voiceRoom}
-	<VoiceOverlay {voiceRoom} onclose={() => { showVoiceOverlay = false; overlayDismissed = true; }} />
+	<VoiceOverlay {voiceRoom} onclose={() => { showVoiceOverlay = false; }} />
 {/if}
 
 <!-- User profile popout (from message nick clicks) -->

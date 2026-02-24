@@ -26,9 +26,10 @@
 		return { cols, rows };
 	}
 
-	let tracks = $derived.by((): readonly VideoTrackInfo[] => {
+	let tracks = $derived.by((): VideoTrackInfo[] => {
 		const raw = voiceState.videoTracks;
-		if (raw.length <= 1) return raw;
+		// Always spread — returning the same array reference prevents Svelte from
+		// detecting changes when tracks are removed then re-added.
 		return [...raw].sort((a, b) => {
 			if (a.source === 'screen' && b.source !== 'screen') return -1;
 			if (b.source === 'screen' && a.source !== 'screen') return 1;
@@ -50,18 +51,23 @@
 		Array.from(voiceState.participants.values()).filter((p) => !nicksWithVideo.has(p.nick))
 	);
 
-	function attachTrack(video: HTMLVideoElement, track: MediaStreamTrack) {
-		const stream = new MediaStream([track]);
-		video.srcObject = stream;
+	function attachTrack(video: HTMLVideoElement, info: VideoTrackInfo) {
+		// Use LiveKit's track.attach() — it manages the underlying MediaStream
+		// and handles track restarts (e.g. camera toggle off/on replaces the
+		// MediaStreamTrack internally; attach() keeps the element in sync).
+		info.track.attach(video);
+		video.play().catch(() => {});
 		return {
-			update(newTrack: MediaStreamTrack) {
-				if (newTrack !== track) {
-					track = newTrack;
-					video.srcObject = new MediaStream([newTrack]);
+			update(newInfo: VideoTrackInfo) {
+				if (newInfo.track !== info.track) {
+					info.track.detach(video);
+					info = newInfo;
+					info.track.attach(video);
+					video.play().catch(() => {});
 				}
 			},
 			destroy() {
-				video.srcObject = null;
+				info.track.detach(video);
 			},
 		};
 	}
@@ -140,7 +146,7 @@
 								autoplay
 								playsinline
 								muted={info.nick === userState.nick}
-								use:attachTrack={info.track}
+								use:attachTrack={info}
 							></video>
 							<div class="video-label">
 								<span class="video-nick">{info.nick}</span>
@@ -266,9 +272,7 @@
 				title="Disconnect"
 			>
 				<svg width="20" height="20" viewBox="0 0 24 24">
-					<rect x="2" y="8" width="20" height="8" rx="4" fill="currentColor" />
-					<line x1="9" y1="10" x2="15" y2="14" stroke="var(--surface-lowest)" stroke-width="2" stroke-linecap="round" />
-					<line x1="15" y1="10" x2="9" y2="14" stroke="var(--surface-lowest)" stroke-width="2" stroke-linecap="round" />
+					<path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.956.956 0 0 1 0-1.36C3.46 8.83 7.47 7 12 7s8.54 1.83 11.71 4.72c.18.18.29.44.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.1-.7-.28a11.27 11.27 0 0 0-2.67-1.85.996.996 0 0 1-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z" fill="currentColor" />
 				</svg>
 			</button>
 		</div>

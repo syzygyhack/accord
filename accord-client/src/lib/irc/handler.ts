@@ -736,9 +736,28 @@ function handleBatchedMessage(batchRef: string, parsed: ParsedMessage): void {
 				target.text = '';
 			}
 		}
+	} else if (parsed.command === 'TAGMSG') {
+		// Apply reactions within the batch to messages already in the batch.
+		const reactEmoji = parsed.tags['+draft/react'];
+		const replyMsgid = parsed.tags['+draft/reply'];
+		if (reactEmoji && replyMsgid) {
+			const account = parsed.tags['account'] ?? '';
+			const target = batch.messages.find((m) => m.msgid === replyMsgid);
+			if (target) {
+				// Chathistory replays events in order — use toggle semantics
+				const existing = target.reactions.get(reactEmoji);
+				if (existing && existing.has(account)) {
+					existing.delete(account);
+					if (existing.size === 0) target.reactions.delete(reactEmoji);
+				} else {
+					if (!target.reactions.has(reactEmoji)) {
+						target.reactions.set(reactEmoji, new Set());
+					}
+					target.reactions.get(reactEmoji)!.add(account);
+				}
+			}
+		}
 	}
-	// TAGMSG (reactions) within batches are uncommon in chathistory;
-	// handled by the live handler once the batch is finalized.
 }
 
 function finalizeBatch(batch: BatchState): void {

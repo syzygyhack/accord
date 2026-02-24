@@ -1109,3 +1109,66 @@ describe('BATCH with +accord/edit', () => {
 		expect(msgs[0].isEdited).toBe(true);
 	});
 });
+
+// -----------------------------------------------------------------------
+// TAGMSG reactions within batch (chathistory)
+// -----------------------------------------------------------------------
+
+describe('BATCH with TAGMSG reactions', () => {
+	it('applies reactions from TAGMSG to messages within the same batch', () => {
+		handle(':server BATCH +ref7 chathistory #test');
+		handle(
+			'@batch=ref7;msgid=m1;account=alice;time=2025-01-01T00:00:00Z :alice!a@host PRIVMSG #test :hello'
+		);
+		handle(
+			'@batch=ref7;+draft/react=👍;+draft/reply=m1;account=bob :bob!b@host TAGMSG #test'
+		);
+		handle(':server BATCH -ref7');
+
+		const msgs = getMessages('#test');
+		expect(msgs).toHaveLength(1);
+		expect(msgs[0].reactions.get('👍')).toBeDefined();
+		expect(msgs[0].reactions.get('👍')!.has('bob')).toBe(true);
+	});
+
+	it('toggles reaction off when same user reacts twice in batch', () => {
+		handle(':server BATCH +ref8 chathistory #test');
+		handle(
+			'@batch=ref8;msgid=m2;account=alice;time=2025-01-01T00:00:00Z :alice!a@host PRIVMSG #test :hi'
+		);
+		handle(
+			'@batch=ref8;+draft/react=❤️;+draft/reply=m2;account=bob :bob!b@host TAGMSG #test'
+		);
+		handle(
+			'@batch=ref8;+draft/react=❤️;+draft/reply=m2;account=bob :bob!b@host TAGMSG #test'
+		);
+		handle(':server BATCH -ref8');
+
+		const msgs = getMessages('#test');
+		expect(msgs).toHaveLength(1);
+		// Second reaction by same user toggles it off
+		expect(msgs[0].reactions.has('❤️')).toBe(false);
+	});
+
+	it('accumulates reactions from multiple users in batch', () => {
+		handle(':server BATCH +ref9 chathistory #test');
+		handle(
+			'@batch=ref9;msgid=m3;account=alice;time=2025-01-01T00:00:00Z :alice!a@host PRIVMSG #test :hey'
+		);
+		handle(
+			'@batch=ref9;+draft/react=🎉;+draft/reply=m3;account=bob :bob!b@host TAGMSG #test'
+		);
+		handle(
+			'@batch=ref9;+draft/react=🎉;+draft/reply=m3;account=carol :carol!c@host TAGMSG #test'
+		);
+		handle(':server BATCH -ref9');
+
+		const msgs = getMessages('#test');
+		expect(msgs).toHaveLength(1);
+		const reactors = msgs[0].reactions.get('🎉');
+		expect(reactors).toBeDefined();
+		expect(reactors!.size).toBe(2);
+		expect(reactors!.has('bob')).toBe(true);
+		expect(reactors!.has('carol')).toBe(true);
+	});
+});

@@ -24,8 +24,8 @@ export interface VideoTrackInfo {
 	nick: string;
 	/** 'camera' or 'screen'. */
 	source: 'camera' | 'screen';
-	/** The underlying MediaStreamTrack to attach to a <video> element. */
-	track: MediaStreamTrack;
+	/** The LiveKit Track object — use track.attach(element) to render. */
+	track: { attach(element: HTMLMediaElement): HTMLMediaElement; detach(element: HTMLMediaElement): HTMLMediaElement };
 	/** LiveKit track SID for keying. */
 	sid: string;
 }
@@ -73,7 +73,7 @@ export const voiceState = {
 	set isConnected(v: boolean) { _scalars.isConnected = v; },
 	get currentRoom() { return _scalars.currentRoom; },
 	set currentRoom(v: string | null) { _scalars.currentRoom = v; },
-	get participants() { void _mapVersion; return _participants; },
+	get participants() { const _v = _mapVersion; void _v; return _participants; },
 	get localMuted() { return _scalars.localMuted; },
 	set localMuted(v: boolean) { _scalars.localMuted = v; },
 	get localDeafened() { return _scalars.localDeafened; },
@@ -85,7 +85,13 @@ export const voiceState = {
 	get connectDuration() { return _scalars.connectDuration; },
 	set connectDuration(v: number) { _scalars.connectDuration = v; },
 	/** All active video tracks (camera + screen share) from all participants. */
-	get videoTracks(): readonly VideoTrackInfo[] { void _videoVersion; return _videoTracks; },
+	get videoTracks(): readonly VideoTrackInfo[] {
+		// Read version counter to establish Svelte reactivity dependency.
+		// Return a snapshot so consumers always see a fresh array reference.
+		const _v = _videoVersion;
+		void _v;
+		return _videoTracks.slice();
+	},
 };
 
 /** Handle for the duration counter so we can cancel it. */

@@ -26,6 +26,10 @@ jobs:
         run: pnpm install --frozen-lockfile
         working-directory: accord-client
 
+      - name: Sync SvelteKit generated files
+        run: pnpm svelte-kit sync
+        working-directory: accord-client
+
       - name: Run tests
         run: pnpm vitest run
         working-directory: accord-client
@@ -72,6 +76,10 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+        working-directory: accord-client
+
+      - name: Sync SvelteKit generated files
+        run: pnpm svelte-kit sync
         working-directory: accord-client
 
       - name: Run svelte-check

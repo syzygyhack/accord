@@ -9,6 +9,7 @@ import {
 	removeParticipant,
 	addVideoTrack,
 	removeVideoTrack,
+	type VideoTrackInfo,
 } from './voice.svelte';
 
 describe('voiceState', () => {
@@ -181,7 +182,7 @@ describe('voiceState', () => {
 	});
 
 	it('addVideoTrack() adds a track and removeVideoTrack() removes it', () => {
-		const fakeTrack = {} as MediaStreamTrack;
+		const fakeTrack = { attach: () => document.createElement('video'), detach: () => document.createElement('video') } as VideoTrackInfo['track'];
 		addVideoTrack({ nick: 'alice', source: 'camera', track: fakeTrack, sid: 'track-1' });
 		expect(voiceState.videoTracks.length).toBe(1);
 		expect(voiceState.videoTracks[0].nick).toBe('alice');
@@ -192,14 +193,14 @@ describe('voiceState', () => {
 	});
 
 	it('addVideoTrack() deduplicates by SID', () => {
-		const fakeTrack = {} as MediaStreamTrack;
+		const fakeTrack = { attach: () => document.createElement('video'), detach: () => document.createElement('video') } as VideoTrackInfo['track'];
 		addVideoTrack({ nick: 'alice', source: 'camera', track: fakeTrack, sid: 'track-1' });
 		addVideoTrack({ nick: 'alice', source: 'camera', track: fakeTrack, sid: 'track-1' });
 		expect(voiceState.videoTracks.length).toBe(1);
 	});
 
 	it('setConnected() clears video tracks', () => {
-		const fakeTrack = {} as MediaStreamTrack;
+		const fakeTrack = { attach: () => document.createElement('video'), detach: () => document.createElement('video') } as VideoTrackInfo['track'];
 		addVideoTrack({ nick: 'alice', source: 'screen', track: fakeTrack, sid: 'track-1' });
 		expect(voiceState.videoTracks.length).toBe(1);
 
@@ -211,7 +212,7 @@ describe('voiceState', () => {
 		setConnected('#voice');
 		voiceState.localVideoEnabled = true;
 		voiceState.localScreenShareEnabled = true;
-		const fakeTrack = {} as MediaStreamTrack;
+		const fakeTrack = { attach: () => document.createElement('video'), detach: () => document.createElement('video') } as VideoTrackInfo['track'];
 		addVideoTrack({ nick: 'alice', source: 'camera', track: fakeTrack, sid: 'track-1' });
 
 		setDisconnected();

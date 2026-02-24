@@ -267,13 +267,13 @@ function setupRoomEvents(room: Room, onDisconnected?: (prevRoom: string | null) 
 			if (track.kind === Track.Kind.Audio) {
 				(track as any).setVolume?.(audioSettings.outputVolume / 100);
 			}
-			if (track.kind === Track.Kind.Video && track.mediaStreamTrack) {
+			if (track.kind === Track.Kind.Video) {
 				const src = trackSource(publication);
 				if (src) {
 					addVideoTrack({
 						nick: participantNick(participant),
 						source: src,
-						track: track.mediaStreamTrack,
+						track,
 						sid: publication.trackSid,
 					});
 					updateParticipant(participantNick(participant), {
@@ -338,13 +338,13 @@ function setupRoomEvents(room: Room, onDisconnected?: (prevRoom: string | null) 
 	room.on(
 		RoomEvent.LocalTrackPublished,
 		(publication: LocalTrackPublication) => {
-			if (publication.track?.kind === Track.Kind.Video && publication.track.mediaStreamTrack) {
+			if (publication.track?.kind === Track.Kind.Video) {
 				const src = trackSource(publication);
 				if (src) {
 					addVideoTrack({
 						nick: participantNick(room.localParticipant),
 						source: src,
-						track: publication.track.mediaStreamTrack,
+						track: publication.track,
 						sid: publication.trackSid,
 					});
 				}
