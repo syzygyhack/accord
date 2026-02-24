@@ -495,6 +495,262 @@ Ergo, MariaDB, and accord-files are only reachable through Caddy. Uncomment port
 
 ---
 
+## Operations
+
+### Backup & Recovery
+
+Four Docker volumes hold all persistent state:
+
+| Volume | Contents | Loss Impact |
+|--------|----------|-------------|
+| `ergo-data` | Ergo account database, channel registrations, MOTD | All user accounts and channel ownership lost |
+| `mysql-data` | MariaDB message history (`ergo_history` database) | All message history lost |
+| `accord-uploads` | Uploaded files (images, documents) | All shared files become broken links |
+| `accord-data` | Invite links, profiles, server-side JSON stores | Invites and profiles lost |
+
+**Backup commands:**
+
+```bash
+# Stop services to ensure consistency (or use --read-only snapshots if your storage supports it)
+docker compose stop
+
+# Back up each volume
+for vol in ergo-data mysql-data accord-uploads accord-data; do
+  docker run --rm -v "$(docker compose config --format json | jq -r '.name')_${vol}:/data" \
+    -v "$(pwd)/backups:/backup" alpine \
+    tar czf "/backup/${vol}-$(date +%Y%m%d).tar.gz" -C /data .
+done
+
+# Restart services
+docker compose up -d
+```
+
+**Alternative — live MariaDB dump (no downtime):**
+
+```bash
+docker compose exec mysql mariadb-dump -u root -p"$MYSQL_ROOT_PASSWORD" ergo_history > backups/ergo_history.sql
+```
+
+**Recovery:**
+
+```bash
+# Restore volumes from backup
+for vol in ergo-data mysql-data accord-uploads accord-data; do
+  docker run --rm -v "$(docker compose config --format json | jq -r '.name')_${vol}:/data" \
+    -v "$(pwd)/backups:/backup" alpine \
+    sh -c "rm -rf /data/* && tar xzf /backup/${vol}-YYYYMMDD.tar.gz -C /data"
+done
+
+# Restart
+docker compose up -d
+```
+
+**Recommended schedule:** Daily backups of all four volumes. Retain at least 7 daily snapshots. For MariaDB specifically, consider hourly SQL dumps if message history is critical.
+
+### Upgrade Runbook
+
+**Version pinning:** The default `ergo:stable` tag is a floating tag — it can change between `docker compose pull` runs. For production, pin to a specific version:
+
+```yaml
+# docker-compose.yml
+services:
+  ergo:
+    image: ghcr.io/ergochat/ergo:v2.17.0  # pin instead of :stable
+```
+
+Similarly, pin MariaDB (`mariadb:11.4`), LiveKit (`livekit/livekit-server:v1.9.11` — already pinned), and Caddy (`caddy:2.9`).
+
+**Upgrade procedure:**
+
+1. **Back up all volumes** (see Backup & Recovery above)
+2. **Check release notes** for the service you're upgrading:
+   - Ergo: https://github.com/ergochat/ergo/releases
+   - MariaDB: https://mariadb.com/kb/en/release-notes/
+   - LiveKit: https://github.com/livekit/livekit/releases
+3. **Update the image tag** in `docker-compose.yml`
+4. **Pull the new image:**
+   ```bash
+   docker compose pull <service>
+   ```
+5. **Recreate the service:**
+   ```bash
+   docker compose up -d <service>
+   ```
+6. **Verify health:**
+   ```bash
+   docker compose ps       # All services "healthy"
+   docker compose logs -f <service> --since 1m  # Check for errors
+   ```
+
+**Rollback strategy:**
+
+If an upgrade breaks something:
+
+```bash
+# Stop the broken service
+docker compose stop <service>
+
+# Restore the volume from your pre-upgrade backup (see Backup & Recovery)
+# Then re-tag docker-compose.yml back to the previous image version
+
+# Restart
+docker compose up -d
+```
+
+Keep previous Docker images locally until the upgrade is confirmed stable (`docker image ls` to verify they haven't been pruned).
+
+**Breaking change checklist:**
+
+- **Ergo:** Check for `ircd.yaml` config format changes between versions. Ergo logs warnings on startup for deprecated keys.
+- **MariaDB:** Major version upgrades (e.g., 10 → 11) may require `mariadb-upgrade`. Check logs after restart.
+- **LiveKit:** Config format is stable but `room` and `rtc` options may change. Compare your config against the release notes.
+- **accord-files:** Rebuild after code changes: `docker compose build accord-files && docker compose up -d accord-files`
+
+### Reverse Proxy: nginx Alternative
+
+The default setup uses Caddy. If you prefer nginx, here's an equivalent configuration:
+
+```nginx
+# /etc/nginx/conf.d/accord.conf
+
+upstream accord_backend {
+    server 127.0.0.1:8080;  # accord-files
+}
+
+upstream ergo_ws {
+    server 127.0.0.1:8097;  # Ergo WebSocket
+}
+
+server {
+    listen 80;
+    server_name chat.example.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name chat.example.com;
+
+    # TLS — managed by certbot / Let's Encrypt
+    ssl_certificate     /etc/letsencrypt/live/chat.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/chat.example.com/privkey.pem;
+
+    # Security headers (match Caddy defaults)
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+    add_header Content-Security-Policy "default-src 'self'; connect-src 'self' ws: wss:; img-src 'self' data: blob: https:; media-src 'self' blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self'" always;
+
+    # Max upload size (match accord-files limit)
+    client_max_body_size 30M;
+
+    # IRC WebSocket
+    location /ws {
+        proxy_pass http://ergo_ws;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 86400s;  # Keep WebSocket alive
+    }
+
+    # API + server config
+    location /api/ {
+        proxy_pass http://accord_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /.well-known/ {
+        proxy_pass http://accord_backend;
+    }
+
+    # Static client files (SPA fallback)
+    root /srv/accord;
+    location / {
+        try_files $uri /index.html;
+    }
+
+    # Immutable hashed assets
+    location /_app/immutable/ {
+        expires max;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+}
+```
+
+**Setup with Let's Encrypt:**
+
+```bash
+# Install certbot
+sudo apt install certbot python3-certbot-nginx
+
+# Obtain certificate (with nginx running on port 80)
+sudo certbot --nginx -d chat.example.com
+
+# Auto-renewal is configured by certbot automatically
+```
+
+**Important: LiveKit UDP passthrough.** LiveKit requires direct UDP access on ports 50060-50160 for WebRTC media. nginx cannot proxy UDP — these ports must be exposed directly to the internet (or use a TURN server). If you're behind a firewall, ensure these UDP ports are forwarded to the LiveKit host. TCP fallback on port 7881 is available but increases latency.
+
+If you use nginx in front of Caddy's default ports, remove the Caddy service from `docker-compose.yml` and expose accord-files and Ergo ports directly (uncomment the port mappings in `docker-compose.yml`).
+
+**Set `TRUST_PROXY=true`** in accord-files when running behind nginx so rate limiting uses the real client IP from `X-Forwarded-For`.
+
+### Admin Setup
+
+accord supports an admin panel for server management. Admin access is controlled by the `ADMIN_ACCOUNTS` environment variable.
+
+**Configuration:**
+
+Add admin usernames (Ergo account names) to `ADMIN_ACCOUNTS` as a comma-separated list in your `.env`:
+
+```bash
+# .env
+ADMIN_ACCOUNTS=alice,bob
+```
+
+These must match the Ergo account names exactly (case-sensitive). Restart accord-files after changing:
+
+```bash
+docker compose restart accord-files
+```
+
+**Accessing the admin panel:**
+
+Admin API endpoints are available at `/api/admin/*`. All requests require a valid JWT from an account listed in `ADMIN_ACCOUNTS`. The admin middleware checks the JWT `sub` claim against the configured admin list.
+
+**Admin capabilities:**
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/admin/stats` | GET | Server dashboard — registered accounts, channels, uptime |
+| `/api/admin/users` | GET | List all user profiles |
+| `/api/admin/kick` | POST | Kick a user from a channel |
+| `/api/admin/ban` | POST | Ban a user from a channel (with optional duration) |
+| `/api/admin/audit` | GET | View security audit log (paginated) |
+| `/api/admin/announce` | POST | Send a message to a channel as the server |
+
+**Relation to IRC operator commands:**
+
+The admin API proxies actions through Ergo's HTTP API, which means:
+
+- `/api/admin/kick` → equivalent to IRC `KICK #channel nick :reason`
+- `/api/admin/ban` → equivalent to IRC `/CS BAN #channel nick duration :reason`
+- `/api/admin/announce` → equivalent to IRC `PRIVMSG #channel :message` (sent as ChanServ)
+
+Admin users do **not** need IRC operator (`/OPER`) privileges. The admin API authenticates to Ergo using the `ERGO_API_TOKEN` bearer token, which has server-level authority. This means admins can moderate through the web panel without learning IRC commands.
+
+All admin actions are recorded in the security audit log with the admin's account name, IP address, and action details.
+
+---
+
 ## Known Deferrals
 
 | Item | Current State | Notes |
