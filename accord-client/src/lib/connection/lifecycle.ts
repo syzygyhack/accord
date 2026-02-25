@@ -17,6 +17,7 @@ import {
 	setConnected,
 	setDisconnected,
 	setReconnecting,
+	setHydratedFromCache,
 } from '$lib/state/connection.svelte';
 import { rehydrate } from '$lib/state/user.svelte';
 import {
@@ -28,7 +29,7 @@ import {
 	restoreDMConversations,
 } from '$lib/state/channels.svelte';
 import { addServer } from '$lib/state/servers.svelte';
-import { getCursors } from '$lib/state/messages.svelte';
+import { getCursors, hydrateFromCache } from '$lib/state/messages.svelte';
 import { applyServerTheme, parseServerTheme } from '$lib/state/theme.svelte';
 import { setServerConfig, getCachedConfig, setCachedConfig } from '$lib/state/serverConfig.svelte';
 import type { AccordConfig } from '$lib/state/serverConfig.svelte';
@@ -229,6 +230,13 @@ export async function initConnection(callbacks: LifecycleCallbacks): Promise<voi
 	const filesUrl = localStorage.getItem('accord:filesUrl') ?? null;
 
 	try {
+		// 0. Hydrate message buffers from IndexedDB cache (non-blocking best-effort)
+		//    This populates the UI with cached messages before the connection is established.
+		const hydratedChannels = await hydrateFromCache().catch(() => [] as string[]);
+		if (hydratedChannels.length > 0) {
+			setHydratedFromCache();
+		}
+
 		// 1. Create and connect
 		const conn = new IRCConnection({ url: serverUrl });
 		callbacks.onConnection(conn);

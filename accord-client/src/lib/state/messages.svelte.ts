@@ -11,6 +11,15 @@
  */
 
 import { hasLocalStorage } from '$lib/utils/storage';
+import {
+	cacheMessage as idbCacheMessage,
+	cacheMessages as idbCacheMessages,
+	clearCachedChannel as idbClearChannel,
+	clearAllCachedMessages as idbClearAll,
+	serializeMessage,
+	loadCachedMessages as idbLoadMessages,
+	deserializeMessage,
+} from '$lib/cache/messageCache';
 
 const MAX_MESSAGES_PER_CHANNEL = 500;
 
@@ -100,6 +109,23 @@ function savePinnedMessages(): void {
 // Load on module init
 loadPinnedMessages();
 
+// --- IndexedDB write-through (fire-and-forget) ---
+
+/** Whether IndexedDB caching is available (disabled in tests/SSR). */
+let _idbEnabled = typeof indexedDB !== 'undefined';
+
+/** Disable IDB caching (for tests). */
+export function disableIdbCache(): void { _idbEnabled = false; }
+
+/** Enable IDB caching. */
+export function enableIdbCache(): void { _idbEnabled = typeof indexedDB !== 'undefined'; }
+
+/** Fire-and-forget cache write. Swallows errors silently. */
+function idbWrite(fn: () => Promise<void>): void {
+	if (!_idbEnabled) return;
+	fn().catch(() => {});
+}
+
 // --- Reactive version counter — bump this on every mutation ---
 let _version = $state(0);
 
@@ -158,6 +184,11 @@ export function addMessage(target: string, msg: Message): void {
 
 	updateCursors(key);
 	notify();
+
+	// Write-through to IndexedDB (skip local/optimistic messages)
+	if (!msg.msgid.startsWith('_local_')) {
+		idbWrite(() => idbCacheMessage(serializeMessage(msg, key)));
+	}
 }
 
 /**
@@ -179,8 +210,12 @@ export function replaceOptimisticMessage(target: string, echoMsg: Message): bool
 		) {
 			// Replace with server-confirmed message
 			msgs[i] = echoMsg;
-			updateCursors(normalizeTarget(target));
+			const key = normalizeTarget(target);
+			updateCursors(key);
 			notify();
+
+			// Persist the server-confirmed message to IDB
+			idbWrite(() => idbCacheMessage(serializeMessage(echoMsg, key)));
 			return true;
 		}
 	}
@@ -212,6 +247,9 @@ export function redactMessage(target: string, msgid: string): void {
 	if (msg) {
 		msg.isRedacted = true;
 		notify();
+
+		const key = normalizeTarget(target);
+		idbWrite(() => idbCacheMessage(serializeMessage(msg, key)));
 	}
 }
 
@@ -234,6 +272,9 @@ export function updateMessageText(target: string, originalMsgid: string, newText
 	msg.isEdited = true;
 	editMap.set(originalMsgid, newMsgid);
 	notify();
+
+	const key = normalizeTarget(target);
+	idbWrite(() => idbCacheMessage(serializeMessage(msg, key)));
 	return true;
 }
 
@@ -262,6 +303,9 @@ export function addReaction(target: string, msgid: string, emoji: string, accoun
 	}
 	msg.reactions.get(emoji)!.add(account);
 	notify();
+
+	const key = normalizeTarget(target);
+	idbWrite(() => idbCacheMessage(serializeMessage(msg, key)));
 }
 
 /** Remove a reaction from a message. */
@@ -282,6 +326,9 @@ export function removeReaction(
 		msg.reactions.delete(emoji);
 	}
 	notify();
+
+	const key = normalizeTarget(target);
+	idbWrite(() => idbCacheMessage(serializeMessage(msg, key)));
 }
 
 /**
@@ -306,6 +353,9 @@ export function prependMessages(target: string, msgs: Message[]): void {
 	channelMessages.set(key, combined);
 	updateCursors(key);
 	notify();
+
+	// Snapshot entire channel buffer to IDB
+	idbWrite(() => idbCacheMessages(key, combined.map((m) => serializeMessage(m, key))));
 }
 
 /**
@@ -325,6 +375,9 @@ export function appendMessages(target: string, msgs: Message[]): void {
 	channelMessages.set(key, combined);
 	updateCursors(key);
 	notify();
+
+	// Snapshot entire channel buffer to IDB
+	idbWrite(() => idbCacheMessages(key, combined.map((m) => serializeMessage(m, key))));
 }
 
 /** Get the CHATHISTORY cursors for a channel. */
@@ -350,6 +403,8 @@ export function clearChannel(target: string): void {
 	channelMessages.delete(key);
 	channelCursors.delete(key);
 	notify();
+
+	idbWrite(() => idbClearChannel(key));
 }
 
 /** Update the send state of a locally-sent message. */
@@ -387,11 +442,12 @@ export function pinMessage(target: string, msgid: string): void {
 
 /** Unpin a message in a channel. */
 export function unpinMessage(target: string, msgid: string): void {
-	const pinned = pinnedMessages.get(normalizeTarget(target));
+	const key = normalizeTarget(target);
+	const pinned = pinnedMessages.get(key);
 	if (!pinned) return;
 	pinned.delete(msgid);
 	if (pinned.size === 0) {
-		pinnedMessages.delete(target);
+		pinnedMessages.delete(key);
 	}
 	savePinnedMessages();
 	notify();
@@ -569,4 +625,47 @@ export function resetMessages(): void {
 	pinnedMessages.clear();
 	savePinnedMessages();
 	notify();
+
+	idbWrite(() => idbClearAll());
+}
+
+/**
+ * Hydrate message buffers from IndexedDB cache.
+ * Called once on app load before the IRC connection is established.
+ * Returns the list of channels that were hydrated.
+ */
+export async function hydrateFromCache(): Promise<string[]> {
+	if (!_idbEnabled) return [];
+
+	try {
+		const { getCachedChannels } = await import('$lib/cache/messageCache');
+		const channels = await getCachedChannels();
+		const hydrated: string[] = [];
+
+		for (const channel of channels) {
+			const cached = await idbLoadMessages(channel);
+			if (cached.length === 0) continue;
+
+			const msgs: Message[] = cached.map((c) => {
+				const base = deserializeMessage(c);
+				return {
+					...base,
+					type: base.type as MessageType,
+				};
+			});
+
+			ensureChannel(channel);
+			channelMessages.set(channel, msgs);
+			updateCursors(channel);
+			hydrated.push(channel);
+		}
+
+		if (hydrated.length > 0) {
+			notify();
+		}
+
+		return hydrated;
+	} catch {
+		return [];
+	}
 }

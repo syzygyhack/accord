@@ -10,6 +10,7 @@
 	import { DEFAULT_ROLES } from '$lib/constants';
 	import { getProfile, fetchProfile, resolveAvatarUrl } from '$lib/state/profiles.svelte';
 	import { userState } from '$lib/state/user.svelte';
+	import { useTrapFocus } from '$lib/utils/a11y';
 	import Avatar from './Avatar.svelte';
 
 	interface Props {
@@ -181,6 +182,7 @@
 	role="dialog"
 	aria-label="User profile: {nick}"
 	bind:this={popoutEl}
+	use:useTrapFocus
 	{style}
 >
 	<!-- Avatar -->

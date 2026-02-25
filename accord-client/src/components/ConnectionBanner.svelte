@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { connectionState } from '$lib/state/connection.svelte';
 
-	let visible = $derived(connectionState.status === 'reconnecting');
+	let isReconnecting = $derived(connectionState.status === 'reconnecting');
+	let isOffline = $derived(!connectionState.isOnline);
+	let visible = $derived(isReconnecting || isOffline);
 	let attempt = $derived(connectionState.reconnectAttempt);
 </script>
 
@@ -9,9 +11,13 @@
 	<div class="connection-banner" role="alert" aria-live="assertive">
 		<span class="banner-dot"></span>
 		<span class="banner-text">
-			Connection lost. Reconnecting...
-			{#if attempt > 0}
-				<span class="banner-attempt">Attempt {attempt}</span>
+			{#if isOffline}
+				You're offline. Waiting for network...
+			{:else}
+				Connection lost. Reconnecting...
+				{#if attempt > 0}
+					<span class="banner-attempt">Attempt {attempt}</span>
+				{/if}
 			{/if}
 		</span>
 	</div>

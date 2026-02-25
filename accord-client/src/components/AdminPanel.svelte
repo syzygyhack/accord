@@ -468,7 +468,7 @@
 	<!-- Confirmation dialog for user actions (Users tab) -->
 	{#if confirmAction}
 		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-		<div class="confirm-overlay" role="dialog" aria-modal="true" onclick={cancelUserAction} onkeydown={(e) => { if (e.key === 'Escape') cancelUserAction(); }}>
+		<div class="confirm-overlay" role="dialog" aria-modal="true" tabindex="-1" onclick={cancelUserAction} onkeydown={(e) => { if (e.key === 'Escape') cancelUserAction(); }}>
 			<div class="confirm-dialog" role="presentation" onclick={(e) => e.stopPropagation()}>
 				<h3 class="confirm-title">{confirmAction.type === 'kick' ? 'Kick' : 'Ban'} User</h3>
 				<p class="confirm-text">
@@ -490,7 +490,7 @@
 	<!-- Confirmation dialog for moderation actions -->
 	{#if modConfirm}
 		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-		<div class="confirm-overlay" role="dialog" aria-modal="true" onclick={cancelModAction} onkeydown={(e) => { if (e.key === 'Escape') cancelModAction(); }}>
+		<div class="confirm-overlay" role="dialog" aria-modal="true" tabindex="-1" onclick={cancelModAction} onkeydown={(e) => { if (e.key === 'Escape') cancelModAction(); }}>
 			<div class="confirm-dialog" role="presentation" onclick={(e) => e.stopPropagation()}>
 				<h3 class="confirm-title">Confirm {modConfirm.type === 'kick' ? 'Kick' : 'Ban'}</h3>
 				<p class="confirm-text">

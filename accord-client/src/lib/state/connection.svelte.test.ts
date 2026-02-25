@@ -6,6 +6,8 @@ import {
 	setReconnecting,
 	setConnecting,
 	setLatency,
+	setHydratedFromCache,
+	initOnlineTracking,
 } from './connection.svelte';
 
 describe('connectionState', () => {
@@ -65,5 +67,25 @@ describe('connectionState', () => {
 	it('setLatency() updates latency', () => {
 		setLatency(42);
 		expect(connectionState.latency).toBe(42);
+	});
+
+	it('starts with isOnline defaulting to true (navigator unavailable in test)', () => {
+		// In node test env, navigator.onLine defaults to true
+		expect(connectionState.isOnline).toBe(true);
+	});
+
+	it('starts with hydratedFromCache as false', () => {
+		expect(connectionState.hydratedFromCache).toBe(false);
+	});
+
+	it('setHydratedFromCache() sets hydratedFromCache to true', () => {
+		setHydratedFromCache();
+		expect(connectionState.hydratedFromCache).toBe(true);
+	});
+
+	it('initOnlineTracking() returns a cleanup function', () => {
+		const cleanup = initOnlineTracking();
+		expect(typeof cleanup).toBe('function');
+		cleanup();
 	});
 });

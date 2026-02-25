@@ -13,7 +13,7 @@
 	import { voiceState } from '$lib/state/voice.svelte';
 	import { audioSettings } from '$lib/state/audioSettings.svelte';
 	import type { Room } from 'livekit-client';
-	import { connectionState } from '$lib/state/connection.svelte';
+	import { connectionState, initOnlineTracking } from '$lib/state/connection.svelte';
 	import { userState } from '$lib/state/user.svelte';
 	import {
 		channelUIState,
@@ -519,12 +519,16 @@
 		window.location.href = '/login';
 	}
 
+	let cleanupOnlineTracking: (() => void) | null = null;
+
 	onMount(() => {
+		cleanupOnlineTracking = initOnlineTracking();
 		initShortcuts();
 		startConnection();
 	});
 
 	onDestroy(() => {
+		cleanupOnlineTracking?.();
 		shortcutHandle?.cleanup();
 		stopTokenRefresh();
 
@@ -625,6 +629,7 @@
 						onnickclick={handleNickClick}
 						onviewthread={handleViewThread}
 						{isOp}
+						disconnected={isDisconnected}
 					/>
 				{/if}
 			</ErrorBoundary>

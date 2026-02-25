@@ -1,0 +1,16 @@
+{
+	"name": "accord",
+	"short_name": "accord",
+	"description": "A Discord-competitive chat platform built on IRC",
+	"start_url": "/",
+	"display": "standalone",
+	"background_color": "#1a1a1e",
+	"theme_color": "#5b9ef0",
+	"icons": [
+		{
+			"src": "/favicon.png",
+			"sizes": "any",
+			"type": "image/png"
+		}
+	]
+}

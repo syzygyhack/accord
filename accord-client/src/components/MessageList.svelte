@@ -24,6 +24,8 @@
 		onnickclick?: (nick: string, account: string, event: MouseEvent) => void;
 		onviewthread?: (rootMsgId: string) => void;
 		isOp?: boolean;
+		/** When true, disables history loading (offline/disconnected). */
+		disconnected?: boolean;
 	}
 
 	let {
@@ -41,6 +43,7 @@
 		onnickclick,
 		onviewthread,
 		isOp = false,
+		disconnected = false,
 	}: Props = $props();
 
 	/** Return the icon for a system message type. */
@@ -452,6 +455,7 @@
 	/** Request older messages via CHATHISTORY BEFORE. */
 	function loadOlderMessages(): void {
 		if (isLoadingHistory) return;
+		if (disconnected) return; // Can't load history while offline
 		if (!channelUIState.activeChannel) return;
 
 		const cursors = getCursors(channelUIState.activeChannel);

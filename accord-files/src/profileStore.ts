@@ -81,7 +81,6 @@ export function setProfile(
   const existing = data[account];
 
   const profile: UserProfile = {
-    account,
     ...existing,
     ...updates,
     account, // ensure account cannot be overwritten by updates

@@ -12,6 +12,10 @@ interface ConnectionStore {
 	error: string | null;
 	latency: number | null;
 	reconnectAttempt: number;
+	/** Whether the browser reports network connectivity (navigator.onLine). */
+	isOnline: boolean;
+	/** Whether message buffers were hydrated from IndexedDB cache. */
+	hydratedFromCache: boolean;
 }
 
 /** Reactive connection state — components read this directly. */
@@ -20,6 +24,8 @@ export const connectionState: ConnectionStore = $state({
 	error: null,
 	latency: null,
 	reconnectAttempt: 0,
+	isOnline: typeof navigator !== 'undefined' && navigator.onLine !== undefined ? navigator.onLine : true,
+	hydratedFromCache: false,
 });
 
 /** Mark connection as established and clear any previous error. */
@@ -55,4 +61,36 @@ export function setConnecting(): void {
 /** Update measured round-trip latency in milliseconds. */
 export function setLatency(ms: number): void {
 	connectionState.latency = ms;
+}
+
+/** Mark that message buffers were hydrated from IndexedDB cache. */
+export function setHydratedFromCache(): void {
+	connectionState.hydratedFromCache = true;
+}
+
+/**
+ * Initialize navigator.onLine tracking.
+ * Call once from the root component's $effect or onMount.
+ * Returns a cleanup function to remove event listeners.
+ */
+export function initOnlineTracking(): () => void {
+	if (typeof window === 'undefined') return () => {};
+
+	function handleOnline(): void {
+		connectionState.isOnline = true;
+	}
+	function handleOffline(): void {
+		connectionState.isOnline = false;
+	}
+
+	window.addEventListener('online', handleOnline);
+	window.addEventListener('offline', handleOffline);
+
+	// Sync initial state
+	connectionState.isOnline = navigator.onLine;
+
+	return () => {
+		window.removeEventListener('online', handleOnline);
+		window.removeEventListener('offline', handleOffline);
+	};
 }

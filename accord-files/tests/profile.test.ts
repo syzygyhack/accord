@@ -295,6 +295,78 @@ describe("PUT /api/profile", () => {
   });
 });
 
+// --- Cross-user tampering ---
+
+describe("cross-user profile isolation", () => {
+  test("alice cannot overwrite bob's profile via PUT", async () => {
+    const tokenAlice = await createTestJwt("alice");
+    const tokenBob = await createTestJwt("bob");
+
+    // Bob creates his profile
+    await profile.fetch(req("/api/profile", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenBob}`,
+      },
+      body: JSON.stringify({ displayName: "Bob Original", bio: "Bob's bio" }),
+    }));
+
+    // Alice updates her own profile -- should NOT touch Bob's
+    await profile.fetch(req("/api/profile", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${tokenAlice}`,
+      },
+      body: JSON.stringify({ displayName: "Alice", bio: "Alice's bio" }),
+    }));
+
+    // Verify Bob's profile is untouched
+    const bobRes = await profile.fetch(req("/api/profile/bob"));
+    const bob = (await bobRes.json()) as { displayName: string; bio: string };
+    expect(bob.displayName).toBe("Bob Original");
+    expect(bob.bio).toBe("Bob's bio");
+  });
+
+  test("alice cannot delete bob's profile", async () => {
+    const tokenAlice = await createTestJwt("alice");
+
+    // Bob creates his profile
+    setProfile("bob", { displayName: "Bob" });
+
+    // Alice attempts to delete (will only delete her own, which doesn't exist)
+    const delRes = await profile.fetch(req("/api/profile", {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${tokenAlice}` },
+    }));
+    expect(delRes.status).toBe(404); // Alice has no profile to delete
+
+    // Bob's profile still exists
+    const bobRes = await profile.fetch(req("/api/profile/bob"));
+    expect(bobRes.status).toBe(200);
+    const bob = (await bobRes.json()) as { displayName: string };
+    expect(bob.displayName).toBe("Bob");
+  });
+
+  test("alice's avatar upload does not affect bob's profile", async () => {
+    const tokenAlice = await createTestJwt("alice");
+
+    // Bob creates his profile
+    setProfile("bob", { displayName: "Bob", avatar: "/api/files/avatars/old.png" });
+
+    // Alice uploads an avatar
+    const pngData = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00]);
+    const res = await profile.fetch(avatarReq(pngData, { token: tokenAlice }));
+    expect(res.status).toBe(200);
+
+    // Bob's avatar is unchanged
+    const bobRes = await profile.fetch(req("/api/profile/bob"));
+    const bob = (await bobRes.json()) as { avatar: string };
+    expect(bob.avatar).toBe("/api/files/avatars/old.png");
+  });
+});
+
 // --- DELETE /api/profile ---
 
 describe("DELETE /api/profile", () => {

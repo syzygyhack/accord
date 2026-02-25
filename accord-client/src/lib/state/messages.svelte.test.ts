@@ -457,6 +457,22 @@ describe('message state', () => {
 			expect(isPinned('#test', 'msg-1')).toBe(false);
 		});
 
+		it('unpin with mixed-case target cleans up map entry', () => {
+			pinMessage('#General', 'msg-1');
+			pinMessage('#General', 'msg-2');
+			expect(isPinned('#general', 'msg-1')).toBe(true);
+			expect(isPinned('#general', 'msg-2')).toBe(true);
+
+			// Unpin msg-1, keeping msg-2
+			unpinMessage('#General', 'msg-1');
+			expect(isPinned('#general', 'msg-1')).toBe(false);
+			expect(isPinned('#general', 'msg-2')).toBe(true);
+
+			// Unpin last message — entry should be fully removed
+			unpinMessage('#GENERAL', 'msg-2');
+			expect(getPinnedMessages('#general').size).toBe(0);
+		});
+
 		it('returns empty set for channel with no pins', () => {
 			const pinned = getPinnedMessages('#empty');
 			expect(pinned.size).toBe(0);

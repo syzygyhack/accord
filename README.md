@@ -41,7 +41,7 @@ The client connects to Ergo over a single WebSocket for all chat functionality. 
 
 **Why IRC?** Ergo is a single Go binary that provides accounts, channels, message history, always-on clients, and a full IRCv3 extension set out of the box. It replaces what would otherwise be a custom chat server, a message queue, a presence system, and a history database.
 
-**Why Svelte 5?** Rune-based reactivity (`$state`, `$derived`, `$effect`) maps naturally to chat state — 15 reactive stores with zero external state management libraries.
+**Why Svelte 5?** Rune-based reactivity (`$state`, `$derived`, `$effect`) maps naturally to chat state — 16 reactive stores with zero external state management libraries.
 
 **Why LiveKit?** Single binary SFU with a client SDK. Voice channels are just LiveKit rooms keyed by channel name.
 
@@ -115,6 +115,14 @@ The client connects to Ergo over a single WebSocket for all chat functionality. 
 - Notification sounds (mention, message) with volume control and per-type toggles
 - Desktop notifications via Web Notification API when window is unfocused
 
+### Offline & PWA
+- IndexedDB message cache (last 200 messages per channel, write-through)
+- Instant message hydration from cache on app startup
+- Service worker with app shell caching (stale-while-revalidate)
+- PWA manifest for installable web app
+- Offline detection via navigator.onLine with reactive UI banner
+- Graceful degradation — cached messages viewable offline, history fetch gated when disconnected
+
 ### Server Management
 - Server Settings modal with 7 tabs: Overview, Channels, Roles, Members, Invites, Appearance, Moderation
 - Admin panel with 4 tabs: Dashboard (stats), Users, Audit Log, Announce — accessible to accounts in `ADMIN_ACCOUNTS`
@@ -146,7 +154,7 @@ The client connects to Ergo over a single WebSocket for all chat functionality. 
 - Customizable keybindings with recording UI
 - Tab completion (@user, #channel, :emoji:)
 - Hover toolbar (React, Reply, More)
-- Connection status banner with auto-reconnect and DM/MONITOR restore
+- Connection status banner with auto-reconnect, offline detection, and DM/MONITOR restore
 - Scroll-to-message highlight animation
 - Rate limit countdown display
 - Server list with context menus, drag reorder, and unread/mention badges
@@ -259,10 +267,10 @@ cd accord-client && pnpm install && pnpm dev
 ### Run Tests
 
 ```bash
-# Client tests (922 tests, Vitest)
+# Client tests (938 tests, Vitest)
 cd accord-client && pnpm test
 
-# Server tests (276 tests, Bun)
+# Server tests (279 tests, Bun)
 cd accord-files && bun test
 ```
 
@@ -290,6 +298,8 @@ accord/
 │   │   │   ├── files/           # File upload + URL preview client
 │   │   │   ├── connection/      # Reconnect lifecycle (gap fill, DM restore, MONITOR)
 │   │   │   ├── navigation/      # Channel/server navigation helpers
+│   │   │   ├── cache/           # IndexedDB message cache
+│   │   │   │   └── messageCache.ts # IDB CRUD, serialization, hydration
 │   │   │   ├── utils/           # A11y, storage, URL utilities
 │   │   │   ├── channelMonitor.ts # MONITOR nick tracking for DMs
 │   │   │   └── keybindings.ts   # Keyboard shortcut system
@@ -297,6 +307,9 @@ accord/
 │   │       ├── +error.svelte    # Error boundary page
 │   │       ├── login/           # Login/register page
 │   │       └── chat/            # Main chat page
+│   ├── static/
+│   │   ├── sw.js               # Service worker (app shell caching)
+│   │   └── manifest.json       # PWA manifest
 │   └── src-tauri/               # Tauri 2 desktop shell
 │       ├── Cargo.toml           # Rust dependencies
 │       ├── tauri.conf.json      # Window, bundle, security config
@@ -438,7 +451,7 @@ Ergo, MariaDB, and accord-files are only reachable through Caddy. Uncomment port
 
 | Suite | Tests |
 |-------|-------|
-| Message store | 107 |
+| Message store | 108 |
 | IRC handler | 94 |
 | IRC format/rendering | 77 |
 | Theme store | 57 |
@@ -468,15 +481,16 @@ Ergo, MariaDB, and accord-files are only reachable through Caddy. Uncomment port
 | SASL auth | 11 |
 | Discovery | 10 |
 | Account API (client) | 9 |
-| Connection store | 9 |
+| Connection store | 13 |
+| Message cache (IDB) | 11 |
 | Invite API (client) | 8 |
 | User store | 7 |
 | File upload (client) | 5 |
 | Raw IRC log | 5 |
-| **Client total** | **922** |
+| **Client total** | **938** |
 | URL preview (server) | 54 |
 | Admin endpoint | 36 |
-| Profile endpoint | 33 |
+| Profile endpoint | 36 |
 | File upload endpoint | 25 |
 | Invite endpoint | 22 |
 | LiveKit endpoint | 17 |
@@ -488,8 +502,8 @@ Ergo, MariaDB, and accord-files are only reachable through Caddy. Uncomment port
 | Account info endpoint | 9 |
 | Auth middleware | 7 |
 | Rate limiter | 5 |
-| **Server total** | **276** |
-| **Total** | **1,198** |
+| **Server total** | **279** |
+| **Total** | **1,217** |
 
 ---
 
@@ -512,6 +526,14 @@ Ergo, MariaDB, and accord-files are only reachable through Caddy. Uncomment port
 **Credentials in web builds:** In non-Tauri (browser) deployments, auth credentials are stored in `localStorage`. In Tauri desktop builds, the OS keyring is used instead. For web deployments, ensure the origin is protected against XSS.
 
 **SASL over plaintext:** SASL PLAIN authentication sends credentials base64-encoded (not encrypted). Always use `wss://` (TLS) for the WebSocket connection in production. The default Docker Compose setup routes through Caddy which terminates TLS.
+
+**Known accepted risks** (from code review):
+
+| Risk | Severity | Mitigation |
+|------|----------|------------|
+| LiveKit channel membership not verified | MEDIUM | Blocked on Ergo API; mitigated by auth requirement + rate limits |
+| `as any` casts for browser APIs (LiveKit, AudioContext) | LOW | Runtime APIs lack TS types; no workaround |
+| HTTPS TOCTOU window in SSRF prevention | LOW | Tiny window; requires DNS rebinding during TLS handshake |
 
 ---
 
@@ -775,13 +797,18 @@ All admin actions are recorded in the security audit log with the admin's accoun
 
 | Item | Current State | Notes |
 |------|--------------|-------|
-| Push notifications | Not implemented | Web Push API planned |
+| Push notifications | Not implemented | Web Push API planned (service worker already in place) |
 | Search | Client-side only | Ergo SEARCH extension available for future server-side search |
 | Screen sharing / video | Audio only for channels | LiveKit supports it; DM video calls work |
-| Multi-server | Single server | UI accommodates server list |
+| Multi-server | Single server | UI accommodates server list; data model supports it |
 | Theme customization UI | Dark/light/AMOLED/compact | CSS vars ready for full theme editor |
 | Profile Layer 2 (signing) | Profiles implemented, no crypto | Ed25519 keypair generation, signed blobs, portable identity planned for v2 |
 | Voice channel access control | Any authenticated user can get a token | Ergo lacks a channel membership query API; mitigated by auth requirement, rate limiting, and room participant caps |
+| E2EE for DMs | Not implemented | Planned for v2 |
+| Federation | Not implemented | Planned for v2 |
+| Plugin API / webhooks | Not implemented | Bot framework planned for v2 |
+| Tauri mobile | Desktop only | iOS/Android planned for v2 |
+| Offline compose queue | Not implemented | Messages composed offline are not queued for send |
 
 ---
 
@@ -791,7 +818,6 @@ All admin actions are recorded in the security audit log with the admin's accoun
 |----------|-------------|
 | [`PLAN.md`](PLAN.md) | Architecture spec — tech decisions, protocol design, scalability |
 | [`FRONTEND.md`](FRONTEND.md) | UI/UX design spec — layout, components, themes, accessibility |
-| [`status.md`](status.md) | Implementation status, completed phases, remaining deferrals |
 
 ---
 
@@ -823,9 +849,11 @@ Development continued as **human-agent collaboration** — the human directed pr
 A full codebase security audit identified 16 findings across the stack. Fixes applied: JWT secret minimum length enforcement, structured security event logging for all auth/upload/invite/account operations, dedicated MariaDB user isolation, og:image SSRF validation, magic byte file upload validation, HSTS headers, removal of insecure defaults from environment configuration, case-insensitive IRC key normalization, mIRC 99-color palette support, voice disconnect handling, and expanded test coverage (+82 tests).
 
 ### Session 5: Spec Alignment (Feb 25)
-Cardinal planned **10 tasks** to close remaining gaps between codebase and spec documents.
+Cardinal planned **12 tasks** to close remaining gaps between codebase and spec documents.
 
 Delivered: notification sounds with volume control, desktop notifications (Web Notification API), edit history viewer with "(edited)" label, spec-required CSS animations (message fade-in, channel crossfade, reaction pop), ETag caching for server config, expanded search filters (`has:image`, `has:link`, `before:date`, `after:date`), profile backend (JSON file store, CRUD API, avatar upload with magic byte validation), profile frontend (state store with fetch deduplication, Avatar component, settings UI), admin backend (auth middleware, stats/users/kick/ban/audit/announce routes), admin panel UI (4 tabs with keyboard nav), operational documentation (backup guide, upgrade runbook, nginx config, admin setup), thread data model and ThreadView sidebar, code review, and final cleanup.
+
+Post-session: typecheck fixes (duplicate property in profileStore.ts), a11y improvements (focus trapping in UserProfilePopout, dialog tabindex fixes), cross-user profile isolation tests, and full offline mode — IndexedDB message cache with write-through, service worker with app shell caching, PWA manifest, navigator.onLine tracking with reactive UI banner, and graceful degradation when disconnected.
 
 ### By the Numbers
 
@@ -837,9 +865,9 @@ Delivered: notification sounds with volume control, desktop notifications (Web N
 | Infrastructure config | ~1,400 lines |
 | Components | 30 |
 | Reactive stores | 16 |
-| Commits | 150+ |
+| Commits | 156 |
 | Packages | 2 |
-| Tests | 1,198 |
+| Tests | 1,217 |
 | Cardinal tasks | 99+ |
 
 ---
