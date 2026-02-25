@@ -57,7 +57,9 @@ The client connects to Ergo over a single WebSocket for all chat functionality. 
 - Replies with quoted parent preview
 - Emoji reactions (unicode, via TAGMSG)
 - Message editing with `+accord/edit` tag (edit-in-place with original msgid tracking)
+- Edit history viewer — "(edited)" label with click-to-view previous versions
 - Message deletion (REDACT)
+- Threaded conversations — reply chains grouped in a sidebar ThreadView
 - Typing indicators (throttled, auto-expiring)
 - Read markers synced via MARKREAD
 - Unread badges and mention counts
@@ -90,8 +92,10 @@ The client connects to Ergo over a single WebSocket for all chat functionality. 
 - MONITOR-based live presence tracking
 - Away status via away-notify
 - Nick coloring by account hash (40% lightness on light, 65% on dark)
-- User profile popout with roles, registration date, and "Send Message"
+- User profile popout with avatar, bio, roles, registration date, and "Send Message"
 - Hover cards on member list entries
+- User avatars (uploaded via profile API, lazy-loaded, with magic byte validation)
+- Display name and bio editing in User Settings
 
 ### Voice
 - Join/leave voice channels via LiveKit
@@ -107,8 +111,13 @@ The client connects to Ergo over a single WebSocket for all chat functionality. 
 - DM voice/video calls with deterministic room names
 - Automatic disconnect handling with state cleanup
 
+### Notifications
+- Notification sounds (mention, message) with volume control and per-type toggles
+- Desktop notifications via Web Notification API when window is unfocused
+
 ### Server Management
 - Server Settings modal with 7 tabs: Overview, Channels, Roles, Members, Invites, Appearance, Moderation
+- Admin panel with 4 tabs: Dashboard (stats), Users, Audit Log, Announce — accessible to accounts in `ADMIN_ACCOUNTS`
 - Invite link system (create, validate, expire, max-use, revoke)
 - Server config via `accord.json` (channels, roles, themes, emoji, welcome message)
 - Server theme overrides with WCAG contrast warnings and per-server disable toggles
@@ -142,7 +151,7 @@ The client connects to Ergo over a single WebSocket for all chat functionality. 
 - Rate limit countdown display
 - Server list with context menus, drag reorder, and unread/mention badges
 - Collapsible system messages (3+ consecutive events collapse with expand toggle)
-- Message search panel with `from:user` filter
+- Message search panel with `from:user`, `in:channel`, `has:image`, `has:link`, `before:date`, `after:date` filters
 - Raw IRC debug panel (Advanced settings)
 - Keyboard alternative for drag-and-drop reorder (Alt+Arrow)
 - Focus trapping in modals and ARIA tab patterns in settings
@@ -250,10 +259,10 @@ cd accord-client && pnpm install && pnpm dev
 ### Run Tests
 
 ```bash
-# Client tests (790 tests, Vitest)
+# Client tests (922 tests, Vitest)
 cd accord-client && pnpm test
 
-# Server tests (191 tests, Bun)
+# Server tests (276 tests, Bun)
 cd accord-files && bun test
 ```
 
@@ -265,9 +274,9 @@ cd accord-files && bun test
 accord/
 ├── accord-client/                 # Svelte 5 + SvelteKit frontend
 │   ├── src/
-│   │   ├── components/          # 28 Svelte components
+│   │   ├── components/          # 30 Svelte components
 │   │   ├── lib/
-│   │   │   ├── api/             # Auth tokens, server discovery, invites, accounts
+│   │   │   ├── api/             # Auth tokens, server discovery, invites, accounts, admin
 │   │   │   ├── irc/             # IRC protocol layer
 │   │   │   │   ├── parser.ts    # IRCv3 message parser
 │   │   │   │   ├── connection.ts # WebSocket + reconnect
@@ -276,7 +285,7 @@ accord/
 │   │   │   │   ├── cap.ts       # CAP negotiation
 │   │   │   │   ├── sasl.ts      # SASL PLAIN auth
 │   │   │   │   └── format.ts    # mIRC ↔ HTML rendering
-│   │   │   ├── state/           # 15 reactive stores ($state runes)
+│   │   │   ├── state/           # 16 reactive stores ($state runes)
 │   │   │   ├── voice/           # LiveKit room + voice call management
 │   │   │   ├── files/           # File upload + URL preview client
 │   │   │   ├── connection/      # Reconnect lifecycle (gap fill, DM restore, MONITOR)
@@ -303,10 +312,14 @@ accord/
 │       │   ├── config.ts        # GET /.well-known/accord.json
 │       │   ├── files.ts         # File upload/download
 │       │   ├── invite.ts        # Invite link CRUD
-│       │   └── preview.ts       # URL unfurling (OpenGraph)
+│       │   ├── preview.ts       # URL unfurling (OpenGraph)
+│       │   ├── profile.ts       # User profile CRUD + avatar upload
+│       │   └── admin.ts         # Admin API (stats, users, kick/ban, audit)
 │       ├── middleware/
 │       │   ├── auth.ts          # JWT verification
+│       │   ├── admin.ts         # Admin account authorization
 │       │   └── rateLimit.ts     # Per-IP rate limiting
+│       ├── profileStore.ts      # JSON file-backed profile storage
 │       ├── securityLog.ts       # Structured security event logging
 │       └── env.ts               # Environment config
 ├── config/
@@ -425,25 +438,29 @@ Ergo, MariaDB, and accord-files are only reachable through Caddy. Uncomment port
 
 | Suite | Tests |
 |-------|-------|
-| IRC handler | 91 |
+| Message store | 107 |
+| IRC handler | 94 |
 | IRC format/rendering | 77 |
-| Message store | 68 |
 | Theme store | 57 |
 | IRC commands | 42 |
 | Notification store | 41 |
 | Keybindings | 38 |
+| Server config store | 29 |
 | Emoji library | 29 |
 | App settings | 28 |
 | Member store | 27 |
+| Admin API (client) | 26 |
 | IRC connection | 26 |
+| Profile store (client) | 26 |
 | Server store | 23 |
-| Server config store | 21 |
 | Media | 20 |
 | Channel store | 18 |
 | IRC parser | 18 |
 | Voice store | 18 |
-| System messages | 17 |
 | File preview (client) | 17 |
+| System messages | 17 |
+| Sound | 15 |
+| Notifications (client) | 15 |
 | Auth API (client) | 13 |
 | Typing store | 13 |
 | Account info API | 12 |
@@ -456,20 +473,23 @@ Ergo, MariaDB, and accord-files are only reachable through Caddy. Uncomment port
 | User store | 7 |
 | File upload (client) | 5 |
 | Raw IRC log | 5 |
-| **Client total** | **790** |
+| **Client total** | **922** |
 | URL preview (server) | 54 |
+| Admin endpoint | 36 |
+| Profile endpoint | 33 |
 | File upload endpoint | 25 |
 | Invite endpoint | 22 |
 | LiveKit endpoint | 17 |
 | Env validation | 16 |
+| Profile store (server) | 16 |
 | Auth endpoint | 15 |
 | Config endpoint | 11 |
 | Account endpoint | 10 |
 | Account info endpoint | 9 |
 | Auth middleware | 7 |
 | Rate limiter | 5 |
-| **Server total** | **191** |
-| **Total** | **981** |
+| **Server total** | **276** |
+| **Total** | **1,198** |
 
 ---
 
@@ -757,11 +777,10 @@ All admin actions are recorded in the security audit log with the admin's accoun
 |------|--------------|-------|
 | Push notifications | Not implemented | Web Push API planned |
 | Search | Client-side only | Ergo SEARCH extension available for future server-side search |
-| User avatars / bios | Generated initials only | Blocked on IRCv3 `draft/metadata-2` |
 | Screen sharing / video | Audio only for channels | LiveKit supports it; DM video calls work |
 | Multi-server | Single server | UI accommodates server list |
 | Theme customization UI | Dark/light/AMOLED/compact | CSS vars ready for full theme editor |
-| Custom server emoji | Config structure ready | Rendered in emoji picker, tab completion, and messages |
+| Profile Layer 2 (signing) | Profiles implemented, no crypto | Ed25519 keypair generation, signed blobs, portable identity planned for v2 |
 | Voice channel access control | Any authenticated user can get a token | Ergo lacks a channel membership query API; mitigated by auth requirement, rate limiting, and room participant caps |
 
 ---
@@ -772,6 +791,7 @@ All admin actions are recorded in the security audit log with the admin's accoun
 |----------|-------------|
 | [`PLAN.md`](PLAN.md) | Architecture spec — tech decisions, protocol design, scalability |
 | [`FRONTEND.md`](FRONTEND.md) | UI/UX design spec — layout, components, themes, accessibility |
+| [`status.md`](status.md) | Implementation status, completed phases, remaining deferrals |
 
 ---
 
@@ -802,20 +822,25 @@ Development continued as **human-agent collaboration** — the human directed pr
 ### Session 4: Security Audit & Hardening (Feb 18)
 A full codebase security audit identified 16 findings across the stack. Fixes applied: JWT secret minimum length enforcement, structured security event logging for all auth/upload/invite/account operations, dedicated MariaDB user isolation, og:image SSRF validation, magic byte file upload validation, HSTS headers, removal of insecure defaults from environment configuration, case-insensitive IRC key normalization, mIRC 99-color palette support, voice disconnect handling, and expanded test coverage (+82 tests).
 
+### Session 5: Spec Alignment (Feb 25)
+Cardinal planned **10 tasks** to close remaining gaps between codebase and spec documents.
+
+Delivered: notification sounds with volume control, desktop notifications (Web Notification API), edit history viewer with "(edited)" label, spec-required CSS animations (message fade-in, channel crossfade, reaction pop), ETag caching for server config, expanded search filters (`has:image`, `has:link`, `before:date`, `after:date`), profile backend (JSON file store, CRUD API, avatar upload with magic byte validation), profile frontend (state store with fetch deduplication, Avatar component, settings UI), admin backend (auth middleware, stats/users/kick/ban/audit/announce routes), admin panel UI (4 tabs with keyboard nav), operational documentation (backup guide, upgrade runbook, nginx config, admin setup), thread data model and ThreadView sidebar, code review, and final cleanup.
+
 ### By the Numbers
 
 | Metric | Value |
 |--------|-------|
-| TypeScript + Svelte source | ~26,200 lines |
-| Test code | ~10,700 lines |
+| TypeScript + Svelte source | ~28,000 lines |
+| Test code | ~12,500 lines |
 | Design specs | ~1,860 lines |
 | Infrastructure config | ~1,400 lines |
-| Components | 28 |
-| Reactive stores | 15 |
-| Commits | 141+ |
+| Components | 30 |
+| Reactive stores | 16 |
+| Commits | 150+ |
 | Packages | 2 |
-| Tests | 981 |
-| Cardinal tasks | 89 |
+| Tests | 1,198 |
+| Cardinal tasks | 99+ |
 
 ---
 

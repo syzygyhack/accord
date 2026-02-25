@@ -19,8 +19,9 @@ build/
 ergo-data/
 mysql-data/
 
-# Uploads
+# Uploads and runtime data
 uploads/
+data/
 
 # Certificates
 *.pem
