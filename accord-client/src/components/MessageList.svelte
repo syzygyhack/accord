@@ -536,15 +536,21 @@
 	/**
 	 * Effect: clear loading state when a history batch completes with no messages.
 	 * Without this, an empty CHATHISTORY response leaves isLoadingHistory stuck.
-	 * Only reacts to batches for the current channel to avoid false clears.
+	 * Also clears the channel-switch skeleton when an empty batch arrives
+	 * (e.g. opening a DM with no server history).
+	 * Case-insensitive target comparison per IRC RFC 2812.
 	 */
 	$effect(() => {
 		// Subscribe to the batch-complete signal
 		void historyBatch.seq;
 		const batchTarget = historyBatch.target;
-		if (isLoadingHistory && batchTarget === channelUIState.activeChannel && messages.length === prevMessageCount) {
-			// Batch completed for this channel but no new messages — nothing more to load
-			isLoadingHistory = false;
+		const active = channelUIState.activeChannel;
+		const isMatch = !!batchTarget && !!active
+			&& batchTarget.toLowerCase() === active.toLowerCase();
+		if (isMatch && messages.length === prevMessageCount) {
+			// Batch completed for this channel but no new messages
+			if (isLoadingHistory) isLoadingHistory = false;
+			if (isAwaitingInitialMessages) isAwaitingInitialMessages = false;
 		}
 	});
 

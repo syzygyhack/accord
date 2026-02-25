@@ -87,7 +87,7 @@ export class IRCConnection {
 				if (!settled && this.state === 'connecting') {
 					settled = true;
 					clearTimeout(timeout);
-					reject(new Error('WebSocket connection failed'));
+					reject(new Error(`WebSocket connection failed (${this.url})`));
 				}
 			};
 

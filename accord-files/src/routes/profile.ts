@@ -81,10 +81,10 @@ profile.get("/api/profile/:account", (c) => {
   return c.json(p);
 });
 
-/** GET /api/profiles — get all profiles */
+/** GET /api/profiles — get all profiles (returns array) */
 profile.get("/api/profiles", (c) => {
   const all = getAllProfiles();
-  return c.json(all);
+  return c.json(Object.values(all));
 });
 
 // --- Authenticated endpoints ---

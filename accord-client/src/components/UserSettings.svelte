@@ -150,6 +150,12 @@
 	let currentProfile = $derived(getProfile(userState.account ?? ''));
 	let currentAvatarUrl = $derived(resolveAvatarUrl(currentProfile?.avatar));
 
+	/** True when Display Name or Bio differs from the saved server profile. */
+	let profileDirty = $derived(
+		(profileDisplayName.trim() !== (currentProfile?.displayName ?? ''))
+		|| (profileBio.trim() !== (currentProfile?.bio ?? ''))
+	);
+
 	async function submitEmail(): Promise<void> {
 		const trimmed = emailInput.trim();
 		emailError = null;
@@ -183,16 +189,23 @@
 		profileError = null;
 		profileSuccess = null;
 		profileSaving = true;
-		const result = await updateProfile({
+		const { profile, error } = await updateProfile({
 			displayName: profileDisplayName.trim() || undefined,
 			bio: profileBio.trim() || undefined,
 		});
 		profileSaving = false;
-		if (result) {
+		if (profile) {
 			profileSuccess = 'Profile updated';
 		} else {
-			profileError = 'Failed to update profile';
+			profileError = error ?? 'Failed to update profile';
 		}
+	}
+
+	function resetProfile(): void {
+		profileDisplayName = currentProfile?.displayName ?? '';
+		profileBio = currentProfile?.bio ?? '';
+		profileError = null;
+		profileSuccess = null;
 	}
 
 	async function handleAvatarUpload(): Promise<void> {
@@ -768,9 +781,6 @@
 							></textarea>
 						</label>
 
-						<button class="settings-save-btn" onclick={submitProfile} disabled={profileSaving}>
-							{profileSaving ? 'Saving...' : 'Save Profile'}
-						</button>
 						{#if profileError}
 							<span class="form-error">{profileError}</span>
 						{/if}
@@ -853,6 +863,16 @@
 					<div class="account-actions">
 						<button class="logout-btn" onclick={handleLogout}>Log Out</button>
 					</div>
+
+					{#if profileDirty}
+						<div class="save-bar">
+							<span class="save-bar-hint">You have unsaved changes</span>
+							<button class="save-bar-reset" onclick={resetProfile}>Reset</button>
+							<button class="save-bar-save" onclick={submitProfile} disabled={profileSaving}>
+								{profileSaving ? 'Saving...' : 'Save Changes'}
+							</button>
+						</div>
+					{/if}
 				{:else if activeTab === 'voice'}
 					<div class="settings-section">
 						<h3 class="section-title">Input Device</h3>
@@ -1583,6 +1603,70 @@
 
 	.logout-btn:hover {
 		filter: brightness(0.85);
+	}
+
+	/* ---- Save Bar (sticky unsaved-changes banner) ---- */
+
+	.save-bar {
+		position: sticky;
+		bottom: 0;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 10px 16px;
+		background: var(--surface-high);
+		border-top: 1px solid var(--surface-highest);
+		border-radius: 0 0 8px 8px;
+		animation: save-bar-slide-up 150ms ease-out;
+	}
+
+	@keyframes save-bar-slide-up {
+		from { opacity: 0; transform: translateY(8px); }
+		to { opacity: 1; transform: translateY(0); }
+	}
+
+	.save-bar-hint {
+		flex: 1;
+		font-size: var(--font-sm);
+		color: var(--text-secondary);
+	}
+
+	.save-bar-reset {
+		padding: 6px 16px;
+		background: none;
+		border: 1px solid var(--surface-highest);
+		border-radius: 4px;
+		color: var(--text-secondary);
+		font-size: var(--font-sm);
+		font-family: var(--font-primary);
+		cursor: pointer;
+	}
+
+	.save-bar-reset:hover {
+		color: var(--text-primary);
+		border-color: var(--text-muted);
+	}
+
+	.save-bar-save {
+		padding: 6px 16px;
+		background: var(--accent-primary);
+		border: none;
+		border-radius: 4px;
+		color: var(--text-inverse);
+		font-size: var(--font-sm);
+		font-family: var(--font-primary);
+		font-weight: var(--weight-medium);
+		cursor: pointer;
+		transition: background var(--duration-channel);
+	}
+
+	.save-bar-save:hover:not(:disabled) {
+		filter: brightness(0.9);
+	}
+
+	.save-bar-save:disabled {
+		opacity: 0.6;
+		cursor: default;
 	}
 
 	/* ---- Voice & Audio Tab ---- */

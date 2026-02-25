@@ -100,23 +100,23 @@ describe("GET /api/profile/:account", () => {
 // --- GET /api/profiles ---
 
 describe("GET /api/profiles", () => {
-  test("returns empty object when no profiles exist", async () => {
+  test("returns empty array when no profiles exist", async () => {
     const res = await profile.fetch(req("/api/profiles"));
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
-    expect(Object.keys(body).length).toBe(0);
+    const body = (await res.json()) as unknown[];
+    expect(body).toEqual([]);
   });
 
-  test("returns all profiles", async () => {
+  test("returns all profiles as array", async () => {
     setProfile("alice", { displayName: "Alice" });
     setProfile("bob", { displayName: "Bob" });
 
     const res = await profile.fetch(req("/api/profiles"));
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, { displayName: string }>;
-    expect(Object.keys(body).length).toBe(2);
-    expect(body.alice.displayName).toBe("Alice");
-    expect(body.bob.displayName).toBe("Bob");
+    const body = (await res.json()) as Array<{ account: string; displayName: string }>;
+    expect(body.length).toBe(2);
+    const names = body.map((p) => p.displayName).sort();
+    expect(names).toEqual(["Alice", "Bob"]);
   });
 
   test("does not require authentication", async () => {

@@ -250,19 +250,22 @@ describe('updateProfile', () => {
 			json: () => Promise.resolve(updated),
 		}));
 
-		const result = await updateProfile({ displayName: 'Alice New', bio: 'Updated bio' });
-		expect(result).toEqual(updated);
+		const { profile, error } = await updateProfile({ displayName: 'Alice New', bio: 'Updated bio' });
+		expect(error).toBeNull();
+		expect(profile).toEqual(updated);
 		expect(getProfile('alice')?.displayName).toBe('Alice New');
 	});
 
-	it('returns null on failure', async () => {
+	it('returns error on failure', async () => {
 		vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
 			ok: false,
 			status: 400,
+			json: () => Promise.resolve({ error: 'Bad request' }),
 		}));
 
-		const result = await updateProfile({ displayName: 'Test' });
-		expect(result).toBeNull();
+		const { profile, error } = await updateProfile({ displayName: 'Test' });
+		expect(profile).toBeNull();
+		expect(error).toBe('Bad request');
 	});
 
 	it('sends correct request format', async () => {

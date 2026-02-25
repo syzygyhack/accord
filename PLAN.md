@@ -108,7 +108,7 @@ Ergo + IRCv3 give us these out of the box — no custom protocol work needed:
 | **Threads** | `+draft/reply` is flat (one level). Client groups all replies to same parent into a thread view. Deeper nesting is UI-only. | — |
 | **Rich Previews** | accord-files endpoint (`GET /api/preview?url=...`) fetches Open Graph metadata. Client-side fallback for simple URL detection. | — |
 | **Custom Emoji** | Served from `/.well-known/accord.json` emoji map. Assets hosted by accord-files. Client renders in emoji picker and message display. | Server Config Discovery |
-| **User Profiles/Avatars** | Use `draft/metadata-2` for key-value storage on accounts (avatar URL, bio, status). Fall back to Ergo account info via HTTP API. | — |
+| **User Profiles/Avatars** | HTTP REST via accord-files (`GET/PUT /api/profile`, `POST /api/profile/avatar`). Profiles stored as JSON on server. Client caches reactively with deduplication. Ed25519 signed profile blobs planned for v2 (portable cross-server identity). | — |
 | **Search** | Index from MySQL history table, or build a lightweight search endpoint in accord-files. | — |
 | **Push Notifications** | MySQL history polling + device heartbeat idle detection. Push only when ALL devices idle. v1: DMs only. v2: channel @mentions. | Push Notification Pipeline |
 | **Invite Links** | accord-files manages invite tokens. URL format: `https://accord.app/join/<server>/<token>`. Auto-join target channel on accept. | Invite Link System |
@@ -615,15 +615,15 @@ accord-client/
 - [ ] **Milestone: Voice/video channels work**
 
 ### Phase 4 — Polish & Platform (Weeks 11-14)
-- [ ] Notifications (Web Push via VAPID + Service Worker)
-- [ ] PWA support (manifest.json, offline shell, installable)
-- [ ] Tauri desktop wrapper (Windows, macOS, Linux)
-- [ ] Server/community management UI (channel creation, permissions, bans)
-- [ ] Invite links (`https://accord.app/join/<server>/<token>` — see Invite Link System)
-- [ ] User profiles (avatar, bio, status via draft/metadata-2)
-- [ ] Custom emoji system (server-defined emoji name→URL map)
+- [ ] Push notifications (Web Push via VAPID — browser-local notifications already work)
+- [x] PWA support (manifest.json, offline shell, installable)
+- [x] Tauri desktop wrapper (Windows, macOS, Linux)
+- [x] Server/community management UI (ServerSettings, channel creation, permissions, bans)
+- [x] Invite links (`https://accord.app/join/<server>/<token>` — see Invite Link System)
+- [x] User profiles (avatar, bio, status via accord-files REST API)
+- [x] Custom emoji system (server-defined emoji name→URL map)
 - [ ] Search (full-text over message history)
-- [ ] DM conversations
+- [x] DM conversations
 - [ ] Multi-server support (connect to multiple Ergo instances)
 - [ ] **Milestone: Shippable product**
 

@@ -276,21 +276,45 @@ interface ChannelUIStore {
 	dmConversations: DMConversation[];
 }
 
-/** Reactive UI state for sidebar — components read this directly. */
-export const channelUIState: ChannelUIStore = $state({
-	activeChannel: null,
-	categories: [],
-	dmConversations: [],
+/**
+ * Active channel is its own $state signal, isolated from the sidebar data
+ * (categories, dmConversations). Without this separation Svelte 5's $state
+ * proxy over-notifies: mutating dmConversations (e.g. sort on incoming DM)
+ * would retrigger every $effect / $derived that reads activeChannel, causing
+ * the MessageList channel-switch effect to re-run and blank the chat.
+ */
+let _activeChannel: string | null = $state(null);
+
+/**
+ * Reactive UI state for sidebar — components read this directly.
+ *
+ * categories and dmConversations are deeply reactive via $state.
+ * activeChannel is a separate signal exposed via getter/setter on this
+ * plain object so that mutations to the arrays never invalidate
+ * activeChannel readers.
+ */
+const _sidebarState = $state({
+	categories: [] as ChannelCategory[],
+	dmConversations: [] as DMConversation[],
 });
+
+export const channelUIState: ChannelUIStore = {
+	get activeChannel() { return _activeChannel; },
+	set activeChannel(v: string | null) { _activeChannel = v; },
+	get categories() { return _sidebarState.categories; },
+	set categories(v: ChannelCategory[]) { _sidebarState.categories = v; },
+	get dmConversations() { return _sidebarState.dmConversations; },
+	set dmConversations(v: DMConversation[]) { _sidebarState.dmConversations = v; },
+};
 
 /** Set the active channel. */
 export function setActiveChannel(name: string | null): void {
-	channelUIState.activeChannel = name;
+	_activeChannel = name;
 }
 
 /** Get the active channel name, or null. */
 export function getActiveChannel(): string | null {
-	return channelUIState.activeChannel;
+	return _activeChannel;
 }
 
 /**

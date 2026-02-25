@@ -520,13 +520,15 @@
 	{#if message.isRedacted}
 		<div class="message-text redacted">[message deleted]</div>
 	{:else}
-		{#if !isMediaOnly}
-			<!-- svelte-ignore a11y_click_events_have_key_events -->
-			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<div class="message-text" onclick={handleMessageTextClick}>{@html renderedText}</div>
-		{/if}
-		{@render mediaPreviews()}
-		{@render linkPreviewCard()}
+		<div class="message-content-body">
+			{#if !isMediaOnly}
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div class="message-text" onclick={handleMessageTextClick}>{@html renderedText}</div>
+			{/if}
+			{@render mediaPreviews()}
+			{@render linkPreviewCard()}
+		</div>
 	{/if}
 {/snippet}
 
@@ -961,6 +963,11 @@
 	}
 
 	.message-body {
+		min-width: 0;
+		flex: 1;
+	}
+
+	.message-content-body {
 		min-width: 0;
 		flex: 1;
 	}

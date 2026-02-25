@@ -617,10 +617,10 @@ Triggered by clicking a username in the member list or a message.
 ```
 
 Fields sourced from:
-- **Avatar**: URL from `draft/metadata-2` account key `avatar`
-- **Display name**: IRC realname (GECOS) or metadata key `displayname`
+- **Avatar**: Uploaded via accord-files profile API (`POST /api/profile/avatar`)
+- **Display name**: Profile `displayName` field (from accord-files profile API)
 - **Account name**: IRC account name (via `account-tag`)
-- **Bio**: Metadata key `bio`
+- **Bio**: Profile `bio` field (from accord-files profile API)
 - **Roles**: Derived from channel modes in the current channel
 - **Registered**: Account registration date, available via Ergo's HTTP API (`/v1/ns/info`). Note: IRC does not track "member since" (channel join time) — Ergo only stores account registration time. The field is labeled "Registered" not "Member Since" to be accurate.
 
@@ -646,7 +646,7 @@ Accessed via gear icon near the voice panel or user avatar.
 
 | Tab | Contents |
 |-----|----------|
-| **Account** | Display name, email, password change |
+| **Account** | Profile (display name, bio, avatar upload), email, password change. Sticky save bar appears when profile fields are modified. |
 | **Appearance** | Theme (dark/light/amoled/compact). Font size. Message density. |
 | **Notifications** | Default notification level. Per-server overrides. Push notification toggle. |
 | **Voice & Video** | Input/output device selection. Volume. Noise suppression toggle. |

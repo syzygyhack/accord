@@ -95,7 +95,7 @@ The client connects to Ergo over a single WebSocket for all chat functionality. 
 - User profile popout with avatar, bio, roles, registration date, and "Send Message"
 - Hover cards on member list entries
 - User avatars (uploaded via profile API, lazy-loaded, with magic byte validation)
-- Display name and bio editing in User Settings
+- Display name and bio editing in User Settings with dirty-tracking save bar
 
 ### Voice
 - Join/leave voice channels via LiveKit

@@ -147,16 +147,22 @@ export async function fetchAllProfiles(): Promise<UserProfile[]> {
 	}
 }
 
+export interface ProfileUpdateResult {
+	profile: UserProfile | null;
+	error: string | null;
+}
+
 /**
  * Update the current user's profile.
- * Returns the updated profile on success, null on failure.
+ * Returns the updated profile and error details.
  */
 export async function updateProfile(
 	data: { displayName?: string; bio?: string; status?: string },
-): Promise<UserProfile | null> {
+): Promise<ProfileUpdateResult> {
 	const filesUrl = getFilesUrl();
 	const token = getToken();
-	if (!filesUrl || !token) return null;
+	if (!filesUrl) return { profile: null, error: 'Not connected to file server' };
+	if (!token) return { profile: null, error: 'Not authenticated — try logging out and back in' };
 
 	try {
 		const res = await fetch(`${filesUrl}/api/profile`, {
@@ -167,14 +173,19 @@ export async function updateProfile(
 			},
 			body: JSON.stringify(data),
 		});
-		if (!res.ok) return null;
+		if (!res.ok) {
+			const body = await res.json().catch(() => null);
+			const msg = (body as { error?: string } | null)?.error ?? `Server error (${res.status})`;
+			return { profile: null, error: msg };
+		}
 
 		const profile = (await res.json()) as UserProfile;
 		_profiles.set(profile.account.toLowerCase(), profile);
 		notify();
-		return profile;
-	} catch {
-		return null;
+		return { profile, error: null };
+	} catch (e) {
+		const msg = e instanceof Error ? e.message : 'Network error';
+		return { profile: null, error: msg };
 	}
 }
 
