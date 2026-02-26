@@ -3,7 +3,6 @@
 	import { useTrapFocus, handleTablistKeydown } from '$lib/utils/a11y';
 	import { userState } from '$lib/state/user.svelte';
 	import { clearToken, clearCredentials } from '$lib/api/auth';
-	import { formatMessage } from '$lib/irc/parser';
 	import { audioSettings, type VideoQuality } from '$lib/state/audioSettings.svelte';
 	import { appSettings, type ZoomLevel, type SystemMessageDisplay } from '$lib/state/appSettings.svelte';
 	import {
@@ -39,21 +38,14 @@
 		fetchProfile,
 	} from '$lib/state/profiles.svelte';
 	import Avatar from './Avatar.svelte';
-	import type { IRCConnection } from '$lib/irc/connection';
 
 	interface Props {
 		onclose: () => void;
-		connection?: IRCConnection | null;
 	}
 
-	let { onclose, connection = null }: Props = $props();
+	let { onclose }: Props = $props();
 
 	let activeTab: 'account' | 'voice' | 'appearance' | 'notifications' | 'keybindings' | 'advanced' | 'about' = $state('account');
-
-	// Display name editing
-	let editingNick = $state(false);
-	let nickInput = $state('');
-	let nickError: string | null = $state(null);
 
 	// Voice & Audio device lists (enumerated at runtime)
 	let audioInputDevices: MediaDeviceInfo[] = $state([]);
@@ -138,7 +130,6 @@
 	let passwordSubmitting = $state(false);
 
 	// --- Profile editing state ---
-	let profileDisplayName = $state('');
 	let profileBio = $state('');
 	let profileSaving = $state(false);
 	let profileError: string | null = $state(null);
@@ -150,10 +141,9 @@
 	let currentProfile = $derived(getProfile(userState.account ?? ''));
 	let currentAvatarUrl = $derived(resolveAvatarUrl(currentProfile?.avatar));
 
-	/** True when Display Name or Bio differs from the saved server profile. */
+	/** True when Bio differs from the saved server profile. */
 	let profileDirty = $derived(
-		(profileDisplayName.trim() !== (currentProfile?.displayName ?? ''))
-		|| (profileBio.trim() !== (currentProfile?.bio ?? ''))
+		profileBio.trim() !== (currentProfile?.bio ?? '')
 	);
 
 	async function submitEmail(): Promise<void> {
@@ -190,7 +180,6 @@
 		profileSuccess = null;
 		profileSaving = true;
 		const { profile, error } = await updateProfile({
-			displayName: profileDisplayName.trim() || undefined,
 			bio: profileBio.trim() || undefined,
 		});
 		profileSaving = false;
@@ -202,7 +191,6 @@
 	}
 
 	function resetProfile(): void {
-		profileDisplayName = currentProfile?.displayName ?? '';
 		profileBio = currentProfile?.bio ?? '';
 		profileError = null;
 		profileSuccess = null;
@@ -226,15 +214,15 @@
 		}
 
 		avatarUploading = true;
-		const url = await uploadAvatar(file);
+		const result = await uploadAvatar(file);
 		avatarUploading = false;
-		if (url) {
+		if (result.url) {
 			// Re-fetch profile to update the cached avatar URL
 			if (userState.account) {
 				await fetchProfile(userState.account);
 			}
 		} else {
-			avatarError = 'Failed to upload avatar';
+			avatarError = result.error ?? 'Failed to upload avatar';
 		}
 	}
 
@@ -384,47 +372,6 @@
 		clearToken();
 		// Hard navigate — bypasses SvelteKit lifecycle
 		window.location.href = '/login';
-	}
-
-	function startEditingNick(): void {
-		nickInput = userState.nick ?? '';
-		nickError = null;
-		editingNick = true;
-	}
-
-	function cancelEditingNick(): void {
-		editingNick = false;
-		nickError = null;
-	}
-
-	function submitNick(): void {
-		const trimmed = nickInput.trim();
-		if (!trimmed) {
-			nickError = 'Display name cannot be empty';
-			return;
-		}
-		if (trimmed === userState.nick) {
-			editingNick = false;
-			return;
-		}
-		if (!connection) {
-			nickError = 'Not connected to server';
-			return;
-		}
-		connection.send(formatMessage('NICK', trimmed));
-		editingNick = false;
-		nickError = null;
-	}
-
-	function handleNickKeydown(e: KeyboardEvent): void {
-		if (e.key === 'Enter') {
-			e.preventDefault();
-			submitNick();
-		} else if (e.key === 'Escape') {
-			e.preventDefault();
-			e.stopPropagation();
-			cancelEditingNick();
-		}
 	}
 
 	async function loadDevices(): Promise<void> {
@@ -606,7 +553,6 @@
 	// Populate profile fields when profile loads / tab opens
 	$effect(() => {
 		if (activeTab === 'account' && currentProfile) {
-			profileDisplayName = currentProfile.displayName ?? '';
 			profileBio = currentProfile.bio ?? '';
 		}
 	});
@@ -698,29 +644,7 @@
 						<div class="account-details">
 							<div class="account-field">
 								<span class="field-label">Display Name</span>
-								{#if editingNick}
-									<div class="nick-edit-row">
-										<!-- svelte-ignore a11y_autofocus -->
-										<input
-											type="text"
-											class="nick-input"
-											bind:value={nickInput}
-											onkeydown={handleNickKeydown}
-											autofocus
-											maxlength="30"
-										/>
-										<button class="nick-save-btn" onclick={submitNick}>Save</button>
-										<button class="nick-cancel-btn" onclick={cancelEditingNick}>Cancel</button>
-									</div>
-									{#if nickError}
-										<span class="nick-error">{nickError}</span>
-									{/if}
-								{:else}
-									<div class="nick-display-row">
-										<span class="field-value">{userState.nick ?? 'Unknown'}</span>
-										<button class="nick-edit-btn" onclick={startEditingNick}>Edit</button>
-									</div>
-								{/if}
+								<span class="field-value">{currentProfile?.displayName || (userState.nick ?? 'Unknown')}</span>
 							</div>
 							<div class="account-field">
 								<span class="field-label">Account</span>
@@ -758,17 +682,6 @@
 								{/if}
 							</div>
 						</div>
-
-						<label class="form-field">
-							<span class="field-label">Display Name</span>
-							<input
-								type="text"
-								class="settings-input"
-								placeholder="How you want to be known"
-								bind:value={profileDisplayName}
-								maxlength="500"
-							/>
-						</label>
 
 						<label class="form-field">
 							<span class="field-label">Bio</span>
@@ -1497,86 +1410,6 @@
 	.field-value {
 		font-size: var(--font-base);
 		color: var(--text-primary);
-	}
-
-	.nick-display-row {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-	}
-
-	.nick-edit-btn {
-		padding: 2px 10px;
-		background: var(--surface-high);
-		color: var(--text-secondary);
-		border: none;
-		border-radius: 3px;
-		font-size: var(--font-xs);
-		font-family: var(--font-primary);
-		cursor: pointer;
-		transition: background var(--duration-channel), color var(--duration-channel);
-	}
-
-	.nick-edit-btn:hover {
-		background: var(--surface-highest);
-		color: var(--text-primary);
-	}
-
-	.nick-edit-row {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-	}
-
-	.nick-input {
-		padding: 4px 8px;
-		background: var(--surface-lowest);
-		color: var(--text-primary);
-		border: 1px solid var(--surface-highest);
-		border-radius: 3px;
-		font-size: var(--font-base);
-		font-family: var(--font-primary);
-		outline: none;
-		width: 160px;
-	}
-
-	.nick-input:focus {
-		border-color: var(--accent-primary);
-	}
-
-	.nick-save-btn {
-		padding: 4px 12px;
-		background: var(--accent-primary);
-		color: var(--text-inverse);
-		border: none;
-		border-radius: 3px;
-		font-size: var(--font-sm);
-		font-family: var(--font-primary);
-		cursor: pointer;
-	}
-
-	.nick-save-btn:hover {
-		opacity: 0.9;
-	}
-
-	.nick-cancel-btn {
-		padding: 4px 12px;
-		background: none;
-		color: var(--text-secondary);
-		border: none;
-		font-size: var(--font-sm);
-		font-family: var(--font-primary);
-		cursor: pointer;
-	}
-
-	.nick-cancel-btn:hover {
-		color: var(--text-primary);
-	}
-
-	.nick-error {
-		font-size: var(--font-xs);
-		color: var(--danger);
-		margin-top: 2px;
 	}
 
 	.section-divider {

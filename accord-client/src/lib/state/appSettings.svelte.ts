@@ -38,7 +38,7 @@ export const VOLUME_DEFAULT = 50;
 
 const defaults: AppSettingsData = {
 	zoom: 125,
-	systemMessageDisplay: 'smart',
+	systemMessageDisplay: 'none',
 	showRawIrc: false,
 	developerMode: false,
 	sidebarWidth: SIDEBAR_DEFAULT,

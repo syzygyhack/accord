@@ -464,13 +464,6 @@
 				}
 				return true;
 			}
-			case 'nick': {
-				const newNick = args.trim();
-				if (newNick && isValidNick(newNick)) {
-					connection.send(formatMessage('NICK', newNick));
-				}
-				return true;
-			}
 			case 'part': {
 				const partArgs = args.trim();
 				let partTarget: string;

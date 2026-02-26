@@ -189,14 +189,20 @@ export async function updateProfile(
 	}
 }
 
+export interface AvatarUploadResult {
+	url: string | null;
+	error: string | null;
+}
+
 /**
  * Upload an avatar image for the current user.
- * Returns the avatar URL on success, null on failure.
+ * Returns the avatar URL on success, or an error message on failure.
  */
-export async function uploadAvatar(file: File): Promise<string | null> {
+export async function uploadAvatar(file: File): Promise<AvatarUploadResult> {
 	const filesUrl = getFilesUrl();
 	const token = getToken();
-	if (!filesUrl || !token) return null;
+	if (!filesUrl) return { url: null, error: 'Not connected to file server' };
+	if (!token) return { url: null, error: 'Not authenticated — try logging out and back in' };
 
 	try {
 		const formData = new FormData();
@@ -209,12 +215,17 @@ export async function uploadAvatar(file: File): Promise<string | null> {
 			},
 			body: formData,
 		});
-		if (!res.ok) return null;
+		if (!res.ok) {
+			const body = await res.json().catch(() => null);
+			const msg = (body as { error?: string } | null)?.error ?? `Server error (${res.status})`;
+			return { url: null, error: msg };
+		}
 
 		const data = (await res.json()) as { url: string };
-		return data.url;
-	} catch {
-		return null;
+		return { url: data.url, error: null };
+	} catch (e) {
+		const msg = e instanceof Error ? e.message : 'Network error';
+		return { url: null, error: msg };
 	}
 }
 

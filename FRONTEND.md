@@ -489,7 +489,6 @@ Join, part, quit, nick changes, mode changes — rendered inline but visually di
   - `/join #channel` — Join channel
   - `/part` — Leave current channel
   - `/topic <text>` — Set channel topic
-  - `/nick <name>` — Change nickname (if server allows)
   - `/msg <user> <text>` — Send DM
   - `/whois <user>` — Show user info
   - `/kick <user> [reason]` — Kick user (ops)
@@ -646,7 +645,7 @@ Accessed via gear icon near the voice panel or user avatar.
 
 | Tab | Contents |
 |-----|----------|
-| **Account** | Profile (display name, bio, avatar upload), email, password change. Sticky save bar appears when profile fields are modified. |
+| **Account** | Profile (bio, avatar upload), email, password change. Sticky save bar appears when profile fields are modified. Nick is read-only (Ergo enforces nick = account name). |
 | **Appearance** | Theme (dark/light/amoled/compact). Font size. Message density. |
 | **Notifications** | Default notification level. Per-server overrides. Push notification toggle. |
 | **Voice & Video** | Input/output device selection. Volume. Noise suppression toggle. |

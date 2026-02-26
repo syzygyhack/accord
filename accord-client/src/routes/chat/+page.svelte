@@ -748,7 +748,7 @@
 
 <!-- User Settings modal -->
 {#if showSettings}
-	<UserSettings onclose={() => (showSettings = false)} connection={conn} />
+	<UserSettings onclose={() => (showSettings = false)} />
 {/if}
 
 {#if showServerSettings}

@@ -16,7 +16,6 @@
 	export const SLASH_COMMANDS: CommandDef[] = [
 		{ name: 'me', usage: '/me <action>', description: 'Send an action message', level: 'user' },
 		{ name: 'msg', usage: '/msg <user> <message>', description: 'Send a direct message', level: 'user' },
-		{ name: 'nick', usage: '/nick <name>', description: 'Change your display name', level: 'user' },
 		{ name: 'part', usage: '/part [channel] [reason]', description: 'Leave a channel', level: 'user' },
 		{ name: 'topic', usage: '/topic [new topic]', description: 'View or set channel topic', level: 'user' },
 		{ name: 'invite', usage: '/invite <user> [channel]', description: 'Invite a user to a channel', level: 'user' },
