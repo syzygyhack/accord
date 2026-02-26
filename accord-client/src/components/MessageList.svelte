@@ -98,6 +98,9 @@
 	/** Set of collapsed group keys that the user has expanded. */
 	let expandedGroups: Set<string> = $state(new Set());
 
+	/** Saved scroll positions per channel so we can restore on switch-back. */
+	const savedScrollPositions = new Map<string, { scrollTop: number; atBottom: boolean }>();
+
 	/** Whether compact (IRC classic) display mode is active. */
 	let isCompact = $derived(themeState.isCompact);
 
@@ -554,7 +557,7 @@
 		}
 	});
 
-	/** Effect: scroll to bottom when active channel changes. */
+	/** Effect: save/restore scroll position when active channel changes. */
 	let _prevSwitchChannel: string | null = null;
 	$effect(() => {
 		// Access activeChannel to register dependency
@@ -562,10 +565,17 @@
 
 		// Guard: only reset when the channel actually changes
 		if (_channel === _prevSwitchChannel) return;
+
+		// Save scroll position for the channel we're leaving
+		if (_prevSwitchChannel && scrollContainer) {
+			const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+			const atBottom = scrollHeight - scrollTop - clientHeight <= SCROLL_BOTTOM_THRESHOLD;
+			savedScrollPositions.set(_prevSwitchChannel.toLowerCase(), { scrollTop, atBottom });
+		}
+
 		_prevSwitchChannel = _channel;
 
 		unreadCount = 0;
-		isAtBottom = true;
 		isLoadingHistory = false;
 		prevMessageCount = 0;
 		expandedGroups = new Set();
@@ -579,7 +589,19 @@
 		const cachedMessages = _channel ? untrack(() => getMessages(_channel)) : [];
 		isAwaitingInitialMessages = cachedMessages.length === 0;
 
-		tick().then(() => scrollToBottom());
+		// Restore saved scroll position, or scroll to bottom if none saved / was at bottom
+		const saved = _channel ? savedScrollPositions.get(_channel.toLowerCase()) : null;
+		if (saved && !saved.atBottom) {
+			isAtBottom = false;
+			tick().then(() => {
+				if (!scrollContainer) return;
+				scrollContainer.scrollTop = saved.scrollTop;
+				checkScrollPosition();
+			});
+		} else {
+			isAtBottom = true;
+			tick().then(() => scrollToBottom());
+		}
 	});
 
 	/** Listen for external scroll-to-message requests (e.g. from pinned messages). */
