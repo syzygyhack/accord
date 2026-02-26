@@ -179,27 +179,8 @@
 		return () => { stale = true; };
 	});
 
-	let lightboxUrl = $state<string | null>(null);
-
 	function openLightbox(url: string) {
-		lightboxUrl = url;
-	}
-
-	function closeLightbox() {
-		lightboxUrl = null;
-	}
-
-	function handleLightboxKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape') {
-			closeLightbox();
-		}
-	}
-
-	function handleLightboxClick(e: MouseEvent) {
-		// Close if clicking the overlay backdrop (not the image itself)
-		if (e.target === e.currentTarget) {
-			closeLightbox();
-		}
+		window.dispatchEvent(new CustomEvent('accord:open-lightbox', { detail: { url } }));
 	}
 
 	let timestamp = $derived(
@@ -727,25 +708,6 @@
 </div>
 {/if}
 
-{#if lightboxUrl}
-	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-	<div
-		class="lightbox-overlay"
-		role="dialog"
-		aria-label="Image preview"
-		tabindex="-1"
-		onclick={handleLightboxClick}
-		onkeydown={handleLightboxKeydown}
-	>
-		<button class="lightbox-close" onclick={closeLightbox} aria-label="Close preview">
-			<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-				<path d="M18.3 5.7a1 1 0 00-1.4 0L12 10.6 7.1 5.7a1 1 0 00-1.4 1.4L10.6 12l-4.9 4.9a1 1 0 101.4 1.4L12 13.4l4.9 4.9a1 1 0 001.4-1.4L13.4 12l4.9-4.9a1 1 0 000-1.4z"/>
-			</svg>
-		</button>
-		<img class="lightbox-image" src={lightboxUrl} alt="Full size preview" />
-	</div>
-{/if}
-
 <style>
 	.message {
 		position: relative;
@@ -1191,41 +1153,6 @@
 		border-radius: 4px;
 	}
 
-	/* Lightbox Overlay */
-	.lightbox-overlay {
-		position: fixed;
-		inset: 0;
-		z-index: 1000;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: rgba(0, 0, 0, 0.85);
-	}
-
-	.lightbox-close {
-		position: absolute;
-		top: 16px;
-		right: 16px;
-		padding: 8px;
-		border: none;
-		border-radius: 4px;
-		background: rgba(0, 0, 0, 0.5);
-		color: var(--text-inverse);
-		cursor: pointer;
-		z-index: 1001;
-		transition: background var(--duration-message) ease;
-	}
-
-	.lightbox-close:hover {
-		background: rgba(255, 255, 255, 0.15);
-	}
-
-	.lightbox-image {
-		max-width: 90vw;
-		max-height: 90vh;
-		object-fit: contain;
-		border-radius: 4px;
-	}
 
 	/* ==========================================================================
 	   Compact Mode — IRC-inspired high-density layout
