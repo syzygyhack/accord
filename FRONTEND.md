@@ -645,7 +645,7 @@ Accessed via gear icon near the voice panel or user avatar.
 
 | Tab | Contents |
 |-----|----------|
-| **Account** | Profile (bio, avatar upload), email, password change. Sticky save bar appears when profile fields are modified. Nick is read-only (Ergo enforces nick = account name). |
+| **Account** | Username card, profile (bio, avatar upload), email, password change. Sticky save bar appears when profile fields are modified. |
 | **Appearance** | Theme (dark/light/amoled/compact). Font size. Message density. |
 | **Notifications** | Default notification level. Per-server overrides. Push notification toggle. |
 | **Voice & Video** | Input/output device selection. Volume. Noise suppression toggle. |

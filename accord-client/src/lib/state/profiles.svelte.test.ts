@@ -244,16 +244,16 @@ describe('updateProfile', () => {
 	});
 
 	it('updates profile and caches result', async () => {
-		const updated = makeProfile({ account: 'alice', displayName: 'Alice New', bio: 'Updated bio' });
+		const updated = makeProfile({ account: 'alice', bio: 'Updated bio' });
 		vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
 			ok: true,
 			json: () => Promise.resolve(updated),
 		}));
 
-		const { profile, error } = await updateProfile({ displayName: 'Alice New', bio: 'Updated bio' });
+		const { profile, error } = await updateProfile({ bio: 'Updated bio' });
 		expect(error).toBeNull();
 		expect(profile).toEqual(updated);
-		expect(getProfile('alice')?.displayName).toBe('Alice New');
+		expect(getProfile('alice')?.bio).toBe('Updated bio');
 	});
 
 	it('returns error on failure', async () => {
@@ -263,7 +263,7 @@ describe('updateProfile', () => {
 			json: () => Promise.resolve({ error: 'Bad request' }),
 		}));
 
-		const { profile, error } = await updateProfile({ displayName: 'Test' });
+		const { profile, error } = await updateProfile({ bio: 'Test' });
 		expect(profile).toBeNull();
 		expect(error).toBe('Bad request');
 	});
@@ -275,7 +275,7 @@ describe('updateProfile', () => {
 		});
 		vi.stubGlobal('fetch', fetchFn);
 
-		await updateProfile({ displayName: 'New Name', bio: 'My bio' });
+		await updateProfile({ bio: 'My bio' });
 
 		expect(fetchFn).toHaveBeenCalledWith(
 			'http://localhost:8098/api/profile',
@@ -285,7 +285,7 @@ describe('updateProfile', () => {
 					'Content-Type': 'application/json',
 					'Authorization': 'Bearer test-jwt-token',
 				}),
-				body: JSON.stringify({ displayName: 'New Name', bio: 'My bio' }),
+				body: JSON.stringify({ bio: 'My bio' }),
 			}),
 		);
 	});
@@ -304,18 +304,21 @@ describe('uploadAvatar', () => {
 
 		const file = new File(['test'], 'avatar.png', { type: 'image/png' });
 		const result = await uploadAvatar(file);
-		expect(result).toBe('/api/files/avatars/abc.png');
+		expect(result.url).toBe('/api/files/avatars/abc.png');
+		expect(result.error).toBeNull();
 	});
 
-	it('returns null on upload failure', async () => {
+	it('returns error on upload failure', async () => {
 		vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
 			ok: false,
 			status: 413,
+			json: () => Promise.resolve({ error: 'File too large' }),
 		}));
 
 		const file = new File(['test'], 'avatar.png', { type: 'image/png' });
 		const result = await uploadAvatar(file);
-		expect(result).toBeNull();
+		expect(result.url).toBeNull();
+		expect(result.error).toBe('File too large');
 	});
 
 	it('sends multipart/form-data request', async () => {

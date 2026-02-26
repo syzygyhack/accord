@@ -642,14 +642,7 @@
 							<Avatar account={userState.account ?? ''} nick={userState.nick ?? '?'} size="lg" />
 						</div>
 						<div class="account-details">
-							<div class="account-field">
-								<span class="field-label">Display Name</span>
-								<span class="field-value">{currentProfile?.displayName || (userState.nick ?? 'Unknown')}</span>
-							</div>
-							<div class="account-field">
-								<span class="field-label">Account</span>
-								<span class="field-value">{userState.account ?? ''}</span>
-							</div>
+							<span class="account-username">{userState.account ?? 'Unknown'}</span>
 						</div>
 					</div>
 					<div class="section-divider"></div>
@@ -1388,15 +1381,17 @@
 
 	.account-details {
 		display: flex;
-		flex-direction: column;
-		gap: 8px;
+		align-items: center;
 		min-width: 0;
 	}
 
-	.account-field {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
+	.account-username {
+		font-size: var(--font-lg);
+		font-weight: var(--weight-semibold);
+		color: var(--text-primary);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.field-label {
@@ -1405,11 +1400,6 @@
 		color: var(--text-muted);
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
-	}
-
-	.field-value {
-		font-size: var(--font-base);
-		color: var(--text-primary);
 	}
 
 	.section-divider {

@@ -109,6 +109,10 @@ async function _fetchProfileImpl(account: string): Promise<UserProfile | null> {
 			`${filesUrl}/api/profile/${encodeURIComponent(account)}`,
 			{ headers },
 		);
+		if (res.status === 404) {
+			// Profile doesn't exist yet — not an error, just empty
+			return null;
+		}
 		if (!res.ok) return null;
 
 		const profile = (await res.json()) as UserProfile;
@@ -157,7 +161,7 @@ export interface ProfileUpdateResult {
  * Returns the updated profile and error details.
  */
 export async function updateProfile(
-	data: { displayName?: string; bio?: string; status?: string },
+	data: { bio?: string; status?: string },
 ): Promise<ProfileUpdateResult> {
 	const filesUrl = getFilesUrl();
 	const token = getToken();
