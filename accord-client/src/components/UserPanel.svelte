@@ -1,20 +1,19 @@
 <script lang="ts">
 	import { userState } from '$lib/state/user.svelte';
+	import Avatar from './Avatar.svelte';
 
 	interface Props {
 		onsettingsclick?: () => void;
 	}
 
 	let { onsettingsclick }: Props = $props();
-
-	let initial = $derived((userState.nick ?? '?')[0].toUpperCase());
 </script>
 
 <div class="user-panel">
 	<div class="user-row">
 		<div class="user-info">
 			<div class="user-avatar">
-				<span class="avatar-letter">{initial}</span>
+				<Avatar account={userState.account ?? ''} nick={userState.nick ?? '?'} size="md" />
 				<span class="status-dot"></span>
 			</div>
 			<div class="user-names">
@@ -69,20 +68,6 @@
 		width: 32px;
 		height: 32px;
 		flex-shrink: 0;
-	}
-
-	.avatar-letter {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 32px;
-		height: 32px;
-		border-radius: 50%;
-		background: var(--accent-primary);
-		color: var(--text-inverse, #fff);
-		font-size: var(--font-sm);
-		font-weight: var(--weight-semibold);
-		line-height: 1;
 	}
 
 	.status-dot {

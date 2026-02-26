@@ -146,10 +146,10 @@ describe('IRC command helpers', () => {
 	});
 
 	describe('who', () => {
-		it('sends WHO target', () => {
+		it('sends WHOX with account format', () => {
 			const { conn, sent } = createMockConn();
 			who(conn, '#test');
-			expect(sent).toEqual(['WHO #test']);
+			expect(sent).toEqual(['WHO #test %tuhnfa,152']);
 		});
 	});
 

@@ -24,8 +24,8 @@ describe('appSettings', () => {
 	});
 
 	describe('systemMessageDisplay', () => {
-		it('defaults to smart', () => {
-			expect(appSettings.systemMessageDisplay).toBe('smart');
+		it('defaults to none', () => {
+			expect(appSettings.systemMessageDisplay).toBe('none');
 		});
 
 		it('can be set to all', () => {
@@ -33,9 +33,9 @@ describe('appSettings', () => {
 			expect(appSettings.systemMessageDisplay).toBe('all');
 		});
 
-		it('can be set to none', () => {
-			appSettings.systemMessageDisplay = 'none';
-			expect(appSettings.systemMessageDisplay).toBe('none');
+		it('can be set to smart', () => {
+			appSettings.systemMessageDisplay = 'smart';
+			expect(appSettings.systemMessageDisplay).toBe('smart');
 		});
 
 		it('persists to localStorage', () => {
@@ -45,9 +45,9 @@ describe('appSettings', () => {
 		});
 
 		it('resets to default', () => {
-			appSettings.systemMessageDisplay = 'none';
+			appSettings.systemMessageDisplay = 'smart';
 			resetAppSettings();
-			expect(appSettings.systemMessageDisplay).toBe('smart');
+			expect(appSettings.systemMessageDisplay).toBe('none');
 		});
 	});
 

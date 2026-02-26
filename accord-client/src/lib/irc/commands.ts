@@ -87,9 +87,14 @@ export function monitor(conn: IRCConnection, action: '+' | '-', nicks: string[])
 	conn.send(formatMessage('MONITOR', action, nicks.join(',')));
 }
 
-/** Send a WHO query. */
+/**
+ * Send a WHOX query to get nick, flags, and account for members.
+ * Uses WHOX format (%tuhnfa) with token 152 to match our 354 handler.
+ * Falls back to plain WHO on servers that don't support WHOX (they'll
+ * send 352 replies instead, which we also handle).
+ */
 export function who(conn: IRCConnection, target: string): void {
-	conn.send(formatMessage('WHO', target));
+	conn.send(`WHO ${target} %tuhnfa,152`);
 }
 
 /** Send a NAMES query. */
