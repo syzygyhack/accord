@@ -374,7 +374,12 @@
 				}
 			}
 		}
-		if (changed) prefixSumsVersion++;
+		if (changed) {
+			prefixSumsVersion++;
+			// Re-anchor to bottom when height estimates change and we should be at bottom.
+			// Without this, images/embeds loading can push the view off-bottom.
+			if (isAtBottom) tick().then(scrollToBottom);
+		}
 	}
 
 	/** After each render, measure items for more accurate future estimates. */
@@ -444,6 +449,18 @@
 
 			checkScrollPosition();
 
+			// Continuously save scroll position for the active channel so it's
+			// always up-to-date when we switch away. We can't save at switch time
+			// because Svelte 5 effects run after DOM updates — by then the
+			// scrollContainer already shows the new channel's content.
+			const ch = channelUIState.activeChannel;
+			if (ch && scrollContainer) {
+				savedScrollPositions.set(ch.toLowerCase(), {
+					scrollTop: scrollContainer.scrollTop,
+					atBottom: isAtBottom,
+				});
+			}
+
 			if (isAtBottom) {
 				unreadCount = 0;
 			}
@@ -473,6 +490,7 @@
 	function scrollToBottom(): void {
 		if (!scrollContainer) return;
 		scrollContainer.scrollTop = scrollContainer.scrollHeight;
+		currentScrollTop = scrollContainer.scrollTop;
 		isAtBottom = true;
 		unreadCount = 0;
 	}
@@ -557,7 +575,7 @@
 		}
 	});
 
-	/** Effect: save/restore scroll position when active channel changes. */
+	/** Effect: restore scroll position when active channel changes. */
 	let _prevSwitchChannel: string | null = null;
 	$effect(() => {
 		// Access activeChannel to register dependency
@@ -565,24 +583,16 @@
 
 		// Guard: only reset when the channel actually changes
 		if (_channel === _prevSwitchChannel) return;
-
-		// Save scroll position for the channel we're leaving
-		if (_prevSwitchChannel && scrollContainer) {
-			const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
-			const atBottom = scrollHeight - scrollTop - clientHeight <= SCROLL_BOTTOM_THRESHOLD;
-			savedScrollPositions.set(_prevSwitchChannel.toLowerCase(), { scrollTop, atBottom });
-		}
-
 		_prevSwitchChannel = _channel;
 
-		// Restore saved scroll position, or scroll to bottom if none saved / was at bottom
+		// Scroll position for the old channel was already saved continuously
+		// by handleScroll, so we only need to restore here.
 		const saved = _channel ? savedScrollPositions.get(_channel.toLowerCase()) : null;
 		const restoreAtBottom = !saved || saved.atBottom;
 
 		unreadCount = 0;
 		isAtBottom = restoreAtBottom;
 		isLoadingHistory = false;
-		prevMessageCount = 0;
 		expandedGroups = new Set();
 		measuredHeights = new Map();
 		prefixSumsVersion++;
@@ -594,6 +604,10 @@
 		const cachedMessages = _channel ? untrack(() => getMessages(_channel)) : [];
 		isAwaitingInitialMessages = cachedMessages.length === 0;
 
+		// Initialize to current count so the message-count effect doesn't
+		// treat all existing messages as "new" on channel switch.
+		prevMessageCount = cachedMessages.length;
+
 		if (restoreAtBottom) {
 			// Double tick: first renders the virtual scroll window, second
 			// accounts for measured height adjustments that shift scrollHeight.
@@ -602,6 +616,7 @@
 			tick().then(() => {
 				if (!scrollContainer) return;
 				scrollContainer.scrollTop = saved!.scrollTop;
+				currentScrollTop = scrollContainer.scrollTop; // sync to clamped value
 				checkScrollPosition();
 			});
 		}
