@@ -575,13 +575,18 @@
 
 		_prevSwitchChannel = _channel;
 
+		// Restore saved scroll position, or scroll to bottom if none saved / was at bottom
+		const saved = _channel ? savedScrollPositions.get(_channel.toLowerCase()) : null;
+		const restoreAtBottom = !saved || saved.atBottom;
+
 		unreadCount = 0;
+		isAtBottom = restoreAtBottom;
 		isLoadingHistory = false;
 		prevMessageCount = 0;
 		expandedGroups = new Set();
 		measuredHeights = new Map();
 		prefixSumsVersion++;
-		currentScrollTop = 0;
+		currentScrollTop = saved?.scrollTop ?? 0;
 
 		// Show skeleton placeholders if channel has no cached messages yet.
 		// Use untrack so this effect only re-runs on channel change, not on
@@ -589,18 +594,16 @@
 		const cachedMessages = _channel ? untrack(() => getMessages(_channel)) : [];
 		isAwaitingInitialMessages = cachedMessages.length === 0;
 
-		// Restore saved scroll position, or scroll to bottom if none saved / was at bottom
-		const saved = _channel ? savedScrollPositions.get(_channel.toLowerCase()) : null;
-		if (saved && !saved.atBottom) {
-			isAtBottom = false;
+		if (restoreAtBottom) {
+			// Double tick: first renders the virtual scroll window, second
+			// accounts for measured height adjustments that shift scrollHeight.
+			tick().then(() => { scrollToBottom(); tick().then(() => scrollToBottom()); });
+		} else {
 			tick().then(() => {
 				if (!scrollContainer) return;
-				scrollContainer.scrollTop = saved.scrollTop;
+				scrollContainer.scrollTop = saved!.scrollTop;
 				checkScrollPosition();
 			});
-		} else {
-			isAtBottom = true;
-			tick().then(() => scrollToBottom());
 		}
 	});
 
