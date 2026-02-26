@@ -872,15 +872,22 @@ Users can disable all animations via Settings > Appearance > Reduce Motion. Resp
 
 ```
 lib/state/
-├── connection.svelte.ts   ← WebSocket connection state per server
-├── servers.svelte.ts      ← Server list, active server
-├── channels.svelte.ts     ← Channel lists per server, active channel
-├── messages.svelte.ts     ← Message buffers per channel (ring buffer, 500 local)
-├── members.svelte.ts      ← Member lists per channel, presence
-├── user.svelte.ts         ← Current user state, settings, preferences
-├── voice.svelte.ts        ← Voice connection state, participants
-├── notifications.svelte.ts ← Unread counts, mention counts per channel
-└── theme.svelte.ts        ← Active theme, server theme overrides
+├── appSettings.svelte.ts    ← User preferences (density, font size, formatting toolbar)
+├── audioSettings.svelte.ts  ← Audio device selection, volumes, noise suppression
+├── channels.svelte.ts       ← Channel lists per server, active channel, DM conversations
+├── connection.svelte.ts     ← WebSocket connection state per server
+├── members.svelte.ts        ← Member lists per channel, role groups
+├── messages.svelte.ts       ← Message buffers per channel (ring buffer, 500 local)
+├── notifications.svelte.ts  ← Unread counts, mention counts per channel
+├── presence.svelte.ts       ← Online/idle/DND/offline status via MONITOR + away-notify
+├── profiles.svelte.ts       ← User profiles (display name, bio, avatar) with fetch dedup
+├── rawIrcLog.svelte.ts      ← Raw IRC message log for debug panel
+├── serverConfig.svelte.ts   ← Server config (accord.json) with ETag caching
+├── servers.svelte.ts        ← Server list, active server
+├── theme.svelte.ts          ← Active theme, server theme overrides
+├── typing.svelte.ts         ← Typing indicator state per channel
+├── user.svelte.ts           ← Current user state (nick, account, auth)
+└── voice.svelte.ts          ← Voice connection state, participants
 ```
 
 Each file exports reactive state using Svelte 5 runes (`$state`, `$derived`). No external state library needed.

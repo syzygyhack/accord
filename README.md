@@ -282,7 +282,7 @@ cd accord-files && bun test
 accord/
 ├── accord-client/                 # Svelte 5 + SvelteKit frontend
 │   ├── src/
-│   │   ├── components/          # 30 Svelte components
+│   │   ├── components/          # 31 Svelte components
 │   │   ├── lib/
 │   │   │   ├── api/             # Auth tokens, server discovery, invites, accounts, admin
 │   │   │   ├── irc/             # IRC protocol layer
@@ -853,19 +853,19 @@ Cardinal planned **12 tasks** to close remaining gaps between codebase and spec 
 
 Delivered: notification sounds with volume control, desktop notifications (Web Notification API), edit history viewer with "(edited)" label, spec-required CSS animations (message fade-in, channel crossfade, reaction pop), ETag caching for server config, expanded search filters (`has:image`, `has:link`, `before:date`, `after:date`), profile backend (JSON file store, CRUD API, avatar upload with magic byte validation), profile frontend (state store with fetch deduplication, Avatar component, settings UI), admin backend (auth middleware, stats/users/kick/ban/audit/announce routes), admin panel UI (4 tabs with keyboard nav), operational documentation (backup guide, upgrade runbook, nginx config, admin setup), thread data model and ThreadView sidebar, code review, and final cleanup.
 
-Post-session: typecheck fixes (duplicate property in profileStore.ts), a11y improvements (focus trapping in UserProfilePopout, dialog tabindex fixes), cross-user profile isolation tests, and full offline mode — IndexedDB message cache with write-through, service worker with app shell caching, PWA manifest, navigator.onLine tracking with reactive UI banner, and graceful degradation when disconnected.
+Post-session: typecheck fixes (duplicate property in profileStore.ts), a11y improvements (focus trapping in UserProfilePopout, dialog tabindex fixes), cross-user profile isolation tests, full offline mode — IndexedDB message cache with write-through, service worker with app shell caching, PWA manifest, navigator.onLine tracking with reactive UI banner, and graceful degradation when disconnected. Bug fixes: DM reactivity isolation (split `activeChannel` into standalone `$state` signal), profile update error reporting, file image preview layout, self-DM deduplication (msgid-based dedup in `addMessage` for echo+delivery), and channel-switch effect guard to prevent spurious virtualizer resets.
 
 ### By the Numbers
 
 | Metric | Value |
 |--------|-------|
 | TypeScript + Svelte source | ~28,000 lines |
-| Test code | ~12,500 lines |
+| Test code | ~13,700 lines |
 | Design specs | ~1,860 lines |
 | Infrastructure config | ~1,400 lines |
-| Components | 30 |
+| Components | 31 |
 | Reactive stores | 16 |
-| Commits | 156 |
+| Commits | 159 |
 | Packages | 2 |
 | Tests | 1,217 |
 | Cardinal tasks | 99+ |

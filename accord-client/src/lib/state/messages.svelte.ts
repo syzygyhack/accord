@@ -172,6 +172,14 @@ export function addMessage(target: string, msg: Message): void {
 	const key = normalizeTarget(target);
 	ensureChannel(key);
 	const msgs = channelMessages.get(key)!;
+
+	// Deduplicate by msgid — skip if this exact message is already in the buffer.
+	// This handles self-DMs (server sends echo + delivery with the same msgid)
+	// and any other case where the server delivers the same message twice.
+	if (!msg.msgid.startsWith('_local_') && msgs.some((m) => m.msgid === msg.msgid)) {
+		return;
+	}
+
 	msgs.push(msg);
 
 	if (msgs.length > MAX_MESSAGES_PER_CHANNEL) {

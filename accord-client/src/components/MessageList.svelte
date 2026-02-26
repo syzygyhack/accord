@@ -555,9 +555,14 @@
 	});
 
 	/** Effect: scroll to bottom when active channel changes. */
+	let _prevSwitchChannel: string | null = null;
 	$effect(() => {
 		// Access activeChannel to register dependency
 		const _channel = channelUIState.activeChannel;
+
+		// Guard: only reset when the channel actually changes
+		if (_channel === _prevSwitchChannel) return;
+		_prevSwitchChannel = _channel;
 
 		unreadCount = 0;
 		isAtBottom = true;
