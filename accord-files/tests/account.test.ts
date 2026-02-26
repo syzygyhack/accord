@@ -5,6 +5,81 @@ setupEnv();
 
 import { account } from "../src/routes/account.js";
 
+describe("GET /api/account/email", () => {
+  let originalFetch: typeof globalThis.fetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  test("returns 401 without Authorization header", async () => {
+    const r = req("/api/account/email", { method: "GET" });
+    const res = await account.fetch(r);
+    expect(res.status).toBe(401);
+  });
+
+  test("returns email from Ergo account_details", async () => {
+    const token = await createTestJwt("alice");
+
+    globalThis.fetch = mock(async (url: string | URL | Request) => {
+      const urlStr = typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
+      expect(urlStr).toContain("/v1/account_details");
+      return new Response(
+        JSON.stringify({ success: true, accountName: "alice", email: "alice@example.com" }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    });
+
+    const r = req("/api/account/email", {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const res = await account.fetch(r);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { email: string };
+    expect(body.email).toBe("alice@example.com");
+  });
+
+  test("returns empty string when no email set", async () => {
+    const token = await createTestJwt("alice");
+
+    globalThis.fetch = mock(async () =>
+      new Response(
+        JSON.stringify({ success: true, accountName: "alice" }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const r = req("/api/account/email", {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const res = await account.fetch(r);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { email: string };
+    expect(body.email).toBe("");
+  });
+
+  test("returns 502 when Ergo is unavailable", async () => {
+    const token = await createTestJwt("alice");
+
+    globalThis.fetch = mock(async () => {
+      throw new Error("Connection refused");
+    });
+
+    const r = req("/api/account/email", {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const res = await account.fetch(r);
+    expect(res.status).toBe(502);
+  });
+});
+
 describe("POST /api/account/password", () => {
   let originalFetch: typeof globalThis.fetch;
 
@@ -77,7 +152,7 @@ describe("POST /api/account/password", () => {
           headers: { "Content-Type": "application/json" },
         });
       }
-      if (urlStr.includes("/v1/ns/set")) {
+      if (urlStr.includes("/v1/ns/passwd")) {
         return new Response(JSON.stringify({ success: true }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
@@ -98,7 +173,7 @@ describe("POST /api/account/password", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { success: boolean };
     expect(body.success).toBe(true);
-    expect(callCount).toBe(2); // check_auth + ns/set
+    expect(callCount).toBe(2); // check_auth + ns/passwd
   });
 
   test("returns 502 when Ergo is unavailable for password verification", async () => {
@@ -115,101 +190,6 @@ describe("POST /api/account/password", () => {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ currentPassword: "old-password", newPassword: "new-password" }),
-    });
-    const res = await account.fetch(r);
-    expect(res.status).toBe(502);
-  });
-});
-
-describe("POST /api/account/email", () => {
-  let originalFetch: typeof globalThis.fetch;
-
-  beforeEach(() => {
-    originalFetch = globalThis.fetch;
-  });
-
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-  });
-
-  test("returns 401 without Authorization header", async () => {
-    const r = req("/api/account/email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: "test@test.com" }),
-    });
-    const res = await account.fetch(r);
-    expect(res.status).toBe(401);
-  });
-
-  test("returns 400 when email is missing", async () => {
-    const token = await createTestJwt("alice");
-    const r = req("/api/account/email", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({}),
-    });
-    const res = await account.fetch(r);
-    expect(res.status).toBe(400);
-  });
-
-  test("returns 400 for invalid email format", async () => {
-    const token = await createTestJwt("alice");
-    const r = req("/api/account/email", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ email: "no-at-sign" }),
-    });
-    const res = await account.fetch(r);
-    expect(res.status).toBe(400);
-    const body = (await res.json()) as { error: string };
-    expect(body.error).toContain("email");
-  });
-
-  test("returns success when email change succeeds", async () => {
-    const token = await createTestJwt("alice");
-
-    globalThis.fetch = mock(async () =>
-      new Response(JSON.stringify({ success: true }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-
-    const r = req("/api/account/email", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ email: "alice@example.com" }),
-    });
-    const res = await account.fetch(r);
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { success: boolean };
-    expect(body.success).toBe(true);
-  });
-
-  test("returns 502 when Ergo is unavailable", async () => {
-    const token = await createTestJwt("alice");
-
-    globalThis.fetch = mock(async () => {
-      throw new Error("Connection refused");
-    });
-
-    const r = req("/api/account/email", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ email: "alice@example.com" }),
     });
     const res = await account.fetch(r);
     expect(res.status).toBe(502);

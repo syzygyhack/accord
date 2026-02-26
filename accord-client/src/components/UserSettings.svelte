@@ -29,7 +29,7 @@
 	import { getNotificationPermission, requestNotificationPermission } from '$lib/notifications';
 	import { getToken } from '$lib/api/auth';
 	import { getActiveServer, serverState } from '$lib/state/servers.svelte';
-	import { changePassword, changeEmail, fetchEmail, type AccountApiResult } from '$lib/api/account';
+	import { changePassword, type AccountApiResult } from '$lib/api/account';
 	import {
 		getProfile,
 		updateProfile,
@@ -115,11 +115,6 @@
 		Array.from(channelState.channels.keys()).sort()
 	);
 
-	// --- Account: email (part of profile section) ---
-	/** Server-side email value (fetched on tab open). */
-	let savedEmail = $state('');
-	let profileEmail = $state('');
-
 	// --- Account: password change state ---
 	let currentPasswordInput = $state('');
 	let newPasswordInput = $state('');
@@ -140,10 +135,9 @@
 	let currentProfile = $derived(getProfile(userState.account ?? ''));
 	let currentAvatarUrl = $derived(resolveAvatarUrl(currentProfile?.avatar));
 
-	/** True when bio or email differs from saved values. */
+	/** True when bio differs from saved value. */
 	let profileDirty = $derived(
-		profileBio.trim() !== (currentProfile?.bio ?? '') ||
-		profileEmail.trim() !== savedEmail
+		profileBio.trim() !== (currentProfile?.bio ?? '')
 	);
 
 	async function submitProfile(): Promise<void> {
@@ -151,44 +145,13 @@
 		profileSuccess = null;
 		profileSaving = true;
 
-		const errors: string[] = [];
-
-		// Save bio if changed
-		const bioDirty = profileBio.trim() !== (currentProfile?.bio ?? '');
-		if (bioDirty) {
-			const { profile, error } = await updateProfile({
-				bio: profileBio.trim() || undefined,
-			});
-			if (!profile) {
-				errors.push(error ?? 'Failed to update bio');
-			}
-		}
-
-		// Save email if changed
-		const emailDirty = profileEmail.trim() !== savedEmail;
-		if (emailDirty) {
-			const trimmedEmail = profileEmail.trim();
-			if (trimmedEmail && (!trimmedEmail.includes('@') || !trimmedEmail.includes('.'))) {
-				errors.push('Invalid email address');
-			} else {
-				const server = getActiveServer();
-				const token = getToken();
-				if (!server?.filesUrl || !token) {
-					errors.push('Not connected to server');
-				} else if (trimmedEmail) {
-					const result: AccountApiResult = await changeEmail(server.filesUrl, token, { email: trimmedEmail });
-					if (result.success) {
-						savedEmail = trimmedEmail;
-					} else {
-						errors.push(result.error ?? 'Failed to update email');
-					}
-				}
-			}
-		}
+		const { profile, error } = await updateProfile({
+			bio: profileBio.trim() || undefined,
+		});
 
 		profileSaving = false;
-		if (errors.length > 0) {
-			profileError = errors.join('. ');
+		if (!profile) {
+			profileError = error ?? 'Failed to update bio';
 		} else {
 			profileSuccess = 'Profile updated';
 		}
@@ -196,7 +159,6 @@
 
 	function resetProfile(): void {
 		profileBio = currentProfile?.bio ?? '';
-		profileEmail = savedEmail;
 		profileError = null;
 		profileSuccess = null;
 	}
@@ -569,19 +531,6 @@
 		}
 	});
 
-	// Fetch current email when account tab opens
-	$effect(() => {
-		if (activeTab === 'account') {
-			const server = getActiveServer();
-			const token = getToken();
-			if (server?.filesUrl && token) {
-				fetchEmail(server.filesUrl, token).then((email) => {
-					savedEmail = email ?? '';
-					profileEmail = email ?? '';
-				});
-			}
-		}
-	});
 
 	onMount(() => {
 		loadDevices();
@@ -704,16 +653,6 @@
 								maxlength="500"
 								rows="3"
 							></textarea>
-						</label>
-
-						<label class="form-field">
-							<span class="field-label">Email</span>
-							<input
-								type="email"
-								class="settings-input"
-								placeholder="you@example.com"
-								bind:value={profileEmail}
-							/>
 						</label>
 
 						{#if profileError}
