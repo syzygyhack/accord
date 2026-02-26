@@ -621,7 +621,7 @@ Fields sourced from:
 - **Account name**: IRC account name (via `account-tag`)
 - **Bio**: Profile `bio` field (from accord-files profile API)
 - **Roles**: Derived from channel modes in the current channel
-- **Registered**: Account registration date, available via Ergo's HTTP API (`/v1/ns/info`). Note: IRC does not track "member since" (channel join time) — Ergo only stores account registration time. The field is labeled "Registered" not "Member Since" to be accurate.
+- **Registered**: Account registration date, available via Ergo's HTTP API (`/v1/account_details`). Note: IRC does not track "member since" (channel join time) — Ergo only stores account registration time. The field is labeled "Registered" not "Member Since" to be accurate.
 
 ### Modals & Overlays
 
@@ -645,7 +645,7 @@ Accessed via gear icon near the voice panel or user avatar.
 
 | Tab | Contents |
 |-----|----------|
-| **Account** | Username card, profile (bio, avatar upload), email, password change. Sticky save bar appears when profile fields are modified. |
+| **Account** | Username card, profile (bio, avatar upload), password change. Sticky save bar appears when profile fields are modified. |
 | **Appearance** | Theme (dark/light/amoled/compact). Font size. Message density. |
 | **Notifications** | Default notification level. Per-server overrides. Push notification toggle. |
 | **Voice & Video** | Input/output device selection. Volume. Noise suppression toggle. |

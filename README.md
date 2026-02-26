@@ -135,7 +135,7 @@ The client connects to Ergo over a single WebSocket for all chat functionality. 
 
 ### Account
 - Profile editing (bio, avatar) in settings UI with dirty-tracking save bar
-- Email and password change in Account settings
+- Password change in Account settings
 - Persistent login across app restarts (OS keychain via Tauri, localStorage fallback for web)
 
 ### Desktop (Tauri 2)
@@ -822,52 +822,15 @@ All admin actions are recorded in the security audit log with the admin's accoun
 
 ## How This Was Built
 
-The codebase was authored by **Claude Opus 4.6** (Anthropic) running inside the **Avril** harness — a session-based agent framework for quality-assured code generation. Work was orchestrated by **Cardinal**, a task planning and execution system that decomposed design specs into implementable work units, managed dependencies, and tracked progress.
-
-Three Cardinal sessions built the project end-to-end:
-
-### Session 1: Core MVP (Feb 12)
-Cardinal decomposed the specs into **36 tasks** ordered by dependency graph: Docker infrastructure first, then IRC protocol layer, then UI shell, then features.
-
-Delivered: Docker Compose stack (Ergo, MariaDB, LiveKit, Caddy), SvelteKit project scaffolding, IRC parser/connection/CAP/SASL, all core UI components (Login, Message, MessageList, MessageInput, MemberList, ChannelSidebar, HeaderBar), voice state and LiveKit room management, read markers, unread badges, DM conversations, reconnection with gap fill, responsive layout, and the Tauri desktop shell.
-
-### Session 2: Feature Completion (Feb 15)
-Cardinal planned **22 tasks** to close all remaining spec gaps.
-
-Delivered: message editing with `+accord/edit` tag, file upload backend and client UI (drag-and-drop, paste-to-upload), inline media previews (image/video/audio), Open Graph link preview cards with SSRF-protected server-side fetch, four themes (dark/light/AMOLED/compact), compact message display mode, per-channel notification settings, invite link system (create/validate/expire/revoke), server list sidebar with drag reorder, user profile popout, collapsible system messages, custom server emoji, pinned messages, message search panel, keybinding customization UI, raw IRC debug panel, and a full code review pass.
-
-### Session 3: Polish & Review (Feb 16-17)
-Cardinal planned **31 tasks** targeting the remaining TODO items and a comprehensive code review.
-
-Delivered: `/join` slash command, member list virtual scrolling and hover cards, server list context menu, message hover menu (edit/copy/mark unread), Server Settings modal (7 tabs), User Settings Notifications and Account tabs, user profile popout with registered date, resizable sidebar columns, channel sidebar ops affordances (create button, drag reorder, read-only icons), header bar channel settings gear, reaction bar improvements, keyboard shortcuts, server config integration (welcome modal, role colors), spoiler formatting, syntax-highlighted code blocks, empty states and image blur-up transitions, shared constant deduplication, and two rounds of code review fixes (security, performance, accessibility, CSS).
-
-### Post-Cardinal
-Development continued as **human-agent collaboration** — the human directed priorities and reviewed results while Claude (Opus 4.6 via Avril) implemented features and fixes. Cross-model review (**Claude + OpenAI Codex**) identified issues including MODE parsing drift, MONITOR timing races, and slash command edge cases, all resolved. Post-Cardinal work added: voice manager extraction, accessibility utilities (focus trapping, menu keyboard navigation, ARIA tab patterns), channel navigation module, server theme disable toggles, WCAG contrast warnings, and a comprehensive TODO rewrite for the rename/publish roadmap.
-
-### Session 4: Security Audit & Hardening (Feb 18)
-A full codebase security audit identified 16 findings across the stack. Fixes applied: JWT secret minimum length enforcement, structured security event logging for all auth/upload/invite/account operations, dedicated MariaDB user isolation, og:image SSRF validation, magic byte file upload validation, HSTS headers, removal of insecure defaults from environment configuration, case-insensitive IRC key normalization, mIRC 99-color palette support, voice disconnect handling, and expanded test coverage (+82 tests).
-
-### Session 5: Spec Alignment (Feb 25)
-Cardinal planned **12 tasks** to close remaining gaps between codebase and spec documents.
-
-Delivered: notification sounds with volume control, desktop notifications (Web Notification API), edit history viewer with "(edited)" label, spec-required CSS animations (message fade-in, channel crossfade, reaction pop), ETag caching for server config, expanded search filters (`has:image`, `has:link`, `before:date`, `after:date`), profile backend (JSON file store, CRUD API, avatar upload with magic byte validation), profile frontend (state store with fetch deduplication, Avatar component, settings UI), admin backend (auth middleware, stats/users/kick/ban/audit/announce routes), admin panel UI (4 tabs with keyboard nav), operational documentation (backup guide, upgrade runbook, nginx config, admin setup), thread data model and ThreadView sidebar, code review, and final cleanup.
-
-Post-session: typecheck fixes (duplicate property in profileStore.ts), a11y improvements (focus trapping in UserProfilePopout, dialog tabindex fixes), cross-user profile isolation tests, full offline mode — IndexedDB message cache with write-through, service worker with app shell caching, PWA manifest, navigator.onLine tracking with reactive UI banner, and graceful degradation when disconnected. Bug fixes: DM reactivity isolation (split `activeChannel` into standalone `$state` signal), profile update error reporting, file image preview layout, self-DM deduplication (msgid-based dedup in `addMessage` for echo+delivery), and channel-switch effect guard to prevent spurious virtualizer resets.
-
-### By the Numbers
+Built by **Claude Opus 4.6** (Anthropic) via the **Avril** agent framework, orchestrated by **Cardinal** task planning. Six development sessions from core MVP through security hardening and UX polish. See [BUILD_LOG.md](BUILD_LOG.md) for the full session-by-session breakdown.
 
 | Metric | Value |
 |--------|-------|
 | TypeScript + Svelte source | ~28,000 lines |
 | Test code | ~13,700 lines |
-| Design specs | ~1,860 lines |
-| Infrastructure config | ~1,400 lines |
 | Components | 31 |
 | Reactive stores | 16 |
-| Commits | 159 |
-| Packages | 2 |
-| Tests | 1,217 |
-| Cardinal tasks | 99+ |
+| Tests | 1,200+ |
 
 ---
 

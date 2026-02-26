@@ -1875,13 +1875,7 @@
 		cursor: default;
 	}
 
-	/* ---- Account Tab: Email & Password Forms ---- */
-
-	.account-form-row {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-	}
+	/* ---- Account Tab: Password Form ---- */
 
 	.settings-input {
 		flex: 1;
