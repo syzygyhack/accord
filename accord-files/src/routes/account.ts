@@ -7,6 +7,40 @@ import { securityLog, clientIp } from "../securityLog.js";
 const account = new Hono<AppEnv>();
 
 /**
+ * GET /api/account/email — Fetch the authenticated user's email.
+ *
+ * Proxies to Ergo's /v1/ns/info to get the current email.
+ * Only returns the email for the requesting user (not others).
+ */
+account.get("/api/account/email", authMiddleware, async (c) => {
+  const user = c.get("user");
+
+  let ergoRes: Response;
+  try {
+    ergoRes = await ergoPost("/v1/ns/info", { accountName: user.sub });
+  } catch {
+    return c.json({ error: "Account service unavailable" }, 502);
+  }
+
+  if (!ergoRes.ok) {
+    return c.json({ error: "Could not fetch account info" }, 502);
+  }
+
+  let ergoBody: { success?: boolean; email?: string };
+  try {
+    ergoBody = (await ergoRes.json()) as typeof ergoBody;
+  } catch {
+    return c.json({ error: "Account service returned invalid response" }, 502);
+  }
+
+  if (!ergoBody.success) {
+    return c.json({ error: "Account not found" }, 404);
+  }
+
+  return c.json({ email: ergoBody.email ?? "" });
+});
+
+/**
  * POST /api/account/password — Change the authenticated user's password.
  *
  * Proxies to Ergo's /v1/ns/set endpoint with the new passphrase.

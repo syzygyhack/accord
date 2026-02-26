@@ -29,7 +29,7 @@
 	import { getNotificationPermission, requestNotificationPermission } from '$lib/notifications';
 	import { getToken } from '$lib/api/auth';
 	import { getActiveServer, serverState } from '$lib/state/servers.svelte';
-	import { changePassword, changeEmail, type AccountApiResult } from '$lib/api/account';
+	import { changePassword, changeEmail, fetchEmail, type AccountApiResult } from '$lib/api/account';
 	import {
 		getProfile,
 		updateProfile,
@@ -115,11 +115,10 @@
 		Array.from(channelState.channels.keys()).sort()
 	);
 
-	// --- Account: email change state ---
-	let emailInput = $state('');
-	let emailError: string | null = $state(null);
-	let emailSuccess: string | null = $state(null);
-	let emailSubmitting = $state(false);
+	// --- Account: email (part of profile section) ---
+	/** Server-side email value (fetched on tab open). */
+	let savedEmail = $state('');
+	let profileEmail = $state('');
 
 	// --- Account: password change state ---
 	let currentPasswordInput = $state('');
@@ -141,57 +140,63 @@
 	let currentProfile = $derived(getProfile(userState.account ?? ''));
 	let currentAvatarUrl = $derived(resolveAvatarUrl(currentProfile?.avatar));
 
-	/** True when Bio differs from the saved server profile. */
+	/** True when bio or email differs from saved values. */
 	let profileDirty = $derived(
-		profileBio.trim() !== (currentProfile?.bio ?? '')
+		profileBio.trim() !== (currentProfile?.bio ?? '') ||
+		profileEmail.trim() !== savedEmail
 	);
-
-	async function submitEmail(): Promise<void> {
-		const trimmed = emailInput.trim();
-		emailError = null;
-		emailSuccess = null;
-		if (!trimmed) {
-			emailError = 'Email cannot be empty';
-			return;
-		}
-		if (!trimmed.includes('@') || !trimmed.includes('.')) {
-			emailError = 'Invalid email address';
-			return;
-		}
-		const server = getActiveServer();
-		const token = getToken();
-		if (!server?.filesUrl || !token) {
-			emailError = 'Not connected to server';
-			return;
-		}
-		emailSubmitting = true;
-		const result: AccountApiResult = await changeEmail(server.filesUrl, token, { email: trimmed });
-		emailSubmitting = false;
-		if (result.success) {
-			emailSuccess = 'Email updated successfully';
-			emailInput = '';
-		} else {
-			emailError = result.error ?? 'Failed to update email';
-		}
-	}
 
 	async function submitProfile(): Promise<void> {
 		profileError = null;
 		profileSuccess = null;
 		profileSaving = true;
-		const { profile, error } = await updateProfile({
-			bio: profileBio.trim() || undefined,
-		});
+
+		const errors: string[] = [];
+
+		// Save bio if changed
+		const bioDirty = profileBio.trim() !== (currentProfile?.bio ?? '');
+		if (bioDirty) {
+			const { profile, error } = await updateProfile({
+				bio: profileBio.trim() || undefined,
+			});
+			if (!profile) {
+				errors.push(error ?? 'Failed to update bio');
+			}
+		}
+
+		// Save email if changed
+		const emailDirty = profileEmail.trim() !== savedEmail;
+		if (emailDirty) {
+			const trimmedEmail = profileEmail.trim();
+			if (trimmedEmail && (!trimmedEmail.includes('@') || !trimmedEmail.includes('.'))) {
+				errors.push('Invalid email address');
+			} else {
+				const server = getActiveServer();
+				const token = getToken();
+				if (!server?.filesUrl || !token) {
+					errors.push('Not connected to server');
+				} else if (trimmedEmail) {
+					const result: AccountApiResult = await changeEmail(server.filesUrl, token, { email: trimmedEmail });
+					if (result.success) {
+						savedEmail = trimmedEmail;
+					} else {
+						errors.push(result.error ?? 'Failed to update email');
+					}
+				}
+			}
+		}
+
 		profileSaving = false;
-		if (profile) {
-			profileSuccess = 'Profile updated';
+		if (errors.length > 0) {
+			profileError = errors.join('. ');
 		} else {
-			profileError = error ?? 'Failed to update profile';
+			profileSuccess = 'Profile updated';
 		}
 	}
 
 	function resetProfile(): void {
 		profileBio = currentProfile?.bio ?? '';
+		profileEmail = savedEmail;
 		profileError = null;
 		profileSuccess = null;
 	}
@@ -564,6 +569,20 @@
 		}
 	});
 
+	// Fetch current email when account tab opens
+	$effect(() => {
+		if (activeTab === 'account') {
+			const server = getActiveServer();
+			const token = getToken();
+			if (server?.filesUrl && token) {
+				fetchEmail(server.filesUrl, token).then((email) => {
+					savedEmail = email ?? '';
+					profileEmail = email ?? '';
+				});
+			}
+		}
+	});
+
 	onMount(() => {
 		loadDevices();
 
@@ -687,36 +706,21 @@
 							></textarea>
 						</label>
 
+						<label class="form-field">
+							<span class="field-label">Email</span>
+							<input
+								type="email"
+								class="settings-input"
+								placeholder="you@example.com"
+								bind:value={profileEmail}
+							/>
+						</label>
+
 						{#if profileError}
 							<span class="form-error">{profileError}</span>
 						{/if}
 						{#if profileSuccess}
 							<span class="form-success">{profileSuccess}</span>
-						{/if}
-					</div>
-
-					<div class="section-divider"></div>
-
-					<div class="settings-section">
-						<h3 class="section-title">Email</h3>
-						<p class="setting-hint">Set or change the email associated with your account.</p>
-						<div class="account-form-row">
-							<input
-								type="email"
-								class="settings-input"
-								placeholder="you@example.com"
-								bind:value={emailInput}
-								onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); submitEmail(); } }}
-							/>
-							<button class="settings-save-btn" onclick={submitEmail} disabled={emailSubmitting}>
-								{emailSubmitting ? 'Saving...' : 'Save'}
-							</button>
-						</div>
-						{#if emailError}
-							<span class="form-error">{emailError}</span>
-						{/if}
-						{#if emailSuccess}
-							<span class="form-success">{emailSuccess}</span>
 						{/if}
 					</div>
 

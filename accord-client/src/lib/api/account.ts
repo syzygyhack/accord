@@ -54,6 +54,29 @@ export async function changePassword(
 }
 
 /**
+ * Fetch the current user's email from the server.
+ *
+ * Returns the email string or null if unavailable.
+ */
+export async function fetchEmail(
+	filesUrl: string,
+	token: string,
+): Promise<string | null> {
+	const baseUrl = normalizeBaseUrl(filesUrl);
+
+	try {
+		const res = await fetch(`${baseUrl}/api/account/email`, {
+			headers: { Authorization: `Bearer ${token}` },
+		});
+		if (!res.ok) return null;
+		const data = (await res.json()) as { email?: string };
+		return data.email || null;
+	} catch {
+		return null;
+	}
+}
+
+/**
  * Set or change the user's email via accord-files.
  *
  * Requires a valid JWT token.
