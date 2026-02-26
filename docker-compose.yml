@@ -1,10 +1,9 @@
 services:
   ergo:
     image: ghcr.io/ergochat/ergo:stable
-    # Uncomment these ports for local dev access (Caddy proxies both in production):
-    # ports:
-    #   - "6667:6667"   # IRC plaintext
-    #   - "8097:8097"   # WebSocket
+    ports:
+      - "6667:6667"   # IRC plaintext
+      - "8097:8097"   # WebSocket (needed for Vite dev proxy)
     environment:
       # Keep Ergo in sync with .env without editing ircd.yaml
       ERGO__DATASTORE__MYSQL__USER: ergo
@@ -73,9 +72,8 @@ services:
 
   accord-files:
     build: ./accord-files
-    # Uncomment for local dev access (Caddy proxies /api in production):
-    # ports:
-    #   - "8080:8080"   # API
+    ports:
+      - "8080:8080"   # API (needed for Vite dev proxy)
     environment:
       ERGO_API: http://ergo:8089
       ERGO_API_TOKEN: ${ERGO_API_TOKEN:?set ERGO_API_TOKEN}
