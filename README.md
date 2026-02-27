@@ -282,12 +282,12 @@ LAN clients connect to `http://<LAN_IP>` in their browser. The login page server
 
 | Issue | Dev compose | LAN compose |
 |-------|-------------|-------------|
-| LiveKit client URL | `ws://localhost:7880` | `ws://<LAN_IP>:7880` |
+| LiveKit client URL | `ws://localhost:7880` | `ws://<LAN_IP>/livekit/` |
 | Ergo/accord-files ports | Exposed to all interfaces | Bound to `127.0.0.1` |
 | Caddy port 443 | Exposed | Not exposed (plain HTTP) |
 | Invite link base URL | Unset | `http://<LAN_IP>` |
 
-**Firewall:** Ensure ports 80 (HTTP), 7880-7881 (LiveKit signaling), and 50060-50160/udp (WebRTC media) are open on the host firewall.
+**Firewall:** Ensure ports 80 (HTTP), 7881 (LiveKit TCP fallback), and 50060-50160/udp (WebRTC media) are open on the host firewall.
 
 ### Desktop Build (Tauri)
 

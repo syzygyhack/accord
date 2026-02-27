@@ -1,23 +1,18 @@
 # LAN deployment — serves accord to other machines on your local network.
 #
 # Unlike docker-compose.yml (dev), this config:
-#   - Uses HTTPS with self-signed certs (required for browser voice/mic)
-#   - Exposes Caddy (443/80) + LiveKit media ports (7881 TCP, UDP range)
+#   - Serves plain HTTP via Caddy on port 80 (no TLS certificates needed)
+#   - Exposes Caddy (80) + LiveKit media ports (7881 TCP, UDP range)
 #   - Requires LAN_IP in .env (your machine's LAN address, e.g. 192.168.1.100)
-#   - Routes LiveKit signaling through Caddy for TLS
+#   - Routes LiveKit signaling through Caddy
 #   - Binds Ergo and accord-files to localhost only (not reachable directly)
 #
-# TLS setup:
-#   Caddy generates a self-signed root CA on first run (persisted in caddy-data).
-#   - Browsers: accept the cert warning on first visit to https://<LAN_IP>.
-#   - Tauri/desktop: install the CA cert so WebView2 trusts the connection:
-#       docker compose -f docker-compose.lan.yml cp caddy:/data/caddy/pki/authorities/local/root.crt ./accord-ca.crt
-#     Then import accord-ca.crt into your OS trust store:
-#       Windows: certutil -addstore Root accord-ca.crt
-#       macOS:   sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain accord-ca.crt
-#       Linux:   sudo cp accord-ca.crt /usr/local/share/ca-certificates/ && sudo update-ca-certificates
+# For HTTPS (required for browser voice/mic via getUserMedia):
+#   Set SITE_ADDRESS to a real domain (e.g. chat.example.com) in .env and
+#   Caddy will auto-provision Let's Encrypt certificates. Or use a reverse
+#   proxy with your own certs in front of this stack.
 #
-# Firewall: ensure TCP 443, TCP 7881, and UDP 50060-50160 are open on the host.
+# Firewall: ensure TCP 80, TCP 7881, and UDP 50060-50160 are open on the host.
 #
 # Usage:
 #   docker compose -f docker-compose.lan.yml up -d
@@ -67,7 +62,7 @@ services:
   livekit:
     image: livekit/livekit-server:v1.9.11
     ports:
-      # Signaling (7880) NOT exposed — routed through Caddy at /livekit for TLS.
+      # Signaling (7880) NOT exposed — routed through Caddy at /livekit.
       # Media ports must be exposed directly (WebRTC UDP/TCP bypasses the proxy).
       - "7881:7881"
       - "50060-50160:50060-50160/udp"
@@ -102,15 +97,15 @@ services:
     environment:
       ERGO_API: http://ergo:8089
       ERGO_API_TOKEN: ${ERGO_API_TOKEN:?set ERGO_API_TOKEN}
-      # Client-facing LiveKit URL routes through Caddy for TLS
-      LIVEKIT_CLIENT_URL: wss://${LAN_IP:?set LAN_IP in .env}/livekit/
+      # Client-facing LiveKit URL routes through Caddy
+      LIVEKIT_CLIENT_URL: ws://${LAN_IP:?set LAN_IP in .env}/livekit/
       LIVEKIT_API_URL: http://livekit:7880
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET}
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
       SERVER_NAME: ${SERVER_NAME:-}
       SERVER_ID: ${SERVER_ID:-}
-      BASE_URL: https://${LAN_IP:?set LAN_IP in .env}
+      BASE_URL: http://${LAN_IP:?set LAN_IP in .env}
       MAX_FILE_SIZE: ${MAX_FILE_SIZE:-}
     volumes:
       - ./config/accord/accord.json:/app/config/accord.json:ro
@@ -132,18 +127,18 @@ services:
   caddy:
     image: caddy:2
     ports:
-      - "443:443"
       - "80:80"
     environment:
-      # Bare IP as SITE_ADDRESS triggers Caddy auto-HTTPS with self-signed certs
-      SITE_ADDRESS: ${LAN_IP:?set LAN_IP in .env}
+      # <IP>:80 keeps Caddy in plain HTTP mode (no self-signed certs).
+      # For HTTPS, set SITE_ADDRESS to a real domain in .env.
+      SITE_ADDRESS: ${SITE_ADDRESS:-${LAN_IP:?set LAN_IP in .env}:80}
     volumes:
       - ./config/caddy/Caddyfile:/etc/caddy/Caddyfile
       - ./accord-client/build:/srv/accord
       - caddy-data:/data
       - caddy-config:/config
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-check-certificate -qO- https://localhost/caddy-health || wget -qO- http://localhost/caddy-health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost/caddy-health || exit 1"]
       interval: 5s
       timeout: 3s
       start_period: 5s
