@@ -999,9 +999,7 @@
 	}
 
 	textarea:focus-visible {
-		outline: 2px solid var(--accent-primary);
-		outline-offset: -2px;
-		border-radius: 2px;
+		outline: none;
 	}
 
 	textarea::placeholder {

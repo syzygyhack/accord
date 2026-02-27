@@ -173,6 +173,31 @@ describe('highlightMentions', () => {
 		const result = highlightMentions('hello @Alice', 'alice');
 		expect(result).toContain('class="mention mention-self"');
 	});
+
+	it('does not corrupt @ inside anchor href attributes', () => {
+		const input = '<a href="https://example.com/@user/repo" target="_blank" rel="noopener noreferrer">https://example.com/@user/repo</a>';
+		const result = highlightMentions(input, 'alice');
+		// The href attribute must be untouched
+		expect(result).toContain('href="https://example.com/@user/repo"');
+		// The display text @user gets highlighted (it's text content, not an attribute)
+		expect(result).toContain('class="mention"');
+	});
+
+	it('does not corrupt # inside anchor href attributes', () => {
+		const input = '<a href="https://example.com/page#section" target="_blank" rel="noopener noreferrer">https://example.com/page#section</a>';
+		const result = highlightMentions(input, 'alice');
+		// The href must be untouched
+		expect(result).toContain('href="https://example.com/page#section"');
+	});
+
+	it('handles text with @ mentions alongside anchor tags', () => {
+		const input = 'hey @bob check <a href="https://example.com/@me" target="_blank" rel="noopener noreferrer">https://example.com/@me</a>';
+		const result = highlightMentions(input, 'alice');
+		// @bob in text should be highlighted
+		expect(result).toContain('<span class="mention">@bob</span>');
+		// href must be untouched
+		expect(result).toContain('href="https://example.com/@me"');
+	});
 });
 
 describe('nickColor', () => {
@@ -391,6 +416,17 @@ describe('renderMessage XSS safety', () => {
 		// Display text has single-escaped &amp; (not double &amp;amp;)
 		expect(result).toContain('>https://example.com/test&amp;param=1</a>');
 		expect(result).not.toContain('&amp;amp;');
+	});
+
+	it('does not corrupt URLs containing @ in full pipeline', () => {
+		const result = renderMessage('see https://github.com/@user/repo', 'me');
+		// The <a> tag href must have the full URL intact
+		expect(result).toContain('href="https://github.com/@user/repo"');
+	});
+
+	it('does not corrupt URLs containing # fragment in full pipeline', () => {
+		const result = renderMessage('see https://example.com/docs#section', 'me');
+		expect(result).toContain('href="https://example.com/docs#section"');
 	});
 });
 

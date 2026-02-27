@@ -1,6 +1,9 @@
 ##
 # NOTE: docker-compose injects LiveKit config via LIVEKIT_CONFIG.
 # This file is a reference for manual LiveKit runs or customization.
+#
+# For LAN deployments, set use_external_ip: false and add node_ip
+# with your host's LAN address (see docker-compose.lan.yml).
 ##
 port: 7880
 rtc:

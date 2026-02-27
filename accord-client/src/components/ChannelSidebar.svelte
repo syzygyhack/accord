@@ -853,6 +853,9 @@
 	.dm-row .channel-item {
 		flex: 1;
 		min-width: 0;
+		/* Override the fixed width so flex layout works with the close button */
+		width: auto;
+		margin-right: 0;
 	}
 
 	.dm-close-btn {
@@ -884,7 +887,7 @@
 	}
 
 	.dm-item {
-		align-items: flex-start;
+		align-items: center;
 	}
 
 	.dm-content {
@@ -948,21 +951,23 @@
 	.voice-participants {
 		display: flex;
 		flex-direction: column;
+		align-items: flex-start;
 		gap: 1px;
 		padding: 2px 0 4px 28px;
 	}
 
 	.voice-participant {
-		display: flex;
+		display: inline-flex;
 		align-items: center;
 		gap: 6px;
-		padding: 2px 8px;
+		padding: 2px 6px;
 		border-radius: 3px;
 		transition: background var(--duration-channel);
+		max-width: 100%;
 	}
 
 	.voice-participant.speaking {
-		background: rgba(35, 165, 89, 0.1);
+		background: rgba(35, 165, 89, 0.08);
 	}
 
 	.participant-speaking-dot {

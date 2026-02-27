@@ -62,9 +62,8 @@ const HTML_ESCAPE_MAP: Record<string, string> = {
 	'<': '&lt;',
 	'>': '&gt;',
 	'"': '&quot;',
-	"'": '&#39;',
 };
-const HTML_ESCAPE_RE = /[&<>"']/g;
+const HTML_ESCAPE_RE = /[&<>"]/g;
 
 /** Escape HTML special characters to prevent XSS. Single-pass for efficiency. */
 function escapeHTML(text: string): string {
@@ -322,8 +321,7 @@ export function linkify(text: string): string {
 				.replace(/&amp;/g, '&')
 				.replace(/&lt;/g, '<')
 				.replace(/&gt;/g, '>')
-				.replace(/&quot;/g, '"')
-				.replace(/&#39;/g, "'");
+				.replace(/&quot;/g, '"');
 			return `<a href="${escapeHTML(href)}" target="_blank" rel="noopener noreferrer">${url}</a>${trailing}`;
 		}
 	);
@@ -341,18 +339,27 @@ export function linkify(text: string): string {
  * of calling this directly.
  */
 export function highlightMentions(text: string, myAccount: string): string {
-	// Highlight @mentions (IRC nicks can contain letters, digits, -, _, [, ], {, }, \, ^)
-	let result = text.replace(/@([\w\-\[\]{}\\\^]+)/g, (match, name: string) => {
-		const isSelf = name.toLowerCase() === myAccount.toLowerCase();
-		const cls = isSelf ? 'mention mention-self' : 'mention';
-		return `<span class="${cls}">${match}</span>`;
-	});
-
-	// Highlight #channel references
-	result = result.replace(/#(\w[\w-]*)/g, (match) => {
-		return `<span class="channel-ref">${match}</span>`;
-	});
-
+	// Split into HTML tags and text segments so we only highlight in text,
+	// not inside <a href="..."> or other tag attributes.
+	const parts = text.split(/(<[^>]*>)/);
+	let result = '';
+	for (const part of parts) {
+		if (part.startsWith('<')) {
+			// HTML tag — pass through unmodified
+			result += part;
+			continue;
+		}
+		// Text segment — highlight @mentions and #channels
+		let segment = part.replace(/@([\w\-\[\]{}\\\^]+)/g, (match, name: string) => {
+			const isSelf = name.toLowerCase() === myAccount.toLowerCase();
+			const cls = isSelf ? 'mention mention-self' : 'mention';
+			return `<span class="${cls}">${match}</span>`;
+		});
+		segment = segment.replace(/#(\w[\w-]*)/g, (match) => {
+			return `<span class="channel-ref">${match}</span>`;
+		});
+		result += segment;
+	}
 	return result;
 }
 
