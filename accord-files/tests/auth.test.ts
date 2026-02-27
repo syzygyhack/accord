@@ -145,49 +145,6 @@ describe("POST /api/auth", () => {
     expect(payload.sub).toBe("bob");
   });
 
-  test("returns 403 when Origin does not match ALLOWED_ORIGIN", async () => {
-    const prev = process.env.ALLOWED_ORIGIN;
-    process.env.ALLOWED_ORIGIN = "https://accord.example.com";
-    try {
-      const res = await auth.fetch(req("/api/auth", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Origin: "https://evil.example.com",
-        },
-        body: JSON.stringify({ account: "alice", password: "pass" }),
-      }));
-      expect(res.status).toBe(403);
-      const body = await res.json() as { error: string };
-      expect(body.error).toContain("Origin");
-    } finally {
-      if (prev === undefined) delete process.env.ALLOWED_ORIGIN;
-      else process.env.ALLOWED_ORIGIN = prev;
-    }
-  });
-
-  test("allows request when Origin matches ALLOWED_ORIGIN", async () => {
-    const prev = process.env.ALLOWED_ORIGIN;
-    process.env.ALLOWED_ORIGIN = "https://accord.example.com";
-    globalThis.fetch = mock(async () =>
-      new Response(JSON.stringify({ success: true }), { status: 200 }),
-    ) as typeof fetch;
-    try {
-      const res = await auth.fetch(req("/api/auth", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Origin: "https://accord.example.com",
-        },
-        body: JSON.stringify({ account: "alice", password: "pass" }),
-      }));
-      expect(res.status).toBe(200);
-    } finally {
-      if (prev === undefined) delete process.env.ALLOWED_ORIGIN;
-      else process.env.ALLOWED_ORIGIN = prev;
-    }
-  });
-
   test("sends correct request to Ergo API", async () => {
     const fetchMock = mock(async () =>
       new Response(JSON.stringify({ success: true }), { status: 200 }),

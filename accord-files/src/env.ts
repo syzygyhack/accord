@@ -67,9 +67,6 @@ function validateOnce(): void {
     console.warn("WARNING: ERGO_API_TOKEN is a known default — generate a secure random value for production");
   }
 
-  if (!process.env.ALLOWED_ORIGIN) {
-    console.warn("WARNING: ALLOWED_ORIGIN is not set — cross-origin requests will be rejected. Set it to your domain for browser access");
-  }
 }
 
 function deriveServerId(): string {
@@ -134,11 +131,6 @@ export const env = {
   /** Stable server identifier for JWTs/invites. Prefer SERVER_ID, falls back to BASE_URL host or safe SERVER_NAME. */
   get SERVER_ID() {
     return deriveServerId();
-  },
-  /** Allowed CORS origins (comma-separated in ALLOWED_ORIGIN). */
-  get ALLOWED_ORIGINS() {
-    const raw = optional("ALLOWED_ORIGIN", "");
-    return raw.split(",").map((value) => value.trim()).filter(Boolean);
   },
   /** Base URL for generated invite links (e.g. https://chat.example.com). Falls back to request Origin/Host. */
   get BASE_URL() {

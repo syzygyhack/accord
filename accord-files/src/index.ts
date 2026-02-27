@@ -19,14 +19,11 @@ const { router: invite } = createInviteRouter();
 
 app.use("*", logger());
 
-// CORS middleware — always applied. When ALLOWED_ORIGIN is set, only that
-// origin is permitted. When unset, all cross-origin requests are rejected
-// (no Access-Control-Allow-Origin header is sent).
-const allowedOrigins = env.ALLOWED_ORIGINS;
+// CORS middleware — reflect the request Origin back. Auth is credential-based
+// (JWT), not cookie-based, so Origin restrictions don't add CSRF protection.
+// Desktop clients (Tauri) send their own origin and must not be blocked.
 app.use("*", cors({
-  origin: allowedOrigins.length > 0
-    ? (origin) => (allowedOrigins.includes(origin) ? origin : "")
-    : () => "",  // empty string = browser rejects cross-origin response
+  origin: (origin) => origin || "*",
 }));
 
 // Rate limiting on sensitive endpoints (configurable via env)

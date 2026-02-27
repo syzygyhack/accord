@@ -1,11 +1,21 @@
+# LAN deployment — serves accord to other machines on your local network.
+#
+# Unlike docker-compose.yml (dev), this config:
+#   - Only exposes ports through Caddy (80) + LiveKit (7880, 7881, UDP)
+#   - Requires LAN_IP in .env (your machine's LAN address, e.g. 192.168.1.100)
+#   - Automatically wires LIVEKIT_CLIENT_URL and BASE_URL from LAN_IP
+#   - Binds Ergo and accord-files to localhost only (not reachable directly from LAN)
+#
+# Usage:
+#   docker compose -f docker-compose.lan.yml up -d
+
 services:
   ergo:
     image: ghcr.io/ergochat/ergo:stable
     ports:
-      - "6667:6667"   # IRC plaintext
-      - "8097:8097"   # WebSocket (needed for Vite dev proxy)
+      - "127.0.0.1:6667:6667"   # IRC plaintext — localhost only
+      - "127.0.0.1:8097:8097"   # WebSocket — localhost only (Caddy proxies /ws)
     environment:
-      # Keep Ergo in sync with .env without editing ircd.yaml
       ERGO__DATASTORE__MYSQL__USER: ergo
       ERGO__DATASTORE__MYSQL__PASSWORD: ${MYSQL_ERGO_PASSWORD:-${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD}}
       ERGO__API__BEARER_TOKENS: '["${ERGO_API_TOKEN:?set ERGO_API_TOKEN}"]'
@@ -73,16 +83,17 @@ services:
   accord-files:
     build: ./accord-files
     ports:
-      - "8080:8080"   # API (needed for Vite dev proxy)
+      - "127.0.0.1:8080:8080"   # API — localhost only (Caddy proxies /api)
     environment:
       ERGO_API: http://ergo:8089
       ERGO_API_TOKEN: ${ERGO_API_TOKEN:?set ERGO_API_TOKEN}
-      LIVEKIT_CLIENT_URL: ws://localhost:7880
+      LIVEKIT_CLIENT_URL: ws://${LAN_IP:?set LAN_IP in .env}:7880
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET}
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
       SERVER_NAME: ${SERVER_NAME:-}
       SERVER_ID: ${SERVER_ID:-}
+      BASE_URL: http://${LAN_IP:?set LAN_IP in .env}
       MAX_FILE_SIZE: ${MAX_FILE_SIZE:-}
     volumes:
       - ./config/accord/accord.json:/app/config/accord.json:ro
@@ -104,7 +115,6 @@ services:
   caddy:
     image: caddy:2
     ports:
-      - "443:443"
       - "80:80"
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}

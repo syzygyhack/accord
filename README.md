@@ -203,7 +203,7 @@ Client-only tags (relayed transparently): `+draft/reply`, `+draft/react`, `+typi
 - [Docker](https://docs.docker.com/get-docker/) & Docker Compose
 - [Rust](https://rustup.rs/) (for Tauri desktop builds)
 
-### Quick Start
+### Initial Setup
 
 ```bash
 # Clone
@@ -214,30 +214,80 @@ cd accord
 cp .env.example .env
 # Edit .env — set JWT_SECRET (min 32 chars), LIVEKIT_API_KEY/SECRET, ERGO_API_TOKEN, MYSQL_ROOT_PASSWORD
 
-# Build the client
+# Build the client (required for both dev and LAN)
 cd accord-client
 pnpm install
 pnpm build
 cd ..
-
-# Start everything (Ergo, MariaDB, LiveKit, accord-files, Caddy)
-docker compose up -d
 ```
 
-Docker Compose runs all five services. Caddy serves the built client from `/srv/accord` and proxies `/ws` to Ergo, `/api/*` to accord-files.
+There are two Docker Compose files for different deployment modes:
 
-### LAN Access
+| File | Purpose | Access |
+|------|---------|--------|
+| `docker-compose.yml` | Local development | `localhost` only |
+| `docker-compose.lan.yml` | LAN deployment | Other machines on your network |
 
-To make the server accessible to other machines on your network:
+### Development (localhost)
 
-1. Set `LIVEKIT_CLIENT_URL` in `.env` to your LAN IP:
-   ```
-   LIVEKIT_CLIENT_URL=ws://192.168.1.100:7880
-   ```
-2. `use_external_ip` is already enabled in the LiveKit config (see `docker-compose.yml` or `config/livekit/config.yaml`).
-3. Restart: `docker compose up -d`
+`docker-compose.yml` exposes Ergo (8097) and accord-files (8080) ports directly so the Vite dev server can proxy to them. Use this when developing the client with hot-reload.
 
-All Docker services bind to `0.0.0.0` by default, so ports are already network-accessible.
+```bash
+# Start backend services
+docker compose up -d
+
+# Start client dev server (separate terminal)
+cd accord-client && pnpm dev
+```
+
+The client dev server runs at `http://localhost:5173`. Vite proxies `/api/*` and `/.well-known/*` to accord-files, and the login page connects to `ws://localhost:8097` for the IRC WebSocket.
+
+No special `.env` values are needed — the defaults in `docker-compose.yml` target localhost.
+
+### LAN Deployment
+
+`docker-compose.lan.yml` locks backend ports to localhost and routes everything through Caddy on port 80. It wires `LIVEKIT_CLIENT_URL` and `BASE_URL` from a single `LAN_IP` variable so LAN clients connect to the right addresses.
+
+**1. Find your LAN IP:**
+
+```bash
+# Linux/macOS
+ip route get 1 | awk '{print $7; exit}'
+# Windows (PowerShell)
+(Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -notlike '*Loopback*' -and $_.PrefixOrigin -eq 'Dhcp' }).IPAddress
+```
+
+**2. Set `LAN_IP` in `.env`:**
+
+```bash
+# .env
+LAN_IP=192.168.1.100
+```
+
+**3. Build the client** (if you haven't already):
+
+```bash
+cd accord-client && pnpm build && cd ..
+```
+
+**4. Start services:**
+
+```bash
+docker compose -f docker-compose.lan.yml up -d
+```
+
+LAN clients connect to `http://<LAN_IP>` in their browser. The login page server URL field should be `ws://<LAN_IP>/ws`.
+
+**What `docker-compose.lan.yml` fixes vs the dev file:**
+
+| Issue | Dev compose | LAN compose |
+|-------|-------------|-------------|
+| LiveKit client URL | `ws://localhost:7880` | `ws://<LAN_IP>:7880` |
+| Ergo/accord-files ports | Exposed to all interfaces | Bound to `127.0.0.1` |
+| Caddy port 443 | Exposed | Not exposed (plain HTTP) |
+| Invite link base URL | Unset | `http://<LAN_IP>` |
+
+**Firewall:** Ensure ports 80 (HTTP), 7880-7881 (LiveKit signaling), and 50060-50160/udp (WebRTC media) are open on the host firewall.
 
 ### Desktop Build (Tauri)
 
@@ -252,16 +302,6 @@ pnpm tauri:build
 ```
 
 Requires [Rust](https://rustup.rs/) and platform-specific Tauri dependencies (see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)).
-
-### Development
-
-```bash
-# Start all services
-docker compose up -d
-
-# Start client dev server (separate terminal)
-cd accord-client && pnpm install && pnpm dev
-```
 
 ### Run Tests
 
@@ -338,7 +378,8 @@ accord/
 │   ├── ergo/ircd.yaml           # Ergo IRC server config
 │   ├── livekit/config.yaml      # LiveKit SFU config (reference for manual runs)
 │   └── caddy/Caddyfile          # Reverse proxy rules
-├── docker-compose.yml           # 5-service stack
+├── docker-compose.yml           # 5-service stack (dev — localhost)
+├── docker-compose.lan.yml      # 5-service stack (LAN — network-accessible)
 ├── PLAN.md                      # Architecture spec
 └── FRONTEND.md                  # UI/UX design spec
 ```
@@ -392,35 +433,30 @@ No client forking required for customization.
 | `LIVEKIT_API_KEY` | Yes | — | LiveKit API key |
 | `LIVEKIT_API_SECRET` | Yes | — | LiveKit API secret |
 | `MYSQL_ROOT_PASSWORD` | Yes | — | MariaDB root password |
-| `MYSQL_ERGO_PASSWORD` | No | _(falls back to MYSQL_ROOT_PASSWORD)_ | Dedicated MariaDB password for the `ergo` user |
 | `ERGO_API_TOKEN` | Yes | — | Bearer token for Ergo HTTP API (injected into Ergo config) |
-| `ERGO_API` | No | `http://ergo:8089` | Ergo HTTP API URL |
-| `ERGO_WEBSOCKET_ORIGINS` | No | `["http://localhost","http://127.0.0.1"]` | JSON array of allowed Origin values for IRC WebSocket connections |
-| `LIVEKIT_URL` | No | `ws://livekit:7880` | Internal LiveKit signaling URL |
-| `LIVEKIT_CLIENT_URL` | No | `ws://localhost:7880` | Client-facing LiveKit URL (set to LAN IP for network access) |
-| `ALLOWED_ORIGIN` | No | _(reject all)_ | CORS allowed origin(s). Comma-separated list. When unset, all cross-origin requests are rejected |
-| `BASE_URL` | No | — | Base URL for invite links (falls back to request Origin/Host) |
+| `LAN_IP` | LAN only | — | Your machine's LAN IP. Required by `docker-compose.lan.yml` |
+| `SERVER_NAME` | No | — | Server display name |
+| `SERVER_ID` | No | — | Stable server identifier for JWTs/invite links (URL-safe) |
+| `MYSQL_ERGO_PASSWORD` | No | _(falls back to MYSQL_ROOT_PASSWORD)_ | Dedicated MariaDB password for the `ergo` user |
 | `SITE_ADDRESS` | No | `:80` | Caddy site address (set to domain for auto-HTTPS) |
 | `MAX_FILE_SIZE` | No | `26214400` | Max upload size in bytes (25 MB) |
-| `PORT` | No | `8080` | Backend listen port |
-| `CONFIG_PATH` | No | `config/accord.json` | Server config file path |
-| `SERVER_NAME` | No | — | Server display name |
-| `SERVER_ID` | No | — | Stable server identifier for JWTs/invite links (URL-safe; defaults to BASE_URL host or safe SERVER_NAME) |
-| `TRUST_PROXY` | No | `false` | Read client IP from `X-Forwarded-For` (enable only behind a trusted reverse proxy) |
+| `ADMIN_ACCOUNTS` | No | — | Comma-separated list of admin Ergo account names |
 
 ---
 
 ## Docker Compose Services
 
-| Service | Image | Exposed Ports | Purpose |
-|---------|-------|---------------|---------|
-| **ergo** | `ghcr.io/ergochat/ergo:stable` | _(internal only)_ | IRC server (WebSocket + plaintext) |
-| **mysql** | `mariadb:11` | _(internal only)_ | Message history persistence |
-| **livekit** | `livekit/livekit-server:v1.9.11` | 7880-7881, 50060-50160/udp | Voice/video SFU |
-| **accord-files** | Built from `./accord-files` | _(internal only)_ | Auth bridge, file uploads, config |
-| **caddy** | `caddy:2` | 80, 443 | Reverse proxy + TLS + static SPA |
+Both compose files run the same five services. The difference is port exposure:
 
-Ergo, MariaDB, and accord-files are only reachable through Caddy. Uncomment port mappings in `docker-compose.yml` for local dev access.
+| Service | Image | Dev ports | LAN ports | Purpose |
+|---------|-------|-----------|-----------|---------|
+| **ergo** | `ghcr.io/ergochat/ergo:stable` | 6667, 8097 | 127.0.0.1 only | IRC server (WebSocket + plaintext) |
+| **mysql** | `mariadb:11` | _(internal only)_ | _(internal only)_ | Message history persistence |
+| **livekit** | `livekit/livekit-server:v1.9.11` | 7880-7881, 50060-50160/udp | 7880-7881, 50060-50160/udp | Voice/video SFU |
+| **accord-files** | Built from `./accord-files` | 8080 | 127.0.0.1 only | Auth bridge, file uploads, config |
+| **caddy** | `caddy:2` | 80, 443 | 80 | Reverse proxy + static SPA |
+
+In LAN mode, Ergo and accord-files are only reachable through Caddy. In dev mode, their ports are exposed directly for the Vite dev server proxy.
 
 ---
 
@@ -486,23 +522,23 @@ Ergo, MariaDB, and accord-files are only reachable through Caddy. Uncomment port
 | User store | 7 |
 | File upload (client) | 5 |
 | Raw IRC log | 5 |
-| **Client total** | **938** |
+| **Client total** | **934** |
 | URL preview (server) | 54 |
 | Admin endpoint | 36 |
 | Profile endpoint | 36 |
 | File upload endpoint | 25 |
 | Invite endpoint | 22 |
 | LiveKit endpoint | 17 |
-| Env validation | 16 |
+| Env validation | 13 |
 | Profile store (server) | 16 |
-| Auth endpoint | 15 |
+| Auth endpoint | 13 |
 | Config endpoint | 11 |
-| Account endpoint | 10 |
+| Account endpoint | 5 |
 | Account info endpoint | 9 |
 | Auth middleware | 7 |
 | Rate limiter | 5 |
-| **Server total** | **279** |
-| **Total** | **1,217** |
+| **Server total** | **269** |
+| **Total** | **1,203** |
 
 ---
 

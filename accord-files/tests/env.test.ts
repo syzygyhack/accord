@@ -98,30 +98,6 @@ describe("env.MAX_FILE_SIZE (optionalInt)", () => {
   });
 });
 
-describe("env.ALLOWED_ORIGINS", () => {
-  const original = process.env.ALLOWED_ORIGIN;
-
-  afterEach(() => {
-    if (original !== undefined) process.env.ALLOWED_ORIGIN = original;
-    else delete process.env.ALLOWED_ORIGIN;
-  });
-
-  test("splits comma-separated origins", () => {
-    process.env.ALLOWED_ORIGIN = "http://localhost,https://example.com";
-    expect(env.ALLOWED_ORIGINS).toEqual(["http://localhost", "https://example.com"]);
-  });
-
-  test("trims whitespace from origins", () => {
-    process.env.ALLOWED_ORIGIN = " http://a , http://b ";
-    expect(env.ALLOWED_ORIGINS).toEqual(["http://a", "http://b"]);
-  });
-
-  test("returns empty array when unset", () => {
-    delete process.env.ALLOWED_ORIGIN;
-    expect(env.ALLOWED_ORIGINS).toEqual([]);
-  });
-});
-
 describe("env required vars", () => {
   test("JWT_SECRET returns the configured value", () => {
     expect(env.JWT_SECRET).toBe(process.env.JWT_SECRET);

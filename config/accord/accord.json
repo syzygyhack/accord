@@ -1,0 +1,18 @@
+{
+  "$schema": "https://accord.chat/schema/server-config-v1.json",
+  "version": 1,
+  "name": "EV",
+  "channels": {
+    "categories": [
+      {
+        "name": "Text Channels",
+        "channels": ["#general", "#events", "#links"]
+      },
+      {
+        "name": "Voice Channels",
+        "channels": ["#general-voice", "#music"],
+        "voice": true
+      }
+    ]
+  }
+}

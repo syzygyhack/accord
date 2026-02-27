@@ -9,15 +9,6 @@ import { securityLog, clientIp } from "../securityLog.js";
 const auth = new Hono();
 
 auth.post("/api/auth", async (c) => {
-  // Origin check: reject cross-origin POSTs when ALLOWED_ORIGIN is configured
-  const allowedOrigins = env.ALLOWED_ORIGINS;
-  if (allowedOrigins.length > 0) {
-    const origin = c.req.header("Origin");
-    if (!origin || !allowedOrigins.includes(origin)) {
-      return c.json({ error: "Origin not allowed" }, 403);
-    }
-  }
-
   let body: { account?: string; password?: string };
   try {
     body = await c.req.json<{ account?: string; password?: string }>();

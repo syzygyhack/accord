@@ -24,6 +24,13 @@
 		// In dev mode, connect directly to Ergo's exposed WebSocket port
 		// to bypass the Vite proxy (which has issues relaying WebSocket frames on Windows).
 		if (import.meta.env.DEV) return `ws://${window.location.hostname}:8097`;
+		// Production web build served by Caddy: derive from page URL.
+		// Caddy proxies /ws to Ergo, so ws(s)://<host>/ws always works.
+		// Skip for Tauri desktop app — it has its own origin that isn't a server.
+		if (!('__TAURI_INTERNALS__' in window) && window.location.hostname) {
+			const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+			return `${proto}//${window.location.host}/ws`;
+		}
 		// Desktop app — no sensible default; user must enter their server URL.
 		return '';
 	}
