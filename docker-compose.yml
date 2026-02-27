@@ -78,6 +78,7 @@ services:
       ERGO_API: http://ergo:8089
       ERGO_API_TOKEN: ${ERGO_API_TOKEN:?set ERGO_API_TOKEN}
       LIVEKIT_CLIENT_URL: ws://localhost:7880
+      LIVEKIT_API_URL: http://livekit:7880
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET}
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
@@ -112,7 +113,7 @@ services:
       - ./config/caddy/Caddyfile:/etc/caddy/Caddyfile
       - ./accord-client/build:/srv/accord
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:80 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost/caddy-health || exit 1"]
       interval: 5s
       timeout: 3s
       start_period: 5s

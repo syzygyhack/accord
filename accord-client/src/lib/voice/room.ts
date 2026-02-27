@@ -91,6 +91,18 @@ export async function connectToVoice(
 
 	await room.connect(livekitUrl, token);
 
+	// Proactively unlock audio playback. Browsers block autoplay unless a user
+	// gesture is on the call stack. We're inside a click handler (voice channel
+	// button) and have already called getUserMedia, so this should succeed.
+	// Non-fatal: during automatic reconnects there's no user gesture on the
+	// stack, so startAudio may reject. The AudioPlaybackStatusChanged listener
+	// in setupRoomEvents handles that case.
+	try {
+		await room.startAudio();
+	} catch {
+		console.warn('[accord] startAudio() failed — browser may require user interaction');
+	}
+
 	// Mark connected first (clears participant map), then register participants.
 	// Done before enabling mic so events fired during setup aren't wiped.
 	setConnected(channel);
@@ -390,6 +402,18 @@ function setupRoomEvents(room: Room, onDisconnected?: (prevRoom: string | null) 
 			}
 		},
 	);
+
+	// Browser autoplay policy can block audio at any point (e.g. tab backgrounded
+	// on iOS, or policy change after initial grant). When LiveKit detects playback
+	// is blocked it fires this event. Calling startAudio() re-attempts playback;
+	// it succeeds if the browser still considers us in a user-gesture context.
+	room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
+		if (!room.canPlaybackAudio) {
+			room.startAudio().catch(() => {
+				console.warn('[accord] Browser blocked audio playback — user interaction required');
+			});
+		}
+	});
 
 	// Handle unexpected disconnections (network drop, server restart, token expiry).
 	// Resets voice state so the UI doesn't remain in a zombie "connected" state.

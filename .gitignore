@@ -41,3 +41,6 @@ data/
 # Avril / Cardinal
 .avril/
 .cardinal/
+
+# Agent instructions (local only)
+AGENTS.md

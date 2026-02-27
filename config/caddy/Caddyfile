@@ -1,11 +1,17 @@
 {$SITE_ADDRESS::80} {
+    # TLS behavior depends on SITE_ADDRESS:
+    #   :80                → plain HTTP (dev mode)
+    #   192.168.1.100      → auto self-signed HTTPS (LAN mode)
+    #   chat.example.com   → auto public HTTPS via Let's Encrypt
+    # Caddy handles this automatically — no tls directive needed.
+
     # Security headers
     header {
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
         Referrer-Policy "strict-origin-when-cross-origin"
-        Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
-        Content-Security-Policy "default-src 'self'; connect-src 'self' ws: wss:; img-src 'self' data: blob: https:; media-src 'self' blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+        # CSP: allow ws/wss for IRC, http/https for API + LiveKit + file uploads
+        Content-Security-Policy "default-src 'self'; connect-src 'self' ws: wss: http: https:; img-src 'self' data: blob: http: https:; media-src 'self' blob: http: https:; style-src 'self' 'unsafe-inline'; script-src 'self'"
         -Server
     }
 
@@ -15,6 +21,13 @@
     # IRC WebSocket
     handle /ws {
         reverse_proxy ergo:8097
+    }
+
+    # LiveKit signaling WebSocket — proxied through Caddy so browser
+    # clients get TLS (required for getUserMedia / WebRTC secure context).
+    # handle_path strips the /livekit prefix before forwarding.
+    handle_path /livekit/* {
+        reverse_proxy livekit:7880
     }
 
     # File uploads, auth bridge
@@ -28,6 +41,11 @@
     # Server config discovery
     handle /.well-known/* {
         reverse_proxy accord-files:8080
+    }
+
+    # Health check endpoint — works even without built client files
+    handle /caddy-health {
+        respond "OK" 200
     }
 
     # Static client files with SPA fallback
