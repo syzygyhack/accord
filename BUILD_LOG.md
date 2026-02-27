@@ -37,6 +37,13 @@ Human-directed session focused on profile UX, scroll behavior, and infrastructur
 
 Fixes: simplified account card to single username (removed displayName editing since Ergo enforces nick=account), WHOX for member list account resolution (bio now visible from member list clicks), Avatar component in UserPanel, image lightbox elevated to page level (escaped `contain:strict` in message list), per-channel scroll position persistence with continuous save, virtual scroll re-anchor on height changes, Ergo API compatibility (use `/v1/account_details` and `/v1/ns/passwd` instead of nonexistent `/v1/ns/info` and `/v1/ns/set`), removed unsupported email editing, Docker port exposure fix, and dead code cleanup.
 
+## Session 7: Bug Fixes & CI (Feb 27)
+Human-directed session focused on fixing user-reported bugs and adding CI/CD.
+
+Bug fixes: message input focus outline removed, apostrophe HTML-escaping bug (`'` rendered as `&#39;`), LiveKit LAN voice connection failure (explicit `node_ip` + `use_external_ip: false`), DM sidebar alignment, voice speaking highlight spanning full width (`inline-flex` + `align-items: flex-start` on container). Cross-model review (Codex) identified `highlightMentions` corrupting URLs containing `@` or `#` by rewriting inside anchor tags — fixed by splitting HTML tags from text before running replacements.
+
+CI/CD: added GitHub Actions workflows — `ci.yml` (client tests, typecheck, server tests on push/PR) and `build.yml` (Tauri cross-platform builds on manual dispatch with draft GitHub Release). Runner-focused review (Codex) identified 5 issues: `ubuntu-22.04-arm` unavailable (→ `ubuntu-24.04-arm`), `libwebkit2gtk-4.1-dev` missing on 22.04 arm64 (→ 24.04), Intel macOS cross-compile on ARM runner (→ `macos-13`), RPM build fails on Ubuntu (→ `--bundles deb,appimage`), unpinned Bun version (→ `1.3`). Also fixed `tauri.conf.json` `beforeBuildCommand` using `npm` instead of `pnpm`.
+
 ## By the Numbers
 
 | Metric | Value |

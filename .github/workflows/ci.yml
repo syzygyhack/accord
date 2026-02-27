@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  client-tests:
+    name: Client tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: accord-client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: accord-client/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm vitest run
+
+  client-typecheck:
+    name: Client typecheck
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: accord-client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: accord-client/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm svelte-kit sync && pnpm svelte-check --tsconfig ./tsconfig.json
+
+  server-tests:
+    name: Server tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: accord-files
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3'
+      - run: bun install --frozen-lockfile
+      - run: bun test

@@ -1,0 +1,74 @@
+name: Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-tauri:
+    name: Build (${{ matrix.label }})
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            label: Windows x64
+            args: ''
+          - platform: ubuntu-24.04
+            label: Linux amd64
+            args: '--bundles deb,appimage'
+          - platform: ubuntu-24.04-arm
+            label: Linux arm64
+            args: '--bundles deb,appimage'
+          - platform: macos-latest
+            label: macOS ARM
+            args: '--target aarch64-apple-darwin'
+          - platform: macos-13
+            label: macOS Intel
+            args: '--target x86_64-apple-darwin'
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: startsWith(matrix.platform, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: accord-client/pnpm-lock.yaml
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ startsWith(matrix.platform, 'macos') && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: accord-client/src-tauri -> target
+
+      - name: Install frontend dependencies
+        working-directory: accord-client
+        run: pnpm install --frozen-lockfile
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: accord-client
+          tagName: v__VERSION__
+          releaseName: 'accord v__VERSION__'
+          releaseBody: 'See the assets to download and install.'
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
