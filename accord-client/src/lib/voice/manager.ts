@@ -14,6 +14,7 @@ import { join } from '$lib/irc/commands';
 import { channelUIState, channelState, addDMConversation } from '$lib/state/channels.svelte';
 import { memberState } from '$lib/state/members.svelte';
 import { userState } from '$lib/state/user.svelte';
+import { refreshVoicePresence } from '$lib/state/voicePresence.svelte';
 import type { IRCConnection } from '$lib/irc/connection';
 import type { Room } from 'livekit-client';
 
@@ -125,6 +126,7 @@ export async function handleVoiceChannelClick(
 	if (voiceState.currentRoom === channel && currentRoom) {
 		await disconnectVoice(currentRoom);
 		if (conn) conn.send(`PART ${channel}`);
+		refreshVoicePresence();
 		return { ok: true, room: null };
 	}
 
@@ -151,6 +153,7 @@ export async function handleVoiceChannelClick(
 		// 4. JOIN the IRC voice channel for presence
 		if (conn) join(conn, [channel]);
 
+		refreshVoicePresence();
 		return { ok: true, room };
 	} catch (e) {
 		const msg = e instanceof Error ? e.message : String(e);

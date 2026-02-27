@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { AccessToken } from "livekit-server-sdk";
+import { AccessToken, RoomServiceClient } from "livekit-server-sdk";
 import { authMiddleware } from "../middleware/auth.js";
 import type { AppEnv } from "../types.js";
 import { env } from "../env.js";
@@ -72,6 +72,37 @@ livekit.post("/api/livekit/token", authMiddleware, async (c) => {
 
   const token = await at.toJwt();
   return c.json({ token, url: env.LIVEKIT_CLIENT_URL });
+});
+
+/**
+ * List active voice rooms and their participants.
+ *
+ * Returns only channel rooms (starting with #), not DM rooms,
+ * so clients can show who is in each voice channel without being
+ * connected themselves.
+ *
+ * Response: { rooms: { [channel: string]: string[] } }
+ * where the value arrays contain participant identity strings.
+ */
+livekit.get("/api/livekit/rooms", authMiddleware, async (c) => {
+  const svc = new RoomServiceClient(
+    env.LIVEKIT_API_URL,
+    env.LIVEKIT_API_KEY,
+    env.LIVEKIT_API_SECRET,
+  );
+
+  const allRooms = await svc.listRooms();
+  // Only expose channel rooms, not DM rooms
+  const channelRooms = allRooms.filter((r) => r.name.startsWith("#"));
+
+  const rooms: Record<string, string[]> = {};
+  for (const room of channelRooms) {
+    if (room.numParticipants === 0) continue;
+    const participants = await svc.listParticipants(room.name);
+    rooms[room.name] = participants.map((p) => p.identity);
+  }
+
+  return c.json({ rooms });
 });
 
 export { livekit };

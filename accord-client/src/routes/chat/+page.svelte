@@ -11,6 +11,7 @@
 		handleDMVideoCall as dmVideoCall,
 	} from '$lib/voice/manager';
 	import { voiceState } from '$lib/state/voice.svelte';
+	import { stopVoicePresencePolling } from '$lib/state/voicePresence.svelte';
 	import { audioSettings } from '$lib/state/audioSettings.svelte';
 	import type { Room } from 'livekit-client';
 	import { connectionState, initOnlineTracking } from '$lib/state/connection.svelte';
@@ -562,6 +563,9 @@
 			clearTimeout(voiceErrorTimer);
 			voiceErrorTimer = null;
 		}
+
+		// Stop voice presence polling.
+		stopVoicePresencePolling();
 
 		// Clean up voice connection.
 		if (voiceRoom) {

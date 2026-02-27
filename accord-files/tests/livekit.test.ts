@@ -251,3 +251,18 @@ describe("POST /api/livekit/token", () => {
     expect(body.error).toContain("Invalid JSON");
   });
 });
+
+describe("GET /api/livekit/rooms", () => {
+  test("returns 401 without Authorization header", async () => {
+    const res = await livekit.fetch(req("/api/livekit/rooms"));
+    expect(res.status).toBe(401);
+  });
+
+  test("returns 401 with expired JWT", async () => {
+    const expired = await createTestJwt("alice", { expired: true });
+    const res = await livekit.fetch(req("/api/livekit/rooms", {
+      headers: { Authorization: `Bearer ${expired}` },
+    }));
+    expect(res.status).toBe(401);
+  });
+});

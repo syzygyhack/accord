@@ -119,6 +119,10 @@ export const env = {
   get LIVEKIT_CLIENT_URL() {
     return optional("LIVEKIT_CLIENT_URL", "ws://localhost:7880");
   },
+  /** Server-side LiveKit HTTP API URL (for RoomServiceClient). */
+  get LIVEKIT_API_URL() {
+    return optional("LIVEKIT_API_URL", "http://localhost:7880");
+  },
   get PORT() {
     return optionalInt("PORT", 8080);
   },

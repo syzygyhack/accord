@@ -12,6 +12,7 @@
 	import { getMember } from '$lib/state/members.svelte';
 	import { userState } from '$lib/state/user.svelte';
 	import { voiceState, type VoiceParticipant } from '$lib/state/voice.svelte';
+	import { voicePresence } from '$lib/state/voicePresence.svelte';
 	import {
 		getUnreadCount,
 		getMentionCount,
@@ -239,16 +240,25 @@
 
 	/**
 	 * Get voice participants for a channel as an array.
-	 * Only returns LiveKit participants — users actively connected to the
-	 * voice room. IRC channel membership is not used as a fallback because
-	 * it would show every user who JOINed the IRC channel, not just those
-	 * actually in a voice call.
+	 *
+	 * For the room the user is currently connected to, returns full LiveKit
+	 * participant data (speaking, mute, deafen status). For other rooms,
+	 * returns presence data from the server poll (identity only).
 	 */
 	function getVoiceParticipants(channel: string): VoiceParticipant[] {
 		if (voiceState.currentRoom === channel) {
 			return Array.from(voiceState.participants.values());
 		}
-		return [];
+		// For rooms we're not connected to, use server-polled presence
+		const identities = voicePresence.get(channel);
+		return identities.map((nick) => ({
+			nick,
+			isSpeaking: false,
+			isMuted: false,
+			isDeafened: false,
+			hasVideo: false,
+			hasScreenShare: false,
+		}));
 	}
 </script>
 

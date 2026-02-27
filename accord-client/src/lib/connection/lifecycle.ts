@@ -35,6 +35,7 @@ import { setServerConfig, getCachedConfig, setCachedConfig } from '$lib/state/se
 import type { AccordConfig } from '$lib/state/serverConfig.svelte';
 import { setCustomEmoji } from '$lib/emoji';
 import { fetchAllProfiles } from '$lib/state/profiles.svelte';
+import { startVoicePresencePolling, stopVoicePresencePolling } from '$lib/state/voicePresence.svelte';
 
 // ---- Types ----------------------------------------------------------------
 
@@ -277,7 +278,12 @@ export async function initConnection(callbacks: LifecycleCallbacks): Promise<voi
 			fetchAllProfiles().catch(() => {});
 		}
 
-		// 5b. Restore persisted DM conversations and MONITOR their nicks
+		// 5b. Start polling voice channel presence
+		if (filesUrl) {
+			startVoicePresencePolling();
+		}
+
+		// 5c. Restore persisted DM conversations and MONITOR their nicks
 		restoreDMConversations();
 		const dmNicks = channelUIState.dmConversations.map((dm) => dm.nick);
 		if (dmNicks.length > 0) {
@@ -304,6 +310,7 @@ export async function initConnection(callbacks: LifecycleCallbacks): Promise<voi
 		const msg = e instanceof Error ? e.message : String(e);
 		callbacks.onError(msg);
 		setDisconnected(msg);
+		stopVoicePresencePolling();
 		callbacks.onInitDone();
 	}
 }
@@ -398,6 +405,11 @@ async function handleReconnect(
 
 		// 8. Refresh voice connection if was in a voice channel
 		await callbacks.handleVoiceReconnect();
+
+		// 8a. Restart voice presence polling
+		if (filesUrl) {
+			startVoicePresencePolling();
+		}
 
 		// 9. Mark connected and clear any previous error
 		setConnected();
